@@ -1,0 +1,6 @@
+{
+  "name": "@school/config",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Shared configuration for ESLint, Prettier, and TypeScript"
+}

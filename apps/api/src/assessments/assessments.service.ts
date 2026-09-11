@@ -1,0 +1,148 @@
+import { Injectable, ConflictException, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
+import { CreateAssessmentDto, UpdateAssessmentDto } from './dto/assessment.dto';
+import { CreateAssessmentTypeDto, UpdateAssessmentTypeDto } from './dto/assessment-type.dto';
+import { AssessmentStatus, ScoreStatus } from '@prisma/client';
+
+@Injectable()
+export class AssessmentsService {
+  constructor(
+    private prisma: PrismaService,
+    private audit: AuditService,
+  ) {}
+
+  // Assessment Types
+  async createType(schoolId: string, dto: CreateAssessmentTypeDto, actorId: string) {
+    const existing = await this.prisma.assessmentType.findFirst({
+      where: { schoolId, code: dto.code },
+    });
+    if (existing) throw new ConflictException('Assessment type code already exists');
+
+    const type = await this.prisma.assessmentType.create({
+      data: { ...dto, schoolId },
+    });
+
+    await this.audit.log({
+      userId: actorId,
+      schoolId,
+      action: 'ASSESSMENT_TYPE_CREATED',
+      module: 'ASSESSMENTS',
+      resourceId: type.id,
+    });
+
+    return type;
+  }
+
+  async findAllTypes(schoolId: string) {
+    return this.prisma.assessmentType.findMany({
+      where: { OR: [{ schoolId }, { schoolId: null }] },
+      orderBy: { name: 'asc' },
+    });
+  }
+
+  // Assessments
+  async create(schoolId: string, dto: CreateAssessmentDto, actorId: string) {
+    // Verify entities
+    const [year, clazz, subject] = await Promise.all([
+      this.prisma.academicYear.findFirst({ where: { id: dto.academicYearId, schoolId } }),
+      this.prisma.class.findFirst({ where: { id: dto.classId, schoolId } }),
+      this.prisma.subject.findFirst({ where: { id: dto.subjectId, schoolId } }),
+    ]);
+
+    if (!year) throw new NotFoundException('Academic year not found');
+    if (!clazz) throw new NotFoundException('Class not found');
+    if (!subject) throw new NotFoundException('Subject not found');
+
+    const assessment = await this.prisma.assessment.create({
+      data: { ...dto, schoolId },
+    });
+
+    await this.audit.log({
+      userId: actorId,
+      schoolId,
+      action: 'ASSESSMENT_CREATED',
+      module: 'ASSESSMENTS',
+      resourceId: assessment.id,
+      metadata: { name: assessment.name, code: assessment.code },
+    });
+
+    return assessment;
+  }
+
+  async findAll(schoolId: string, filters: any) {
+    return this.prisma.assessment.findMany({
+      where: { schoolId, ...filters },
+      include: {
+        assessmentType: true,
+        class: true,
+        section: true,
+        subject: true,
+        _count: { select: { scores: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async findOne(schoolId: string, id: string) {
+    const assessment = await this.prisma.assessment.findFirst({
+      where: { id, schoolId },
+      include: {
+        assessmentType: true,
+        class: true,
+        section: true,
+        subject: true,
+        components: true,
+        scores: {
+          include: { student: true }
+        }
+      },
+    });
+    if (!assessment) throw new NotFoundException('Assessment not found');
+    return assessment;
+  }
+
+  async update(schoolId: string, id: string, dto: UpdateAssessmentDto, actorId: string) {
+    const assessment = await this.prisma.assessment.findFirst({ where: { id, schoolId } });
+    if (!assessment) throw new NotFoundException('Assessment not found');
+
+    if (assessment.status === AssessmentStatus.LOCKED) {
+      throw new ForbiddenException('Cannot update a locked assessment');
+    }
+
+    const updated = await this.prisma.assessment.update({
+      where: { id },
+      data: dto,
+    });
+
+    await this.audit.log({
+      userId: actorId,
+      schoolId,
+      action: 'ASSESSMENT_UPDATED',
+      module: 'ASSESSMENTS',
+      resourceId: id,
+    });
+
+    return updated;
+  }
+
+  async updateStatus(schoolId: string, id: string, status: AssessmentStatus, actorId: string) {
+    const assessment = await this.prisma.assessment.findFirst({ where: { id, schoolId } });
+    if (!assessment) throw new NotFoundException('Assessment not found');
+
+    const updated = await this.prisma.assessment.update({
+      where: { id },
+      data: { status },
+    });
+
+    await this.audit.log({
+      userId: actorId,
+      schoolId,
+      action: `ASSESSMENT_STATUS_${status}`,
+      module: 'ASSESSMENTS',
+      resourceId: id,
+    });
+
+    return updated;
+  }
+}

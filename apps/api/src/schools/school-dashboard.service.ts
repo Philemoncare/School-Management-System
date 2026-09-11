@@ -1,0 +1,119 @@
+import { Injectable } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
+import { StudentStatus, StaffStatus, AttendanceStatus, InvoiceStatus } from '@prisma/client';
+
+@Injectable()
+export class SchoolDashboardService {
+  constructor(private prisma: PrismaService) {}
+
+  async getDashboardMetrics(schoolId: string) {
+    const now = new Date();
+    const startOfToday = new Date(now.setHours(0, 0, 0, 0));
+
+    const [
+      studentCount,
+      teacherCount,
+      staffCount,
+      activeClasses,
+      attendanceToday,
+      financeMetrics,
+      recentActivity,
+      announcements,
+      currentYear,
+    ] = await Promise.all([
+      // Counts
+      this.prisma.student.count({ where: { schoolId, status: StudentStatus.ACTIVE } }),
+      this.prisma.teacher.count({ where: { schoolId, status: StaffStatus.ACTIVE } }),
+      this.prisma.staff.count({ where: { schoolId, status: StaffStatus.ACTIVE } }),
+      this.prisma.class.count({ where: { schoolId, isActive: true } }),
+
+      // Attendance Today
+      this.prisma.studentAttendance.groupBy({
+        by: ['status'],
+        where: {
+          schoolId,
+          createdAt: { gte: startOfToday },
+        },
+        _count: true,
+      }),
+
+      // Finance
+      this.prisma.invoice.aggregate({
+        _sum: { balance: true, totalAmount: true },
+        where: { schoolId, status: { notIn: [InvoiceStatus.VOID, InvoiceStatus.CANCELLED] } },
+      }),
+
+      // Recent Activity (from AuditLog)
+      this.prisma.auditLog.findMany({
+        where: { schoolId },
+        orderBy: { createdAt: 'desc' },
+        take: 5,
+        include: { user: { select: { firstName: true, lastName: true } } },
+      }),
+
+      // Announcements
+      this.prisma.announcement.findMany({
+        where: {
+          schoolId,
+          status: 'PUBLISHED',
+          OR: [
+            { expiresAt: null },
+            { expiresAt: { gte: new Date() } }
+          ]
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 3,
+      }),
+
+      // Current Academic Context
+      this.prisma.academicYear.findFirst({
+        where: { schoolId, isCurrent: true },
+        include: { terms: { where: { status: 'ACTIVE' }, take: 1 } },
+      }),
+    ]);
+
+    // Calculate attendance rate
+    const attMap: Record<string, number> = {};
+    attendanceToday.forEach((a) => (attMap[a.status] = a._count));
+    const present = (attMap[AttendanceStatus.PRESENT] || 0) + (attMap[AttendanceStatus.LATE] || 0);
+    const totalAtt = attendanceToday.reduce((sum, a) => sum + a._count, 0);
+    const attendanceRate = totalAtt > 0 ? (present / totalAtt) * 100 : 0;
+
+    return {
+      stats: {
+        students: studentCount,
+        teachers: teacherCount,
+        staff: staffCount,
+        activeClasses,
+        attendanceRate: attendanceRate.toFixed(1) + '%',
+        outstandingFees: financeMetrics._sum.balance || 0,
+        totalInvoiced: financeMetrics._sum.totalAmount || 0,
+      },
+      academicContext: {
+        year: currentYear?.name || 'Not Set',
+        term: currentYear?.terms[0]?.name || 'Not Set',
+      },
+      recentActivity: recentActivity.map(log => ({
+        id: log.id,
+        action: log.action,
+        module: log.module,
+        user: `${log.user?.firstName} ${log.user?.lastName}`,
+        time: log.createdAt,
+      })),
+      announcements,
+    };
+  }
+
+  async getFullActivityLog(schoolId: string) {
+    return this.prisma.auditLog.findMany({
+      where: { schoolId },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+      include: {
+        user: {
+          select: { firstName: true, lastName: true, email: true }
+        }
+      }
+    });
+  }
+}

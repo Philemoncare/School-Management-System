@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "target": "ES2021",
+    "module": "commonjs",
+    "lib": ["es2021", "dom"],
+    "skipLibCheck": true,
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "moduleResolution": "node",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "baseUrl": ".",
+    "paths": {
+      "@school/types": ["packages/types/src"],
+      "@school/config": ["packages/config/src"],
+      "@school/validation": ["packages/validation/src"],
+      "@school/shared": ["packages/shared/src"]
+    }
+  },
+  "exclude": ["node_modules", "dist"]
+}
