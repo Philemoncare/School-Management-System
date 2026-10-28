@@ -8,7 +8,7 @@
 | | Database encrypted at rest | WARNING | Provider dependent |
 | | Redis password protected | PASS | |
 | **Identity** | Password Complexity Enforced | PASS | |
-| | MFA Architecture Implemented | PASS | TOTP & Recovery Codes supported |
+| | Email OTP Sign-in Implemented | WARNING | 5-digit single-use codes with 5-minute expiry; production SMTP deliverability not yet confirmed |
 | | Session Rotation & Revocation | PASS | |
 | | Device Tracking | PASS | |
 | **API** | Strict Tenant Isolation | PASS | Verified in TenantGuard |

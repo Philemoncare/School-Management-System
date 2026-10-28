@@ -4,6 +4,37 @@ import { AuditService } from '../audit/audit.service';
 import { RedisService } from '../redis/redis.service';
 import { UpdateSettingDto } from './dto/settings.dto';
 
+const DEFAULT_FEATURES = [
+  {
+    name: 'LIBRARY_MANAGEMENT',
+    description: 'Digital book catalog, circulation, reservations and fines.',
+  },
+  {
+    name: 'TRANSPORT_MANAGEMENT',
+    description: 'Routes, vehicles, drivers and transport attendance.',
+  },
+  {
+    name: 'ONLINE_PAYMENTS',
+    description: 'Parent and student online fee collection.',
+  },
+  {
+    name: 'ADMISSIONS_PORTAL',
+    description: 'Public admission campaigns and applications.',
+  },
+  {
+    name: 'MESSAGING_SYSTEM',
+    description: 'Internal messaging for staff, students and guardians.',
+  },
+  {
+    name: 'HEALTH_MANAGEMENT',
+    description: 'Student health profiles, clinic visits and incidents.',
+  },
+  {
+    name: 'INVENTORY_MANAGEMENT',
+    description: 'Stock, assets, procurement and supplier records.',
+  },
+];
+
 @Injectable()
 export class SettingsService {
   constructor(
@@ -19,6 +50,10 @@ export class SettingsService {
       where: { key },
     });
     return setting?.value || null;
+  }
+
+  async getPlatformSettings() {
+    return this.prisma.platformSetting.findMany({ orderBy: { key: 'asc' } });
   }
 
   async updatePlatformSetting(key: string, dto: UpdateSettingDto, userId: string) {
@@ -38,13 +73,16 @@ export class SettingsService {
         },
       });
 
-      await this.audit.log({
-        userId,
-        action: 'PLATFORM_SETTING_UPDATED',
-        module: 'SETTINGS',
-        resourceId: key,
-        metadata: { value: dto.value, reason: dto.changeReason },
-      });
+      await this.audit.log(
+        {
+          userId,
+          action: 'PLATFORM_SETTING_UPDATED',
+          module: 'SETTINGS',
+          resourceId: key,
+          metadata: { value: dto.value, reason: dto.changeReason },
+        },
+        tx,
+      );
 
       await this.clearPlatformCache(key);
       return setting;
@@ -131,6 +169,117 @@ export class SettingsService {
   }
 
   // --- Feature Flags (Objective 19, 20) ---
+
+  private async ensureDefaultFeatures() {
+    await this.prisma.featureFlag.createMany({
+      data: DEFAULT_FEATURES.map((feature) => ({
+        ...feature,
+        isEnabled: false,
+        allSchools: false,
+        schoolIds: [],
+      })),
+      skipDuplicates: true,
+    });
+  }
+
+  async getFeatureFlags(schoolId: string) {
+    await this.ensureDefaultFeatures();
+
+    const flags = await this.prisma.featureFlag.findMany({
+      include: { overrides: { where: { schoolId } } },
+      orderBy: { name: 'asc' },
+    });
+
+    return flags.map((flag) => {
+      const override = flag.overrides[0];
+      return {
+        name: flag.name,
+        description: flag.description,
+        isEnabled: override
+          ? override.isEnabled
+          : flag.isEnabled || flag.allSchools || flag.schoolIds.includes(schoolId),
+        hasOverride: Boolean(override),
+      };
+    });
+  }
+
+  async getPlatformFeatureFlags() {
+    await this.ensureDefaultFeatures();
+    return this.prisma.featureFlag.findMany({
+      include: {
+        overrides: {
+          include: { school: { select: { id: true, name: true, code: true } } },
+          take: 20,
+        },
+      },
+      orderBy: { name: 'asc' },
+    });
+  }
+
+  async createFeatureFlag(
+    dto: { name: string; description?: string; isEnabled?: boolean; allSchools?: boolean; schoolIds?: string[] },
+    userId: string,
+  ) {
+    const name = dto.name.trim().toUpperCase().replace(/[^A-Z0-9_]/g, '_');
+    const existing = await this.prisma.featureFlag.findUnique({ where: { name } });
+    if (existing) throw new BadRequestException('A feature flag with this name already exists');
+
+    const flag = await this.prisma.featureFlag.create({
+      data: {
+        name,
+        description: dto.description || null,
+        isEnabled: dto.isEnabled ?? false,
+        allSchools: dto.allSchools ?? false,
+        schoolIds: dto.schoolIds || [],
+      },
+    });
+
+    await this.audit.log({
+      userId,
+      action: 'FEATURE_FLAG_CREATED',
+      module: 'SETTINGS',
+      resourceId: flag.id,
+      metadata: { name: flag.name, isEnabled: flag.isEnabled, allSchools: flag.allSchools },
+    });
+
+    return flag;
+  }
+
+  async updateFeatureFlag(
+    id: string,
+    dto: {
+      name?: string;
+      description?: string;
+      isEnabled?: boolean;
+      allSchools?: boolean;
+      schoolIds?: string[];
+    },
+    userId: string,
+  ) {
+    const existing = await this.prisma.featureFlag.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Feature flag not found');
+
+    const flag = await this.prisma.featureFlag.update({
+      where: { id },
+      data: {
+        ...(dto.name ? { name: dto.name.trim().toUpperCase().replace(/[^A-Z0-9_]/g, '_') } : {}),
+        ...(dto.description !== undefined ? { description: dto.description } : {}),
+        ...(dto.isEnabled !== undefined ? { isEnabled: dto.isEnabled } : {}),
+        ...(dto.allSchools !== undefined ? { allSchools: dto.allSchools } : {}),
+        ...(dto.schoolIds !== undefined ? { schoolIds: dto.schoolIds } : {}),
+      },
+    });
+
+    await this.audit.log({
+      userId,
+      action: 'FEATURE_FLAG_UPDATED',
+      module: 'SETTINGS',
+      resourceId: flag.id,
+      metadata: { name: flag.name, changedFields: Object.keys(dto) },
+    });
+
+    return flag;
+  }
 
   async isFeatureEnabled(featureName: string, schoolId: string): Promise<boolean> {
     const feature = await this.prisma.featureFlag.findUnique({
@@ -225,6 +374,7 @@ export class SettingsService {
   }
 
   async toggleFeatureOverride(schoolId: string, featureName: string, isEnabled: boolean, userId: string) {
+    await this.ensureDefaultFeatures();
     const feature = await this.prisma.featureFlag.findUnique({ where: { name: featureName } });
     if (!feature) throw new NotFoundException('Feature not found');
 

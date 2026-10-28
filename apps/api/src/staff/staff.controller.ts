@@ -32,6 +32,14 @@ export class StaffController {
     return this.staffService.findAll(schoolId, pagination);
   }
 
+  @Get('me')
+  findMe(
+    @ActiveSchool() schoolId: string,
+    @CurrentUser() user: any
+  ) {
+    return this.staffService.findMe(schoolId, user.id);
+  }
+
   @Roles('SCHOOL_ADMIN', 'PRINCIPAL', 'HR_OFFICER')
   @Get(':id')
   findOne(
@@ -39,13 +47,5 @@ export class StaffController {
     @Param('id') id: string
   ) {
     return this.staffService.findOne(schoolId, id);
-  }
-
-  @Get('me')
-  findMe(
-    @ActiveSchool() schoolId: string,
-    @CurrentUser() user: any
-  ) {
-    return this.staffService.findMe(schoolId, user.id);
   }
 }

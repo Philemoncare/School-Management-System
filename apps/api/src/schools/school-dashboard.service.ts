@@ -48,7 +48,6 @@ export class SchoolDashboardService {
         where: { schoolId },
         orderBy: { createdAt: 'desc' },
         take: 5,
-        include: { user: { select: { firstName: true, lastName: true } } },
       }),
 
       // Announcements
@@ -97,7 +96,7 @@ export class SchoolDashboardService {
         id: log.id,
         action: log.action,
         module: log.module,
-        user: `${log.user?.firstName} ${log.user?.lastName}`,
+        user: log.userId || 'System',
         time: log.createdAt,
       })),
       announcements,
@@ -109,11 +108,6 @@ export class SchoolDashboardService {
       where: { schoolId },
       orderBy: { createdAt: 'desc' },
       take: 100,
-      include: {
-        user: {
-          select: { firstName: true, lastName: true, email: true }
-        }
-      }
     });
   }
 }

@@ -2,7 +2,12 @@
 
 import React, { useState, useEffect } from 'react';
 import { apiFetch } from '@/lib/api/client';
-import { Save, Loader2, AlertCircle } from 'lucide-react';
+import { Save, Building2, Mail, Phone, MapPin, Globe, ShieldCheck } from 'lucide-react';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Alert } from '@/components/ui/alert';
+import { LoadingSpinner } from '@/components/ui/loading-state';
 
 export default function BasicInfoSettings() {
   const [loading, setLoading] = useState(true);
@@ -11,13 +16,10 @@ export default function BasicInfoSettings() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const schoolId = localStorage.getItem('schoolId');
-    if (schoolId) {
-      apiFetch(`/schools/${schoolId}`)
-        .then(setSchool)
-        .catch(err => setError(err.message))
-        .finally(() => setLoading(false));
-    }
+    apiFetch(`/schools/me`)
+      .then(setSchool)
+      .catch(err => setError(err.message))
+      .finally(() => setLoading(false));
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -25,7 +27,7 @@ export default function BasicInfoSettings() {
     setSaving(true);
     setError(null);
     try {
-      await apiFetch(`/schools/${school.id}`, {
+      await apiFetch(`/schools/me`, {
         method: 'PATCH',
         body: JSON.stringify({
           name: school.name,
@@ -34,7 +36,7 @@ export default function BasicInfoSettings() {
           address: school.address,
         })
       });
-      alert('Settings updated successfully!');
+      // In a real app, I'd use a toast notification here
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -42,85 +44,139 @@ export default function BasicInfoSettings() {
     }
   };
 
-  if (loading) return <div className="flex items-center justify-center py-20"><Loader2 className="animate-spin text-blue-600" /></div>;
+  if (loading) return <LoadingSpinner label="Retrieving institution details..." />;
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-8">
+    <div className="max-w-4xl space-y-8 animate-fade-in">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
-          <h2 className="text-xl font-black text-gray-900">Basic School Information</h2>
-          <p className="text-gray-500 text-sm font-medium">Public identity and contact details.</p>
+          <h1 className="text-3xl font-bold tracking-tight">Institution Profile</h1>
+          <p className="text-muted-foreground font-medium mt-1">Manage your school's public identity and contact information.</p>
         </div>
+        <Button
+          onClick={handleSubmit}
+          isLoading={saving}
+          leftIcon={<Save className="w-4 h-4" />}
+          className="shadow-lg shadow-primary/20"
+        >
+          Push Changes
+        </Button>
       </div>
 
       {error && (
-        <div className="mb-6 p-4 bg-red-50 border border-red-100 rounded-2xl flex items-start gap-3 text-red-700 text-sm font-bold">
-           <AlertCircle size={18} className="shrink-0" />
-           {error}
-        </div>
+        <Alert type="error" title="Configuration Error">
+          {error}
+        </Alert>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="space-y-1.5">
-            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">School Name</label>
-            <input
-              type="text"
-              className="w-full bg-gray-50 border-none rounded-xl text-sm font-bold focus:ring-2 focus:ring-blue-600 p-3"
-              value={school.name}
-              onChange={e => setSchool({...school, name: e.target.value})}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">School Code</label>
-            <input
-              type="text"
-              disabled
-              className="w-full bg-gray-100 border-none rounded-xl text-sm font-bold p-3 text-gray-500"
-              value={school.code}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Public Email</label>
-            <input
-              type="email"
-              className="w-full bg-gray-50 border-none rounded-xl text-sm font-bold focus:ring-2 focus:ring-blue-600 p-3"
-              value={school.email || ''}
-              onChange={e => setSchool({...school, email: e.target.value})}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Contact Phone</label>
-            <input
-              type="text"
-              className="w-full bg-gray-50 border-none rounded-xl text-sm font-bold focus:ring-2 focus:ring-blue-600 p-3"
-              value={school.phone || ''}
-              onChange={e => setSchool({...school, phone: e.target.value})}
-            />
-          </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div className="md:col-span-2 space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Core Identity</CardTitle>
+              <CardDescription>Fundamental identifiers for your school node.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <Input
+                  label="School Name"
+                  placeholder="e.g. Greenwood Academy"
+                  leftIcon={<Building2 className="w-4 h-4" />}
+                  value={school?.name || ''}
+                  onChange={e => setSchool({...school, name: e.target.value})}
+                />
+                <Input
+                  label="Registration Code"
+                  disabled
+                  helperText="Unique platform identifier"
+                  leftIcon={<ShieldCheck className="w-4 h-4" />}
+                  value={school?.code || ''}
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Communication Stream</CardTitle>
+              <CardDescription>Primary contact methods for parents and regulators.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <Input
+                  label="Public Email"
+                  type="email"
+                  placeholder="admin@school.edu"
+                  leftIcon={<Mail className="w-4 h-4" />}
+                  value={school?.email || ''}
+                  onChange={e => setSchool({...school, email: e.target.value})}
+                />
+                <Input
+                  label="Primary Phone"
+                  placeholder="+1 (555) 000-0000"
+                  leftIcon={<Phone className="w-4 h-4" />}
+                  value={school?.phone || ''}
+                  onChange={setSchool ? (e) => setSchool({...school, phone: e.target.value}) : undefined}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground ml-1">Physical Address</label>
+                <div className="relative">
+                  <MapPin className="absolute left-4 top-3.5 w-4 h-4 text-muted-foreground" />
+                  <textarea
+                    rows={4}
+                    className="w-full rounded-2xl border border-input bg-background pl-11 pr-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 transition-all outline-none shadow-sm"
+                    placeholder="Full physical address of the campus"
+                    value={school?.address || ''}
+                    onChange={e => setSchool({...school, address: e.target.value})}
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
-        <div className="space-y-1.5">
-          <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Address</label>
-          <textarea
-            rows={3}
-            className="w-full bg-gray-50 border-none rounded-xl text-sm font-bold focus:ring-2 focus:ring-blue-600 p-3"
-            value={school.address || ''}
-            onChange={e => setSchool({...school, address: e.target.value})}
-          />
-        </div>
+        <div className="space-y-6">
+          <Card className="bg-primary text-primary-foreground border-none overflow-hidden shadow-xs">
+            <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
+              <Building2 className="w-32 h-32" />
+            </div>
+            <CardHeader>
+              <CardTitle className="text-white">Tenant Status</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6 relative z-10">
+              <div className="flex flex-col gap-1">
+                <span className="text-[11px] font-bold uppercase tracking-wide opacity-60">Domain Active</span>
+                <span className="text-sm font-bold flex items-center gap-2">
+                  <Globe className="w-4 h-4" />
+                  {school?.slug || 'institution'}.edusphere.io
+                </span>
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="text-[11px] font-bold uppercase tracking-wide opacity-60">Provisioned Since</span>
+                <span className="text-sm font-bold">January 12, 2024</span>
+              </div>
+              <div className="pt-4">
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-card/10 border border-white/20 text-xs font-bold">
+                  <div className="w-2 h-2 rounded-full bg-sage-400 animate-pulse" />
+                  Operational Enterprise Node
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
-        <div className="pt-6 border-t border-gray-100 flex justify-end">
-          <button
-            type="submit"
-            disabled={saving}
-            className="flex items-center gap-2 px-8 py-3 bg-blue-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 disabled:opacity-50"
-          >
-            {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-            Save Changes
-          </button>
+          <Card className="border-dashed bg-muted/30">
+            <CardHeader>
+              <CardTitle className="text-sm">Quick Links</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-2">
+              <Button variant="ghost" size="sm" className="justify-start text-xs font-bold">Manage Branding</Button>
+              <Button variant="ghost" size="sm" className="justify-start text-xs font-bold">Update Localization</Button>
+              <Button variant="ghost" size="sm" className="justify-start text-xs font-bold text-destructive hover:bg-destructive/10">Archive Tenant</Button>
+            </CardContent>
+          </Card>
         </div>
-      </form>
+      </div>
     </div>
   );
 }

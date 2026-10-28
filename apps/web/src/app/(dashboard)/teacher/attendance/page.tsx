@@ -6,7 +6,7 @@ import { apiFetch } from '@/lib/api/client';
 import {
   Users,
   Calendar,
-  CheckCircle2,
+  CheckCircle,
   XCircle,
   Clock,
   ChevronLeft,
@@ -95,9 +95,9 @@ function AttendanceContent() {
   if (!classId || !sectionId) {
     return (
       <div className="p-20 text-center">
-         <Filter className="mx-auto text-gray-200 mb-4" size={64} />
-         <h2 className="text-2xl font-black text-gray-900">Select a class first</h2>
-         <p className="text-gray-500 mt-2">Please go to <Link href="/teacher/classes" className="text-blue-600 underline">My Classes</Link> and select a section to mark attendance.</p>
+         <Filter className="mx-auto text-warm-200 mb-4" size={64} />
+         <h2 className="text-2xl font-semibold text-charcoal-900">Select a class first</h2>
+         <p className="text-warm-500 mt-2">Please go to <Link href="/teacher/classes" className="text-forest-700 underline">My Classes</Link> and select a section to mark attendance.</p>
       </div>
     );
   }
@@ -107,25 +107,25 @@ function AttendanceContent() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-           <button onClick={() => router.back()} className="p-2.5 bg-white border border-gray-200 rounded-2xl hover:bg-gray-50 transition-colors shadow-sm text-gray-500">
+           <button onClick={() => router.back()} className="p-2.5 bg-card border border-warm-200 rounded-2xl hover:bg-ivory-50 transition-colors shadow-sm text-warm-500">
              <ChevronLeft size={20} />
            </button>
            <div>
-             <h1 className="text-3xl font-black text-gray-900 tracking-tight">Daily Roll Call</h1>
-             <p className="text-gray-500 font-bold uppercase tracking-widest text-[10px] mt-1">Mark student presence for {date}</p>
+             <h1 className="text-3xl font-semibold text-charcoal-900 tracking-tight">Daily Roll Call</h1>
+             <p className="text-warm-500 font-bold uppercase tracking-wide text-[11px] mt-1">Mark student presence for {date}</p>
            </div>
         </div>
         <div className="flex gap-4">
            <input
              type="date"
-             className="bg-white border border-gray-200 rounded-2xl px-4 py-2.5 text-sm font-black text-gray-700 shadow-sm focus:ring-2 focus:ring-blue-600 transition-all"
+             className="bg-card border border-warm-200 rounded-2xl px-4 py-2.5 text-sm font-semibold text-warm-700 shadow-sm focus:ring-2 focus:ring-forest-700 transition-all"
              value={date}
              onChange={(e) => setDate(e.target.value)}
            />
            <button
              onClick={handleSave}
              disabled={saving || loading}
-             className="bg-blue-600 text-white px-8 py-2.5 rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-blue-700 shadow-xl shadow-blue-100 flex items-center gap-2 disabled:opacity-50"
+             className="bg-forest-700 text-white px-8 py-2.5 rounded-2xl font-semibold text-sm uppercase tracking-wide hover:bg-forest-800 shadow-xs shadow-sage-100 flex items-center gap-2 disabled:opacity-50"
            >
               {saving ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
               Submit Roll Call
@@ -134,11 +134,11 @@ function AttendanceContent() {
       </div>
 
       {/* Student List */}
-      <div className="bg-white border border-gray-200 rounded-[2.5rem] shadow-sm overflow-hidden">
-        <div className="p-6 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between">
+      <div className="bg-card border border-warm-200 rounded-xl shadow-sm overflow-hidden">
+        <div className="p-6 border-b border-warm-100 bg-ivory-50/50 flex items-center justify-between">
            <div className="flex items-center gap-2">
-              <Users size={18} className="text-blue-600" />
-              <span className="text-sm font-black text-gray-900">{students.length} Students Enrolled</span>
+              <Users size={18} className="text-forest-700" />
+              <span className="text-sm font-semibold text-charcoal-900">{students.length} Students Enrolled</span>
            </div>
            <div className="flex gap-4">
               <button
@@ -147,7 +147,7 @@ function AttendanceContent() {
                   students.forEach(s => updated[s.student.id] = 'PRESENT');
                   setAttendance(updated);
                 }}
-                className="text-[10px] font-black text-blue-600 uppercase tracking-widest hover:underline"
+                className="text-[11px] font-semibold text-forest-700 uppercase tracking-wide hover:underline"
               >
                 Mark All Present
               </button>
@@ -155,27 +155,27 @@ function AttendanceContent() {
         </div>
 
         <div className="relative">
-           {loading && <div className="absolute inset-0 bg-white/60 z-10 flex items-center justify-center py-20"><Loader2 className="animate-spin text-blue-600" size={32} /></div>}
+           {loading && <div className="absolute inset-0 bg-card/60 z-10 flex items-center justify-center py-20"><Loader2 className="animate-spin text-forest-700" size={32} /></div>}
 
-           <table className="min-w-full divide-y divide-gray-200">
-             <thead className="bg-white">
+           <table className="min-w-full divide-y divide-warm-200">
+             <thead className="bg-card">
                 <tr>
-                   <th className="px-8 py-4 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest">Student Information</th>
-                   <th className="px-8 py-4 text-center text-[10px] font-black text-gray-400 uppercase tracking-widest">Status</th>
-                   <th className="px-8 py-4 text-right text-[10px] font-black text-gray-400 uppercase tracking-widest">Details</th>
+                   <th className="px-8 py-4 text-left text-[11px] font-semibold text-warm-400 uppercase tracking-wide">Student Information</th>
+                   <th className="px-8 py-4 text-center text-[11px] font-semibold text-warm-400 uppercase tracking-wide">Status</th>
+                   <th className="px-8 py-4 text-right text-[11px] font-semibold text-warm-400 uppercase tracking-wide">Details</th>
                 </tr>
              </thead>
-             <tbody className="divide-y divide-gray-100 bg-white">
+             <tbody className="divide-y divide-warm-100 bg-card">
                 {students.map((record) => (
-                  <tr key={record.student.id} className="hover:bg-gray-50 transition-colors">
+                  <tr key={record.student.id} className="hover:bg-ivory-50 transition-colors">
                      <td className="px-8 py-5">
                         <div className="flex items-center gap-4">
-                           <div className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center font-black text-gray-400">
+                           <div className="w-10 h-10 rounded-xl bg-warm-100 flex items-center justify-center font-semibold text-warm-400">
                              {record.student.firstName[0]}
                            </div>
                            <div>
-                              <p className="text-sm font-black text-gray-900 leading-tight">{record.student.firstName} {record.student.lastName}</p>
-                              <p className="text-[10px] font-bold text-gray-400 uppercase">{record.student.studentNumber}</p>
+                              <p className="text-sm font-semibold text-charcoal-900 leading-tight">{record.student.firstName} {record.student.lastName}</p>
+                              <p className="text-[11px] font-bold text-warm-400 uppercase">{record.student.studentNumber}</p>
                            </div>
                         </div>
                      </td>
@@ -183,21 +183,21 @@ function AttendanceContent() {
                         <div className="flex items-center justify-center gap-2">
                            <StatusButton
                              active={attendance[record.student.id] === 'PRESENT'}
-                             color="bg-green-500"
+                             color="bg-success-500"
                              label="Present"
-                             icon={<CheckCircle2 size={14}/>}
+                             icon={<CheckCircle size={14}/>}
                              onClick={() => setAttendance({...attendance, [record.student.id]: 'PRESENT'})}
                            />
                            <StatusButton
                              active={attendance[record.student.id] === 'ABSENT'}
-                             color="bg-red-500"
+                             color="bg-danger-500"
                              label="Absent"
                              icon={<XCircle size={14}/>}
                              onClick={() => setAttendance({...attendance, [record.student.id]: 'ABSENT'})}
                            />
                            <StatusButton
                              active={attendance[record.student.id] === 'LATE'}
-                             color="bg-orange-500"
+                             color="bg-terracotta-500"
                              label="Late"
                              icon={<Clock size={14}/>}
                              onClick={() => setAttendance({...attendance, [record.student.id]: 'LATE'})}
@@ -208,7 +208,7 @@ function AttendanceContent() {
                         <input
                           type="text"
                           placeholder="Note..."
-                          className="bg-gray-50 border-none rounded-xl text-[10px] font-bold w-32 focus:ring-1 focus:ring-blue-600"
+                          className="bg-ivory-50 border-none rounded-xl text-[11px] font-bold w-32 focus:ring-1 focus:ring-forest-700"
                         />
                      </td>
                   </tr>
@@ -225,10 +225,10 @@ function StatusButton({ active, color, label, icon, onClick }: any) {
   return (
     <button
       onClick={onClick}
-      className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${
+      className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-[11px] font-semibold uppercase tracking-wide transition-all ${
         active
           ? `${color} text-white shadow-lg`
-          : 'bg-gray-50 text-gray-400 hover:bg-gray-100'
+          : 'bg-ivory-50 text-warm-400 hover:bg-warm-100'
       }`}
     >
        {icon} {label}
@@ -238,8 +238,9 @@ function StatusButton({ active, color, label, icon, onClick }: any) {
 
 export default function AttendancePage() {
   return (
-    <Suspense fallback={<div className="p-20 text-center animate-pulse font-black text-gray-400">LOADING WORKSPACE...</div>}>
+    <Suspense fallback={<div className="p-20 text-center animate-pulse font-semibold text-warm-400">LOADING WORKSPACE...</div>}>
       <AttendanceContent />
     </Suspense>
   );
 }
+

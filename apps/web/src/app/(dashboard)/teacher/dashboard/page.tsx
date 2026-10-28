@@ -35,55 +35,55 @@ export default function TeacherDashboard() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl lg:text-3xl font-black text-gray-900 tracking-tight leading-tight">
-            Welcome back, <span className="text-blue-600">{user?.firstName}</span>
+          <h1 className="text-2xl lg:text-3xl font-semibold text-charcoal-900 tracking-tight leading-tight">
+            Welcome back, <span className="text-forest-700">{user?.firstName}</span>
           </h1>
-          <p className="text-gray-500 font-bold mt-1 uppercase tracking-widest text-[10px]">Academic Workspace • Teacher Portal</p>
+          <p className="text-warm-500 font-bold mt-1 uppercase tracking-wide text-[11px]">Academic Workspace • Teacher Portal</p>
         </div>
         <div className="flex items-center gap-3">
-          <div className="bg-white border border-gray-200 px-5 py-2.5 rounded-2xl shadow-sm hidden sm:block">
-            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest block">Current Date</span>
-            <span className="text-sm font-black text-gray-900">{new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}</span>
+          <div className="bg-card border border-warm-200 px-5 py-2.5 rounded-2xl shadow-sm hidden sm:block">
+            <span className="text-[11px] font-semibold text-warm-400 uppercase tracking-wide block">Current Date</span>
+            <span className="text-sm font-semibold text-charcoal-900">{new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}</span>
           </div>
         </div>
       </div>
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard title="My Classes" value={loading ? '...' : data?.stats?.myClasses} icon={<BookMarked className="text-blue-600"/>} color="bg-blue-50" />
-        <StatCard title="My Students" value={loading ? '...' : data?.stats?.myStudents} icon={<Users className="text-indigo-600"/>} color="bg-indigo-50" />
-        <StatCard title="Pending Scores" value={loading ? '...' : data?.stats?.pendingAssessments} icon={<FileSpreadsheet className="text-orange-600"/>} color="bg-orange-50" />
-        <StatCard title="Today's Load" value={loading ? '...' : `${data?.stats?.todayClasses} Classes`} icon={<Clock className="text-green-600"/>} color="bg-green-50" />
+        <StatCard title="My Classes" value={loading ? '...' : data?.stats?.myClasses} icon={<BookMarked className="text-forest-700"/>} color="bg-sage-50" />
+        <StatCard title="My Students" value={loading ? '...' : data?.stats?.myStudents} icon={<Users className="text-terracotta-600"/>} color="bg-terracotta-50" />
+        <StatCard title="Pending Scores" value={loading ? '...' : data?.stats?.pendingAssessments} icon={<FileSpreadsheet className="text-terracotta-600"/>} color="bg-terracotta-50" />
+        <StatCard title="Today's Load" value={loading ? '...' : `${data?.stats?.todayClasses} Classes`} icon={<Clock className="text-success-600"/>} color="bg-success-50" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Today's Schedule */}
         <div className="lg:col-span-2 space-y-8">
-          <div className="bg-white border border-gray-200 rounded-[2.5rem] p-8 shadow-sm">
+          <div className="bg-card border border-warm-200 rounded-xl p-8 shadow-sm">
             <div className="flex items-center justify-between mb-8">
-              <h3 className="text-xl font-black text-gray-900 tracking-tight">Today's Teaching Schedule</h3>
-              <Link href="/teacher/timetable" className="text-xs font-black text-blue-600 uppercase tracking-widest hover:underline flex items-center gap-1">Full Timetable <ChevronRight size={14}/></Link>
+              <h3 className="text-xl font-semibold text-charcoal-900 tracking-tight">Today's Teaching Schedule</h3>
+              <Link href="/teacher/timetable" className="text-xs font-semibold text-forest-700 uppercase tracking-wide hover:underline flex items-center gap-1">Full Timetable <ChevronRight size={14}/></Link>
             </div>
 
             <div className="space-y-4">
                {data?.todaySchedule?.map((slot: any) => (
-                 <div key={slot.id} className="flex items-center gap-6 p-5 rounded-3xl bg-gray-50 border border-gray-100 hover:bg-white hover:shadow-md transition-all group">
+                 <div key={slot.id} className="flex items-center gap-6 p-5 rounded-3xl bg-ivory-50 border border-warm-100 hover:bg-card hover:shadow-md transition-all group">
                     <div className="w-16 text-center">
-                       <p className="text-xs font-black text-gray-900">{slot.startTime}</p>
-                       <p className="text-[9px] font-bold text-gray-400 uppercase">{slot.endTime}</p>
+                       <p className="text-xs font-semibold text-charcoal-900">{slot.startTime}</p>
+                       <p className="text-[11px] font-bold text-warm-400 uppercase">{slot.endTime}</p>
                     </div>
-                    <div className="w-1.5 h-10 rounded-full bg-blue-500"></div>
+                    <div className="w-1.5 h-10 rounded-full bg-forest-500"></div>
                     <div className="flex-1">
-                       <p className="text-sm font-black text-gray-900 leading-tight">{slot.subject.name}</p>
-                       <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">{slot.class.name} • Section {slot.section?.name || 'A'}</p>
+                       <p className="text-sm font-semibold text-charcoal-900 leading-tight">{slot.subject.name}</p>
+                       <p className="text-[11px] font-bold text-warm-400 uppercase tracking-tight">{slot.class.name} • Section {slot.section?.name || 'A'}</p>
                     </div>
-                    <Link href={`/teacher/attendance?classId=${slot.classId}&sectionId=${slot.sectionId}`} className="px-4 py-2 bg-white border border-gray-200 rounded-xl text-[10px] font-black uppercase tracking-widest text-gray-500 group-hover:bg-blue-600 group-hover:text-white group-hover:border-blue-600 transition-all shadow-sm">Mark Attendance</Link>
+                    <Link href={`/teacher/attendance?classId=${slot.classId}&sectionId=${slot.sectionId}`} className="px-4 py-2 bg-card border border-warm-200 rounded-xl text-[11px] font-semibold uppercase tracking-wide text-warm-500 group-hover:bg-forest-700 group-hover:text-white group-hover:border-forest-700 transition-all shadow-sm">Mark Attendance</Link>
                  </div>
                ))}
                {(!data?.todaySchedule || data.todaySchedule.length === 0) && !loading && (
-                 <div className="py-20 text-center bg-gray-50/50 rounded-3xl border-2 border-dashed border-gray-100">
-                    <CalendarDays className="mx-auto text-gray-200 mb-2" size={48} />
-                    <p className="text-gray-400 font-bold uppercase tracking-widest text-[10px]">No classes scheduled for today</p>
+                 <div className="py-20 text-center bg-ivory-50/50 rounded-3xl border-2 border-dashed border-warm-100">
+                    <CalendarDays className="mx-auto text-warm-200 mb-2" size={48} />
+                    <p className="text-warm-400 font-bold uppercase tracking-wide text-[11px]">No classes scheduled for today</p>
                  </div>
                )}
             </div>
@@ -107,14 +107,14 @@ export default function TeacherDashboard() {
 
 function StatCard({ title, value, icon, color }: any) {
   return (
-    <div className="bg-white border border-gray-200 rounded-3xl p-6 shadow-sm hover:shadow-md transition-shadow group">
+    <div className="bg-card border border-warm-200 rounded-3xl p-6 shadow-sm hover:shadow-md transition-shadow group">
       <div className="flex items-center justify-between mb-4">
         <div className={`${color} p-4 rounded-2xl group-hover:scale-110 transition-transform`}>{icon}</div>
-        <TrendingUp size={16} className="text-gray-100" />
+        <TrendingUp size={16} className="text-warm-100" />
       </div>
       <div>
-        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{title}</p>
-        <p className="text-3xl font-black text-gray-900 mt-1">{value || '0'}</p>
+        <p className="text-[11px] font-semibold text-warm-400 uppercase tracking-wide">{title}</p>
+        <p className="text-3xl font-semibold text-charcoal-900 mt-1">{value || '0'}</p>
       </div>
     </div>
   );
@@ -122,13 +122,13 @@ function StatCard({ title, value, icon, color }: any) {
 
 function QuickActionsCard() {
   return (
-    <div className="bg-white border border-gray-200 rounded-[2rem] p-6 shadow-sm">
-      <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest mb-6">Workflow Tools</h3>
+    <div className="bg-card border border-warm-200 rounded-xl p-6 shadow-sm">
+      <h3 className="text-sm font-semibold text-charcoal-900 uppercase tracking-wide mb-6">Workflow Tools</h3>
       <div className="grid grid-cols-2 gap-3">
-        <QuickLink label="Enter Scores" href="/teacher/assessments" color="bg-orange-500" />
-        <QuickLink label="My Students" href="/teacher/students" color="bg-indigo-500" />
-        <QuickLink label="Assignments" href="/teacher/assignments" color="bg-purple-500" />
-        <QuickLink label="Resources" href="/teacher/resources" color="bg-blue-500" />
+        <QuickLink label="Enter Scores" href="/teacher/assessments" color="bg-terracotta-500" />
+        <QuickLink label="My Students" href="/teacher/students" color="bg-terracotta-500" />
+        <QuickLink label="Assignments" href="/teacher/assignments" color="bg-terracotta-500" />
+        <QuickLink label="Resources" href="/teacher/resources" color="bg-forest-500" />
       </div>
     </div>
   );
@@ -136,26 +136,26 @@ function QuickActionsCard() {
 
 function QuickLink({ label, href, color }: any) {
   return (
-    <Link href={href} className="flex items-center gap-3 p-4 rounded-2xl border border-gray-100 hover:border-blue-200 hover:bg-blue-50/30 transition-all group">
+    <Link href={href} className="flex items-center gap-3 p-4 rounded-2xl border border-warm-100 hover:border-sage-200 hover:bg-sage-50/30 transition-all group">
       <div className={`w-2 h-2 rounded-full ${color}`} />
-      <span className="text-[10px] font-black text-gray-700 uppercase tracking-widest group-hover:text-blue-700 transition-colors">{label}</span>
+      <span className="text-[11px] font-semibold text-warm-700 uppercase tracking-wide group-hover:text-forest-800 transition-colors">{label}</span>
     </Link>
   );
 }
 
 function AnnouncementsCard({ announcements }: { announcements: any[] }) {
   return (
-    <div className="bg-gray-900 rounded-[2rem] p-6 shadow-xl relative overflow-hidden group">
+    <div className="bg-charcoal-900 rounded-xl p-6 shadow-xs relative overflow-hidden group">
       <div className="relative z-10">
-        <span className="bg-blue-600 text-white text-[9px] font-black uppercase tracking-[0.2em] px-3 py-1 rounded-full">School Updates</span>
+        <span className="bg-forest-700 text-white text-[11px] font-semibold uppercase tracking-wide px-3 py-1 rounded-full">School Updates</span>
         <div className="mt-6 space-y-4">
            {announcements.map((a: any) => (
              <div key={a.id} className="border-l-2 border-white/10 pl-4 py-1">
                 <p className="text-white text-sm font-bold leading-tight line-clamp-1">{a.title}</p>
-                <p className="text-gray-400 text-[10px] mt-1 uppercase font-bold">{new Date(a.createdAt).toLocaleDateString()}</p>
+                <p className="text-warm-400 text-[11px] mt-1 uppercase font-bold">{new Date(a.createdAt).toLocaleDateString()}</p>
              </div>
            ))}
-           {announcements.length === 0 && <p className="text-gray-500 text-xs font-medium italic">No new announcements</p>}
+           {announcements.length === 0 && <p className="text-warm-500 text-xs font-medium italic">No new announcements</p>}
         </div>
       </div>
       <Bell size={120} className="absolute -bottom-8 -right-8 text-white/5 group-hover:rotate-12 transition-transform" />
@@ -165,11 +165,11 @@ function AnnouncementsCard({ announcements }: { announcements: any[] }) {
 
 function TasksCard({ stats }: any) {
   return (
-    <div className="bg-white border border-gray-200 rounded-[2.5rem] p-8 shadow-sm">
-      <h3 className="font-black text-gray-900 tracking-tight mb-6">Action Items</h3>
+    <div className="bg-card border border-warm-200 rounded-xl p-8 shadow-sm">
+      <h3 className="font-semibold text-charcoal-900 tracking-tight mb-6">Action Items</h3>
       <div className="space-y-4">
-         <TaskItem label="Pending Attendance" count={stats?.todayClasses || 0} priority="HIGH" color="text-red-600 bg-red-50" />
-         <TaskItem label="Score Submissions" count={stats?.pendingAssessments || 0} priority="NORMAL" color="text-orange-600 bg-orange-50" />
+         <TaskItem label="Pending Attendance" count={stats?.todayClasses || 0} priority="HIGH" color="text-danger-600 bg-danger-50" />
+         <TaskItem label="Score Submissions" count={stats?.pendingAssessments || 0} priority="NORMAL" color="text-terracotta-600 bg-terracotta-50" />
       </div>
     </div>
   );
@@ -177,26 +177,26 @@ function TasksCard({ stats }: any) {
 
 function TaskItem({ label, count, priority, color }: any) {
   return (
-    <div className="flex items-center justify-between p-4 rounded-2xl bg-gray-50 border border-gray-100 group hover:border-gray-200 transition-all">
+    <div className="flex items-center justify-between p-4 rounded-2xl bg-ivory-50 border border-warm-100 group hover:border-warm-200 transition-all">
        <div>
-          <p className="text-xs font-black text-gray-800 leading-none mb-1">{label}</p>
-          <span className={`text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-widest ${color}`}>{priority}</span>
+          <p className="text-xs font-semibold text-charcoal-800 leading-none mb-1">{label}</p>
+          <span className={`text-[11px] font-semibold px-1.5 py-0.5 rounded uppercase tracking-wide ${color}`}>{priority}</span>
        </div>
-       <div className="w-10 h-10 rounded-xl bg-white border border-gray-100 flex items-center justify-center font-black text-sm text-gray-900 shadow-sm">{count}</div>
+       <div className="w-10 h-10 rounded-xl bg-card border border-warm-100 flex items-center justify-center font-semibold text-sm text-charcoal-900 shadow-sm">{count}</div>
     </div>
   );
 }
 
 function RecentMessagesCard({ count }: { count: number }) {
   return (
-    <div className="bg-blue-600 rounded-[2.5rem] p-8 shadow-xl text-white group cursor-pointer hover:bg-blue-700 transition-all">
+    <div className="bg-forest-700 rounded-xl p-8 shadow-xs text-white group cursor-pointer hover:bg-forest-800 transition-all">
        <div className="flex justify-between items-start mb-6">
-          <div className="p-3 bg-white/10 rounded-2xl"><MessageSquare size={24}/></div>
-          {count > 0 && <span className="bg-red-500 text-white text-[10px] font-black px-2 py-1 rounded-lg animate-bounce">{count} NEW</span>}
+          <div className="p-3 bg-card/10 rounded-2xl"><MessageSquare size={24}/></div>
+          {count > 0 && <span className="rounded-md bg-danger-50 px-2 py-1 text-[11px] font-semibold text-danger-700">{count} new</span>}
        </div>
-       <h3 className="text-xl font-black mb-2">Staff & Parent Messaging</h3>
-       <p className="text-blue-100 text-xs font-medium leading-relaxed mb-6">Coordinate with your teaching team and keep parents informed through secure internal channels.</p>
-       <Link href="/teacher/messages" className="text-[10px] font-black text-white uppercase tracking-[0.2em] flex items-center gap-2">Open Conversations <ChevronRight size={14}/></Link>
+       <h3 className="text-xl font-semibold mb-2">Staff & Parent Messaging</h3>
+       <p className="text-sage-100 text-xs font-medium leading-relaxed mb-6">Coordinate with your teaching team and keep parents informed through secure internal channels.</p>
+       <Link href="/teacher/messages" className="text-[11px] font-semibold text-white uppercase tracking-wide flex items-center gap-2">Open Conversations <ChevronRight size={14}/></Link>
     </div>
   );
 }

@@ -1,134 +1,200 @@
-'use client';
+﻿'use client';
 
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { apiFetch } from '@/lib/api/client';
 import {
+  AlertCircle,
   BarChart4,
-  PieChart,
-  TrendingUp,
-  Download,
-  Printer,
   Book,
   BookOpen,
+  Download,
+  Loader2,
   Users,
-  Clock,
-  AlertTriangle,
-  History,
-  FileText,
-  ChevronRight,
-  ArrowUpRight
 } from 'lucide-react';
 
+type Metrics = {
+  totalBooks: number;
+  totalCopies: number;
+  availableCopies: number;
+  borrowedCopies: number;
+  overdueLoans: number;
+  activeMembers: number;
+};
+
+type Loan = {
+  id: string;
+  loanDate: string;
+  dueDate: string;
+  status: string;
+  bookCopy: { accessionNumber: string; book: { title: string } };
+  membership: { user: { firstName: string; lastName: string } };
+};
+
 export default function LibraryReportsPage() {
+  const [metrics, setMetrics] = useState<Metrics | null>(null);
+  const [loans, setLoans] = useState<Loan[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    Promise.all([apiFetch('/library/dashboard'), apiFetch('/library/loans?status=ACTIVE')])
+      .then(([dashboard, activeLoans]) => {
+        setMetrics(dashboard.metrics);
+        setLoans(activeLoans);
+      })
+      .catch((err) => setError(err.message || 'Unable to load library analytics.'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const overdue = useMemo(
+    () => loans.filter((loan) => new Date(loan.dueDate) < new Date()),
+    [loans],
+  );
+
+  function exportCsv() {
+    if (!metrics) return;
+    const rows = [
+      ['Metric', 'Value'],
+      ['Total Titles', metrics.totalBooks],
+      ['Total Copies', metrics.totalCopies],
+      ['Available Copies', metrics.availableCopies],
+      ['Borrowed Copies', metrics.borrowedCopies],
+      ['Overdue Loans', metrics.overdueLoans],
+      ['Active Members', metrics.activeMembers],
+      [],
+      ['Book', 'Accession', 'Member', 'Loan Date', 'Due Date', 'Status'],
+      ...loans.map((loan) => [
+        loan.bookCopy.book.title,
+        loan.bookCopy.accessionNumber,
+        `${loan.membership.user.firstName} ${loan.membership.user.lastName}`,
+        new Date(loan.loanDate).toLocaleDateString(),
+        new Date(loan.dueDate).toLocaleDateString(),
+        loan.status,
+      ]),
+    ];
+    const csv = rows.map((row) => row.map((cell) => `"${String(cell ?? '').replace(/"/g, '""')}"`).join(',')).join('\r\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `library-report-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
+  if (loading) return <div className="p-20 text-center"><Loader2 className="animate-spin mx-auto text-forest-700" size={40} /></div>;
+
+  if (error) {
+    return (
+      <div className="p-8">
+        <div className="flex items-start gap-3 rounded-xl border border-danger-200 bg-danger-50 p-5 text-danger-700">
+          <AlertCircle size={20} className="shrink-0 mt-0.5" />
+          <p className="text-sm font-semibold">{error}</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!metrics) return null;
+
+  const availability = metrics.totalCopies > 0 ? Math.round((metrics.availableCopies / metrics.totalCopies) * 100) : 0;
+
   return (
     <div className="p-8 space-y-10">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
-          <h1 className="text-3xl font-black text-gray-900 tracking-tight flex items-center gap-3">
-             <BarChart4 className="text-blue-600" /> Library Analytics
-          </h1>
-          <p className="text-gray-500 font-bold mt-1 uppercase tracking-widest text-[10px]">Strategic insights into collection usage and member activity</p>
+          <h1 className="text-3xl font-semibold text-charcoal-900 tracking-tight flex items-center gap-3"><BarChart4 className="text-forest-700" /> Library Analytics</h1>
+          <p className="text-warm-500 font-bold mt-1 uppercase tracking-wide text-[11px]">Collection usage, circulation and member activity</p>
         </div>
-        <div className="flex items-center gap-3">
-           <button className="bg-white border border-gray-200 text-gray-700 px-6 py-2.5 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-gray-50 transition-all shadow-sm flex items-center gap-2">
-             <Download size={16} /> Export CSV
-           </button>
-        </div>
+        <button onClick={exportCsv} className="bg-card border border-warm-200 text-warm-700 px-6 py-2.5 rounded-xl font-semibold text-[11px] uppercase tracking-wide hover:bg-ivory-50 transition-all shadow-sm flex items-center gap-2">
+          <Download size={16} /> Export CSV
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
+        <MetricCard label="Book Titles" value={metrics.totalBooks} icon={<Book size={20} />} />
+        <MetricCard label="Total Copies" value={metrics.totalCopies} icon={<BookOpen size={20} />} />
+        <MetricCard label="Active Members" value={metrics.activeMembers} icon={<Users size={20} />} />
+        <MetricCard label="Overdue Loans" value={metrics.overdueLoans} icon={<AlertCircle size={20} />} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-         <div className="lg:col-span-2 space-y-8">
-            <div className="bg-white border border-gray-200 rounded-[2.5rem] p-8 shadow-sm">
-               <div className="flex items-center justify-between mb-8">
-                  <h3 className="text-xl font-black text-gray-900 tracking-tight">Circulation Velocity</h3>
-                  <div className="flex items-center gap-2">
-                     <button className="px-4 py-2 bg-blue-600 rounded-xl text-[10px] font-black uppercase tracking-widest text-white">Month</button>
-                     <button className="px-4 py-2 bg-gray-50 rounded-xl text-[10px] font-black uppercase tracking-widest text-gray-500 hover:bg-gray-100">Year</button>
-                  </div>
-               </div>
-               <div className="h-[350px] bg-gray-50 rounded-[2rem] border-2 border-dashed border-gray-100 flex items-center justify-center relative overflow-hidden group">
-                  <TrendingUp size={64} className="text-gray-200 group-hover:scale-110 transition-transform duration-700" />
-                  <p className="absolute bottom-10 text-[10px] font-black text-gray-400 uppercase tracking-[0.3em]">Institutional Usage Data</p>
-               </div>
+        <section className="lg:col-span-2 bg-card border border-warm-200 rounded-xl p-8 shadow-sm">
+          <h3 className="text-xl font-semibold text-charcoal-900 tracking-tight mb-6">Active Loans</h3>
+          {loans.length === 0 ? (
+            <p className="rounded-xl border border-dashed border-warm-200 bg-ivory-50 p-10 text-center text-sm font-medium text-warm-400">No active loans recorded.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-warm-100">
+                <thead>
+                  <tr>
+                    <th className="py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-warm-400">Book</th>
+                    <th className="py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-warm-400">Member</th>
+                    <th className="py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-warm-400">Due Date</th>
+                    <th className="py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-warm-400">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-warm-100">
+                  {loans.slice(0, 10).map((loan) => {
+                    const isOverdue = new Date(loan.dueDate) < new Date();
+                    return (
+                      <tr key={loan.id}>
+                        <td className="py-4 text-sm font-semibold text-charcoal-900">
+                          {loan.bookCopy.book.title}
+                          <p className="text-[11px] font-medium text-warm-400">{loan.bookCopy.accessionNumber}</p>
+                        </td>
+                        <td className="py-4 text-sm font-medium text-warm-600">{loan.membership.user.firstName} {loan.membership.user.lastName}</td>
+                        <td className={`py-4 text-sm font-medium ${isOverdue ? 'text-danger-600' : 'text-warm-600'}`}>{new Date(loan.dueDate).toLocaleDateString()}</td>
+                        <td className="py-4">
+                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-semibold uppercase ${isOverdue ? 'bg-danger-50 text-danger-700' : 'bg-sage-50 text-forest-700'}`}>
+                            {isOverdue ? 'OVERDUE' : 'ACTIVE'}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
+          )}
+        </section>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-               <ReportCard
-                 title="Inventory Health"
-                 reports={['Total Stock Summary', 'Damaged Items Log', 'Missing Book Audit']}
-                 icon={<Book size={24}/>}
-                 color="bg-blue-50 text-blue-600"
-               />
-               <ReportCard
-                 title="Active Circulation"
-                 reports={['Daily Issued Log', 'Return Performance', 'Overdue Tracking']}
-                 icon={<BookOpen size={24}/>}
-                 color="bg-green-50 text-green-600"
-               />
-               <ReportCard
-                 title="Member Activity"
-                 reports={['Top Borrowers', 'Inactive Members', 'Fine Collection Report']}
-                 icon={<Users size={24}/>}
-                 color="bg-purple-50 text-purple-600"
-               />
-               <ReportCard
-                 title="Catalog Insights"
-                 reports={['Popular Categories', 'Search Queries', 'Reserved Book Priority']}
-                 icon={<History size={24}/>}
-                 color="bg-orange-50 text-orange-600"
-               />
+        <div className="space-y-8">
+          <section className="bg-card border border-warm-200 rounded-xl p-8 shadow-sm">
+            <h3 className="text-lg font-semibold text-charcoal-900 tracking-tight mb-6">Copy Availability</h3>
+            <div className="flex items-end justify-between mb-2">
+              <span className="text-3xl font-semibold text-forest-700">{availability}%</span>
+              <span className="text-xs font-medium text-warm-400">{metrics.availableCopies} of {metrics.totalCopies} available</span>
             </div>
-         </div>
+            <div className="h-2.5 rounded-full bg-warm-100 overflow-hidden">
+              <div className="h-full bg-forest-700" style={{ width: `${availability}%` }} />
+            </div>
+            <div className="mt-6 space-y-3 text-sm">
+              <div className="flex justify-between"><span className="text-warm-500">Borrowed copies</span><span className="font-semibold text-charcoal-900">{metrics.borrowedCopies}</span></div>
+              <div className="flex justify-between"><span className="text-warm-500">Overdue loans</span><span className="font-semibold text-danger-600">{overdue.length}</span></div>
+            </div>
+          </section>
 
-         <div className="space-y-8">
-            <div className="bg-gray-900 rounded-[2.5rem] p-8 shadow-xl text-white">
-               <h3 className="text-lg font-black mb-8 tracking-tight">Standard Reports</h3>
-               <div className="space-y-4">
-                  <ReportAction label="Monthly Collection PDF" />
-                  <ReportAction label="Overdue Defaulters List" />
-                  <ReportAction label="New Acquisitions Audit" />
-                  <ReportAction label="Lost Book Financials" />
-               </div>
-            </div>
-
-            <div className="bg-blue-600 rounded-[2.5rem] p-8 shadow-xl text-white relative overflow-hidden group">
-               <div className="relative z-10">
-                  <h3 className="text-xl font-black mb-2 tracking-tight">Automated Reporting</h3>
-                  <p className="text-blue-100 text-[10px] font-black uppercase tracking-widest opacity-80 leading-relaxed">
-                     Configure automated weekly reports delivered directly to school management and department heads.
-                  </p>
-                  <button className="mt-8 w-full bg-white text-blue-600 py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] hover:bg-blue-50 transition-all flex items-center justify-center gap-2 shadow-lg">
-                     <Printer size={16}/> Configure Schedule
-                  </button>
-               </div>
-               <FileText size={120} className="absolute -bottom-10 -right-10 text-white/5 -rotate-12 group-hover:rotate-0 transition-transform duration-700" />
-            </div>
-         </div>
+          <section className="bg-charcoal-900 rounded-xl p-8 shadow-xs text-white">
+            <h3 className="text-lg font-semibold mb-4 tracking-tight">Circulation Health</h3>
+            <p className="text-sage-100 text-sm leading-relaxed">
+              {metrics.overdueLoans > 0
+                ? `${metrics.overdueLoans} active loan${metrics.overdueLoans === 1 ? ' is' : 's are'} past their due date and need follow-up.`
+                : 'No active loans are overdue.'}
+            </p>
+          </section>
+        </div>
       </div>
     </div>
   );
 }
 
-function ReportCard({ title, reports, icon, color }: any) {
+function MetricCard({ label, value, icon }: { label: string; value: number; icon: React.ReactNode }) {
   return (
-    <div className="bg-white border border-gray-200 rounded-[2rem] p-8 shadow-sm hover:border-blue-100 transition-all group">
-       <div className={`w-14 h-14 rounded-2xl ${color} flex items-center justify-center mb-6 group-hover:scale-110 transition-transform`}>{icon}</div>
-       <h4 className="text-lg font-black text-gray-900 mb-6">{title}</h4>
-       <div className="space-y-3">
-          {reports.map((report: string) => (
-            <button key={report} className="w-full flex items-center justify-between text-[9px] font-black uppercase tracking-widest text-gray-500 hover:text-blue-600 transition-colors py-2 border-b border-gray-50 last:border-0 group/item">
-               {report} <ArrowUpRight size={12} className="group-hover/item:translate-x-0.5 transition-transform" />
-            </button>
-          ))}
-       </div>
+    <div className="bg-card border border-warm-200 rounded-xl p-6 shadow-sm">
+      <div className="w-10 h-10 rounded-xl bg-sage-50 text-forest-700 flex items-center justify-center mb-4">{icon}</div>
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-warm-400">{label}</p>
+      <p className="text-2xl font-semibold text-charcoal-900 mt-1">{value}</p>
     </div>
-  );
-}
-
-function ReportAction({ label }: any) {
-  return (
-    <button className="w-full flex items-center justify-between p-4 bg-white/5 rounded-2xl hover:bg-white/10 transition-all border border-white/5 group text-left">
-       <span className="text-[10px] font-black uppercase tracking-widest text-blue-100">{label}</span>
-       <Download size={14} className="text-gray-500 group-hover:text-blue-400 transition-colors" />
-    </button>
   );
 }

@@ -1,6 +1,7 @@
 import { Controller, Get } from '@nestjs/common';
 import { PrismaService } from './prisma/prisma.service';
 import { RedisService } from './redis/redis.service';
+import { Public } from './auth/decorators/public.decorator';
 
 @Controller()
 export class AppController {
@@ -9,6 +10,7 @@ export class AppController {
     private readonly redis: RedisService,
   ) {}
 
+  @Public()
   @Get('health')
   async healthCheck() {
     let dbStatus = 'up';
@@ -20,9 +22,11 @@ export class AppController {
 
     const redisPing = await this.redis.ping();
     const redisStatus = redisPing === 'PONG' ? 'up' : 'down';
+    const status =
+      dbStatus === 'down' ? 'error' : redisStatus === 'down' ? 'degraded' : 'ok';
 
     return {
-      status: (dbStatus === 'up' && redisStatus === 'up') ? 'ok' : 'error',
+      status,
       timestamp: new Date().toISOString(),
       services: {
         api: 'up',

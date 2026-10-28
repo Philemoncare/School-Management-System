@@ -1,5 +1,5 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
-import { Job } from 'bullmq';
+import type { Job } from 'bullmq';
 import { PrismaService } from '../../prisma/prisma.service';
 import { TemplateService } from '../template.service';
 import { EmailProvider } from '../providers/email.provider';
@@ -24,18 +24,66 @@ export class NotificationProcessor extends WorkerHost {
     if (job.name === 'send-delivery') {
       return this.handleSendDelivery(job.data);
     }
+    if (job.name === 'process-communication') {
+      return this.handleProcessCommunication(job.data);
+    }
+  }
+
+  private async handleProcessCommunication(data: any) {
+    const { communicationId, userId, channel, data: variables } = data;
+
+    const comm = await this.prisma.communication.findUnique({
+      where: { id: communicationId }
+    });
+
+    if (!comm) return;
+
+    // Create a notification record linked to the communication intent
+    const notification = await this.prisma.notification.create({
+      data: {
+        schoolId: comm.schoolId,
+        userId,
+        communicationId,
+        notificationType: 'OPERATIONAL_COMMUNICATION',
+        title: this.templateService.render(comm.title, variables),
+        content: this.templateService.render(comm.content, variables),
+        priority: comm.priority,
+        status: 'PENDING'
+      }
+    });
+
+    const delivery = await this.prisma.notificationDelivery.create({
+      data: {
+        notificationId: notification.id,
+        channel,
+        status: 'PENDING'
+      }
+    });
+
+    // Reuse delivery logic
+    return this.handleSendDelivery({
+      deliveryId: delivery.id,
+      channel,
+      recipientId: userId,
+      templateVersionId: comm.templateVersionId, // Might be null if manual content
+      data: variables,
+      manualContent: {
+        subject: comm.subject ? this.templateService.render(comm.subject, variables) : undefined,
+        body: this.templateService.render(comm.content, variables)
+      }
+    });
   }
 
   private async handleSendDelivery(data: any) {
-    const { deliveryId, channel, recipientId, templateVersionId, data: variables } = data;
+    const { deliveryId, channel, recipientId, templateVersionId, data: variables, manualContent } = data;
 
     const [delivery, recipient, templateVersion] = await Promise.all([
       this.prisma.notificationDelivery.findUnique({ where: { id: deliveryId } }),
       this.prisma.user.findUnique({ where: { id: recipientId } }),
-      this.prisma.notificationTemplateVersion.findUnique({ where: { id: templateVersionId } }),
+      templateVersionId ? this.prisma.notificationTemplateVersion.findUnique({ where: { id: templateVersionId } }) : Promise.resolve(null),
     ]);
 
-    if (!delivery || !recipient || !templateVersion) {
+    if (!delivery || !recipient || (!templateVersion && !manualContent)) {
       this.logger.error(`Missing data for delivery ${deliveryId}`);
       return;
     }
@@ -46,10 +94,10 @@ export class NotificationProcessor extends WorkerHost {
         data: { attemptCount: { increment: 1 }, lastAttemptAt: new Date() },
       });
 
-      let result = { success: false, reference: '', error: '' };
+      let result: { success: boolean; reference?: string; error?: string } = { success: false, reference: '', error: '' };
 
-      const body = this.templateService.render(templateVersion.body, variables);
-      const subject = templateVersion.subject ? this.templateService.render(templateVersion.subject, variables) : undefined;
+      const body = manualContent?.body || this.templateService.render(templateVersion!.body, variables);
+      const subject = manualContent?.subject || (templateVersion?.subject ? this.templateService.render(templateVersion.subject, variables) : undefined);
 
       if (channel === CommunicationChannel.EMAIL) {
         result = await this.emailProvider.send({

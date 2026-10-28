@@ -11,14 +11,13 @@ export class DataIntegrityService {
     const issues = [];
 
     // 1. Orphaned Enrollments (No Student or Class)
-    const orphanedEnrollments = await this.prisma.enrollment.findMany({
-      where: {
-        OR: [
-          { student: null },
-          { class: null }
-        ]
-      }
-    });
+    const orphanedEnrollments = await this.prisma.$queryRaw<Array<{ id: string }>>`
+      SELECT e.id
+      FROM "enrollments" e
+      LEFT JOIN "students" s ON s.id = e."student_id"
+      LEFT JOIN "classes" c ON c.id = e."class_id"
+      WHERE s.id IS NULL OR c.id IS NULL
+    `;
     if (orphanedEnrollments.length > 0) issues.push({ type: 'ORPHANED_ENROLLMENT', count: orphanedEnrollments.length });
 
     // 2. Conflicting Active Enrollments (Same student in multiple classes in same term)

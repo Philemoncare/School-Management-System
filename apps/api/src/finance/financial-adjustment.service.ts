@@ -57,7 +57,7 @@ export class FinancialAdjustmentService {
       }
 
       // Ledger entry
-      let ledgerType = LedgerTransactionType.ADJUSTMENT;
+      let ledgerType: LedgerTransactionType = LedgerTransactionType.ADJUSTMENT;
       if (dto.type === AdjustmentType.DISCOUNT) ledgerType = LedgerTransactionType.DISCOUNT;
       if (dto.type === AdjustmentType.WAIVER) ledgerType = LedgerTransactionType.WAIVER;
       if (dto.type === AdjustmentType.SCHOLARSHIP) ledgerType = LedgerTransactionType.SCHOLARSHIP;

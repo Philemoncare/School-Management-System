@@ -6,6 +6,58 @@ import { InvoiceStatus, PaymentStatus } from '@prisma/client';
 export class FinanceDashboardService {
   constructor(private prisma: PrismaService) {}
 
+  async getFinancialReport(schoolId: string) {
+    const [{ metrics }, categoryTotals, recentPayments, paymentMethods] = await Promise.all([
+      this.getAccountantMetrics(schoolId),
+      this.prisma.invoiceItem.groupBy({
+        by: ['feeCategoryId'],
+        where: {
+          invoice: {
+            is: {
+              schoolId,
+              status: { notIn: [InvoiceStatus.VOID, InvoiceStatus.CANCELLED] },
+            },
+          },
+        },
+        _sum: { totalAmount: true },
+      }),
+      this.prisma.payment.findMany({
+        where: { schoolId, status: PaymentStatus.SUCCESS },
+        include: { student: { select: { firstName: true, lastName: true, studentNumber: true } } },
+        orderBy: { paymentDate: 'desc' },
+        take: 8,
+      }),
+      this.prisma.payment.groupBy({
+        by: ['paymentMethod'],
+        where: { schoolId, status: PaymentStatus.SUCCESS },
+        _sum: { amount: true },
+        _count: { _all: true },
+      }),
+    ]);
+
+    const categoryIds = categoryTotals.map((item) => item.feeCategoryId);
+    const categories = categoryIds.length
+      ? await this.prisma.feeCategory.findMany({
+          where: { id: { in: categoryIds }, schoolId },
+          select: { id: true, name: true, code: true },
+        })
+      : [];
+
+    return {
+      metrics,
+      revenueByCategory: categoryTotals.map((item) => ({
+        category: categories.find((category) => category.id === item.feeCategoryId) || null,
+        amount: item._sum.totalAmount || 0,
+      })),
+      collectionsByMethod: paymentMethods.map((item) => ({
+        method: item.paymentMethod,
+        amount: item._sum.amount || 0,
+        count: item._count._all,
+      })),
+      recentPayments,
+    };
+  }
+
   async getAccountantMetrics(schoolId: string) {
     const now = new Date();
     const startOfToday = new Date(now.setHours(0, 0, 0, 0));
@@ -79,7 +131,7 @@ export class FinanceDashboardService {
 
     const billed = totalBilled._sum.totalAmount || 0;
     const collected = totalCollected._sum.amountPaid || 0;
-    const collectionRate = billed > 0 ? (Number(collected) / Number(billed)) * 100 : 0;
+    const collectionRate = Number(billed) > 0 ? (Number(collected) / Number(billed)) * 100 : 0;
 
     return {
       metrics: {

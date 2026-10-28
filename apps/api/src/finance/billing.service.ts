@@ -154,6 +154,30 @@ export class BillingService {
     return billingRun;
   }
 
+  async findAllRuns(schoolId: string) {
+    const [runs, academicYears, terms] = await Promise.all([
+      this.prisma.billingRun.findMany({
+        where: { schoolId },
+        orderBy: { createdAt: 'desc' },
+        take: 100,
+      }),
+      this.prisma.academicYear.findMany({
+        where: { schoolId },
+        select: { id: true, name: true, code: true },
+      }),
+      this.prisma.term.findMany({
+        where: { academicYear: { is: { schoolId } } },
+        select: { id: true, name: true },
+      }),
+    ]);
+
+    return runs.map((run) => ({
+      ...run,
+      academicYear: academicYears.find((year) => year.id === run.academicYearId) || null,
+      term: run.termId ? terms.find((term) => term.id === run.termId) || null : null,
+    }));
+  }
+
   private async processBulkBilling(runId: string, schoolId: string, params: any, actorId: string) {
     const students = await this.prisma.student.findMany({
       where: {

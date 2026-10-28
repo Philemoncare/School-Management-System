@@ -2,11 +2,14 @@
   "name": "school-management-platform",
   "private": true,
   "scripts": {
-    "dev": "npm run dev --workspaces --if-present",
+    "dev": "node scripts/dev.mjs",
+    "dev:api": "npm run dev --workspace=@school/api",
+    "dev:web": "npm run dev --workspace=@school/web",
     "build": "npm run build --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
-    "format": "prettier --write \"**/*.{ts,tsx,md}\""
+    "format": "prettier --write \"**/*.{ts,tsx,md}\"",
+    "admin:create": "npm run bootstrap:admin --workspace=@school/api"
   },
   "workspaces": [
     "apps/*",

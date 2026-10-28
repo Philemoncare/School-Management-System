@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" role="img" aria-label="SchooMA">
+  <rect width="40" height="40" rx="10" fill="#10382D"/>
+  <path d="M12.5 29.5V10.5" stroke="#F8F6F0" stroke-width="2.3" stroke-linecap="round"/>
+  <path d="M20 31V9" stroke="#DCE8DD" stroke-width="2.3" stroke-linecap="round"/>
+  <path d="M27.5 27.5V13" stroke="#F8F6F0" stroke-width="2.3" stroke-linecap="round"/>
+  <path d="M10.5 27.5H29.5" stroke="#C66A4A" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="30.5" cy="9.5" r="2.8" fill="#C66A4A"/>
+</svg>

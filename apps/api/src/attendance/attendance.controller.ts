@@ -26,6 +26,12 @@ export class AttendanceController {
   }
 
   @Roles('SCHOOL_ADMIN', 'PRINCIPAL', 'TEACHER')
+  @Get('records')
+  findRecords(@ActiveSchool() schoolId: string, @Query() filters: any) {
+    return this.attendanceService.findRecords(schoolId, filters);
+  }
+
+  @Roles('SCHOOL_ADMIN', 'PRINCIPAL', 'TEACHER')
   @Get('sessions')
   findSessions(
     @ActiveSchool() schoolId: string,

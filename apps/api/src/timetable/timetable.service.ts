@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import {
@@ -9,7 +10,6 @@ import {
   CreateSubstitutionDto,
   CreateCalendarEventDto
 } from './dto/timetable.dto';
-import { TimetableStatus, EntryStatus, SubstitutionStatus, Prisma } from '@prisma/client';
 
 @Injectable()
 export class TimetableService {
@@ -107,11 +107,11 @@ export class TimetableService {
           ]
         };
 
-    const commonWhere: Prisma.TimetableEntryWhereInput = {
+    const commonWhere: any = {
       schoolId,
       dayOfWeek,
       id: excludeId ? { not: excludeId } : undefined,
-      status: { notIn: [EntryStatus.CANCELLED, EntryStatus.REPLACED] },
+      status: { notIn: ['CANCELLED', 'REPLACED'] },
       ...timeOverlap
     };
 
@@ -240,8 +240,8 @@ export class TimetableService {
       currentCalendarEvents
     ] = await Promise.all([
       this.prisma.room.count({ where: { schoolId } }),
-      this.prisma.timetableEntry.count({ where: { schoolId, status: EntryStatus.PUBLISHED } }),
-      this.prisma.teacherSubstitution.count({ where: { schoolId, status: SubstitutionStatus.PENDING } }),
+      this.prisma.timetableEntry.count({ where: { schoolId, status: 'PUBLISHED' } }),
+      this.prisma.teacherSubstitution.count({ where: { schoolId, status: 'PENDING' } }),
       this.prisma.academicCalendar.count({
         where: {
           schoolId,

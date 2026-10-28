@@ -6,13 +6,17 @@ import { SecuritySeverity } from '@prisma/client';
 export class SecurityRiskService {
   constructor(private prisma: PrismaService) {}
 
-  async evaluateLoginRisk(userId: string, context: { ip: string; userAgent: string; deviceId?: string }): Promise<{ score: number; severity: SecuritySeverity }> {
+  async evaluateLoginRisk(
+    userId: string,
+    context?: { ip?: string; userAgent?: string; deviceId?: string },
+  ): Promise<{ score: number; severity: SecuritySeverity }> {
     let score = 0;
+    const ctx = context || {};
 
     // 1. Check for new device
-    if (context.deviceId) {
+    if (ctx.deviceId) {
       const device = await this.prisma.userDevice.findUnique({
-        where: { userId_deviceIdentifier: { userId, deviceIdentifier: context.deviceId } },
+        where: { userId_deviceIdentifier: { userId, deviceIdentifier: ctx.deviceId } },
       });
       if (!device) score += 20; // New device
       else if (!device.isTrusted) score += 10;
@@ -25,7 +29,7 @@ export class SecurityRiskService {
       where: { userId },
       orderBy: { createdAt: 'desc' },
     });
-    if (lastSession && lastSession.ipAddress !== context.ip) {
+    if (lastSession && ctx.ip && lastSession.ipAddress !== ctx.ip) {
       score += 10;
     }
 
@@ -39,7 +43,7 @@ export class SecurityRiskService {
     });
     score += (failedAttempts * 10);
 
-    let severity = SecuritySeverity.LOW;
+    let severity: SecuritySeverity = SecuritySeverity.LOW;
     if (score >= 70) severity = SecuritySeverity.CRITICAL;
     else if (score >= 40) severity = SecuritySeverity.HIGH;
     else if (score >= 20) severity = SecuritySeverity.MEDIUM;

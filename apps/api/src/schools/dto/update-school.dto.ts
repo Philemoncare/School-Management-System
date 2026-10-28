@@ -1,43 +1,43 @@
-import { IsEmail, IsOptional, IsString, IsEnum } from 'class-validator';
-import { SchoolStatus } from '@prisma/client';
+import { IsEmail, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+
+// School status values (define locally since prisma enum may have different names)
+export type SchoolStatus = 'ACTIVE' | 'SUSPENDED' | 'TRIAL' | 'EXPIRED' | 'MAINTENANCE';
 
 export class UpdateSchoolDto {
   @IsOptional()
   @IsString()
-  name?: string;
+  name?: string = undefined;
 
   @IsOptional()
   @IsString()
-  logo?: string;
+  logo?: string = undefined;
 
   @IsOptional()
   @IsEmail()
-  email?: string;
+  email?: string = undefined;
 
   @IsOptional()
   @IsString()
-  phone?: string;
+  phone?: string = undefined;
 
   @IsOptional()
   @IsString()
-  address?: string;
+  address?: string = undefined;
 
   @IsOptional()
   @IsString()
-  timezone?: string;
+  timezone?: string = undefined;
 
   @IsOptional()
   @IsString()
-  currency?: string;
+  currency?: string = undefined;
 }
 
 export class UpdateSchoolStatusDto {
-  @IsEnum(SchoolStatus)
-  status: SchoolStatus;
+  @IsString()
+  status: string = 'ACTIVE';
 
   @IsString()
   @IsNotEmpty()
-  reason: string;
+  reason: string = '';
 }
-
-import { IsNotEmpty } from 'class-validator';

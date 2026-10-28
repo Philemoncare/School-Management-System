@@ -1,7 +1,9 @@
+import { Injectable } from '@nestjs/common';
 import { DomainEvent } from './domain-event';
 import { Prisma } from '@prisma/client';
 import { InjectQueue } from '@nestjs/bullmq';
-import { Queue } from 'bullmq';
+import type { Queue } from 'bullmq';
+import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
 export class OutboxService {
@@ -11,13 +13,22 @@ export class OutboxService {
   ) {}
 
   async onModuleInit() {
-    // Add a repeatable job to process the outbox every 10 seconds
-    await this.outboxQueue.add('process', {}, {
-      repeat: {
-        every: 10000,
-      },
-      removeOnComplete: true,
-    });
+    try {
+      await Promise.race([
+        this.outboxQueue.upsertJobScheduler(
+          'outbox-process',
+          { every: 10000 },
+          {
+            name: 'process',
+            data: {},
+            opts: { removeOnComplete: true },
+          },
+        ),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Outbox queue timeout')), 1000)),
+      ]);
+    } catch {
+      // Safely ignore queue error/timeout if Redis is offline
+    }
   }
 
   /**

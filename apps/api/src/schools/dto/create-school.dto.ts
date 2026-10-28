@@ -1,45 +1,47 @@
 import { IsEmail, IsNotEmpty, IsOptional, IsString, IsEnum, Matches } from 'class-validator';
-import { SchoolStatus } from '@prisma/client';
+
+// School status values (define locally since prisma enum may have different names)
+export type SchoolStatus = 'ACTIVE' | 'SUSPENDED' | 'TRIAL' | 'EXPIRED' | 'MAINTENANCE';
 
 export class CreateSchoolDto {
   @IsString()
   @IsNotEmpty()
-  name: string;
+  name: string = '';
 
   @IsString()
   @IsNotEmpty()
   @Matches(/^[A-Z0-9-]{3,10}$/, { message: 'Code must be 3-10 alphanumeric characters' })
-  code: string;
+  code: string = '';
 
   @IsString()
   @IsOptional()
-  slug?: string;
+  slug?: string = undefined;
 
   @IsEmail()
   @IsNotEmpty()
-  adminEmail: string;
+  adminEmail: string = '';
 
   @IsString()
   @IsNotEmpty()
-  adminFirstName: string;
+  adminFirstName: string = '';
 
   @IsString()
   @IsNotEmpty()
-  adminLastName: string;
+  adminLastName: string = '';
 
   @IsOptional()
   @IsString()
-  phone?: string;
+  phone?: string = undefined;
 
   @IsOptional()
   @IsString()
-  address?: string;
+  address?: string = undefined;
 
   @IsOptional()
   @IsString()
-  timezone?: string;
+  timezone?: string = 'UTC';
 
   @IsOptional()
   @IsString()
-  currency?: string;
+  currency?: string = 'USD';
 }

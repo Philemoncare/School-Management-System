@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsOptional, IsJSON, IsObject, IsBoolean } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsJSON, IsObject, IsBoolean, IsArray } from 'class-validator';
 
 export class UpdateSettingDto {
   @IsObject()
@@ -26,6 +26,11 @@ export class CreateFeatureFlagDto {
   @IsBoolean()
   @IsOptional()
   allSchools?: boolean;
+
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  schoolIds?: string[];
 }
 
 export class UpdateFeatureFlagDto {
@@ -36,6 +41,15 @@ export class UpdateFeatureFlagDto {
   @IsString()
   @IsOptional()
   description?: string;
+
+  @IsBoolean()
+  @IsOptional()
+  allSchools?: boolean;
+
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  schoolIds?: string[];
 }
 
 export class SetNumberingRuleDto {

@@ -1,4 +1,4 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
 import { TeacherPortalService } from './teacher-portal.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -31,5 +31,24 @@ export class TeacherPortalController {
   @Get('timetable')
   getTimetable(@CurrentUser() user: any, @ActiveSchool() schoolId: string) {
     return this.teacherPortalService.getMyTimetable(user.id, schoolId);
+  }
+
+  @Get('reports/summary')
+  getReportsSummary(@CurrentUser() user: any, @ActiveSchool() schoolId: string) {
+    return this.teacherPortalService.getReportsSummary(user.id, schoolId);
+  }
+
+  @Get('class-assignments')
+  getClassAssignments(@CurrentUser() user: any, @ActiveSchool() schoolId: string) {
+    return this.teacherPortalService.getClassAssignments(user.id, schoolId);
+  }
+
+  @Post('class-assignments')
+  createClassAssignment(
+    @CurrentUser() user: any,
+    @ActiveSchool() schoolId: string,
+    @Body() dto: any,
+  ) {
+    return this.teacherPortalService.createClassAssignment(user.id, schoolId, dto);
   }
 }

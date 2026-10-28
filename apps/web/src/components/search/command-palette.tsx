@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, Command as CommandIcon, X, User, Book, DollarSign, Calendar, Settings, ArrowRight, Loader2, FileText, Briefcase, Bell, CheckSquare } from 'lucide-react';
+import { Search, Command as CommandIcon, X, User, Book, DollarSign, Calendar, Settings, ArrowRight, Loader2, FileText, Briefcase, Bell, CheckSquare, PlusCircle } from 'lucide-react';
 import { apiFetch } from '@/lib/api/client';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -24,8 +24,14 @@ export function CommandPalette() {
       }
     };
 
+    const openFromTrigger = () => setIsOpen(true);
+
     document.addEventListener('keydown', down);
-    return () => document.removeEventListener('keydown', down);
+    window.addEventListener('schoolma:command', openFromTrigger);
+    return () => {
+      document.removeEventListener('keydown', down);
+      window.removeEventListener('schoolma:command', openFromTrigger);
+    };
   }, []);
 
   useEffect(() => {
@@ -102,24 +108,24 @@ export function CommandPalette() {
 
   return (
     <div className="fixed inset-0 z-[100] flex items-start justify-center pt-24 sm:pt-40 px-4">
-      <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm animate-in fade-in duration-300" onClick={() => setIsOpen(false)} />
+      <div className="fixed inset-0 bg-charcoal-900/60 animate-in fade-in duration-200" onClick={() => setIsOpen(false)} />
 
-      <div className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 border border-gray-100 flex flex-col max-h-[60vh]">
-        <div className="flex items-center px-6 py-4 border-b border-gray-100">
-          <Search className="text-gray-400 mr-4" size={20} />
+      <div className="relative flex max-h-[60vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-warm-200 bg-card shadow-panel animate-in zoom-in-95 duration-200">
+        <div className="flex items-center px-6 py-4 border-b border-warm-100">
+          <Search className="text-warm-400 mr-4" size={20} />
           <input
             ref={inputRef}
-            className="flex-1 bg-transparent border-none text-lg focus:ring-0 placeholder:text-gray-400 font-medium"
+            className="flex-1 bg-transparent border-none text-lg focus:ring-0 placeholder:text-warm-400 font-medium"
             placeholder="Search students, staff, invoices, or type a command..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
           />
           {loading ? (
-            <Loader2 className="animate-spin text-blue-600" size={20} />
+            <Loader2 className="animate-spin text-forest-700" size={20} />
           ) : (
-            <div className="flex items-center gap-1.5 px-2 py-1 bg-gray-100 rounded-lg">
-              <span className="text-[10px] font-black text-gray-400 uppercase">ESC</span>
+            <div className="flex items-center gap-1.5 px-2 py-1 bg-warm-100 rounded-lg">
+              <span className="text-[11px] font-semibold text-warm-400 uppercase">ESC</span>
             </div>
           )}
         </div>
@@ -127,7 +133,7 @@ export function CommandPalette() {
         <div className="flex-1 overflow-y-auto p-3 custom-scrollbar">
           {displayItems.length > 0 ? (
             <div className="space-y-1">
-              <p className="px-3 py-2 text-[10px] font-black text-gray-400 uppercase tracking-widest">
+              <p className="px-3 py-2 text-[11px] font-semibold text-warm-400 uppercase tracking-wide">
                 {query === '' ? 'Suggested Commands' : 'Search Results'}
               </p>
               {displayItems.map((item, index) => (
@@ -136,19 +142,19 @@ export function CommandPalette() {
                   onClick={() => handleSelect(item)}
                   onMouseEnter={() => setSelectedIndex(index)}
                   className={`flex items-center gap-4 px-4 py-3 rounded-2xl cursor-pointer transition-all ${
-                    selectedIndex === index ? 'bg-blue-600 text-white shadow-lg shadow-blue-200 scale-[1.01]' : 'hover:bg-gray-50 text-gray-700'
+                    selectedIndex === index ? 'bg-forest-700 text-white' : 'text-warm-700 hover:bg-ivory-50'
                   }`}
                 >
                   <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
-                    selectedIndex === index ? 'bg-white/20' : 'bg-gray-100 text-gray-500'
+                    selectedIndex === index ? 'bg-card/20' : 'bg-warm-100 text-warm-500'
                   }`}>
                     {renderIcon(item.entityType || item.id, item.icon)}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className={`text-sm font-black truncate leading-tight ${selectedIndex === index ? 'text-white' : 'text-gray-900'}`}>
+                    <p className={`text-sm font-semibold truncate leading-tight ${selectedIndex === index ? 'text-white' : 'text-charcoal-900'}`}>
                       {item.title}
                     </p>
-                    <p className={`text-[11px] font-bold truncate mt-0.5 ${selectedIndex === index ? 'text-white/70' : 'text-gray-400 font-medium'}`}>
+                    <p className={`text-[11px] font-bold truncate mt-0.5 ${selectedIndex === index ? 'text-white/70' : 'text-warm-400 font-medium'}`}>
                       {item.subtitle || item.entityType || 'Action'}
                     </p>
                   </div>
@@ -157,28 +163,28 @@ export function CommandPalette() {
               ))}
             </div>
           ) : (
-            <div className="flex flex-col items-center justify-center py-12 text-gray-400">
-               <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mb-4">
+            <div className="flex flex-col items-center justify-center py-12 text-warm-400">
+               <div className="w-16 h-16 bg-ivory-50 rounded-full flex items-center justify-center mb-4">
                   <Search size={32} />
                </div>
-               <p className="text-sm font-black uppercase tracking-widest">No results found</p>
+               <p className="text-sm font-semibold uppercase tracking-wide">No results found</p>
                <p className="text-xs mt-1">Try a different keyword or identifier</p>
             </div>
           )}
         </div>
 
-        <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
-           <div className="flex items-center gap-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">
+        <div className="px-6 py-4 bg-ivory-50 border-t border-warm-100 flex items-center justify-between">
+           <div className="flex items-center gap-6 text-[11px] font-semibold text-warm-400 uppercase tracking-wide">
               <div className="flex items-center gap-1.5">
-                <span className="px-1.5 py-0.5 bg-white border border-gray-200 rounded">↵</span>
+                <span className="px-1.5 py-0.5 bg-card border border-warm-200 rounded">Enter</span>
                 <span>Select</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <span className="px-1.5 py-0.5 bg-white border border-gray-200 rounded">↑↓</span>
+                <span className="px-1.5 py-0.5 bg-card border border-warm-200 rounded">Up / Down</span>
                 <span>Navigate</span>
               </div>
            </div>
-           <Link href="/dashboard/search/advanced" className="text-[10px] font-black text-blue-600 uppercase tracking-widest hover:underline" onClick={() => setIsOpen(false)}>
+           <Link href="/dashboard/search/advanced" className="text-[11px] font-semibold text-forest-700 uppercase tracking-wide hover:underline" onClick={() => setIsOpen(false)}>
               Advanced Search
            </Link>
         </div>
@@ -207,4 +213,4 @@ function renderIcon(type: string, customIcon?: string) {
   }
 }
 
-import { PlusCircle } from 'lucide-react';
+

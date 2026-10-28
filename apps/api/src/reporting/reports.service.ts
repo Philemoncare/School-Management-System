@@ -1,8 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateReportDefinitionDto, ExecuteReportDto, CreateReportScheduleDto, UpdateReportDefinitionDto, CreateReportDatasetDto, CreateReportFieldDto } from './dto/report.dto';
 import { InjectQueue } from '@nestjs/bullmq';
-import { Queue } from 'bullmq';
+import type { Queue } from 'bullmq';
 
 @Injectable()
 export class ReportsService {
@@ -153,6 +153,14 @@ export class ReportsService {
         }
       },
       include: { recipients: true }
+    });
+  }
+
+  async getSchedules(schoolId: string) {
+    return this.prisma.reportSchedule.findMany({
+      where: { schoolId },
+      include: { reportDefinition: true, recipients: true },
+      orderBy: { createdAt: 'desc' },
     });
   }
 

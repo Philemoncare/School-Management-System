@@ -2,12 +2,13 @@ import { Controller, Get, Post, Body, Patch, Param, UseGuards, Query } from '@ne
 import { AnnouncementsService } from './announcements.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
+import { TenantGuard } from '../auth/guards/tenant.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { ActiveSchool } from '../auth/decorators/active-school.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { AudienceType } from '@prisma/client';
 
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, TenantGuard)
 @Controller('announcements')
 export class AnnouncementsController {
   constructor(private readonly announcementsService: AnnouncementsService) {}
@@ -32,7 +33,7 @@ export class AnnouncementsController {
 
   @Roles('SCHOOL_ADMIN', 'PRINCIPAL')
   @Patch(':id/publish')
-  publish(@Param('id') id: string) {
-    return this.announcementsService.publish(id);
+  publish(@ActiveSchool() schoolId: string, @Param('id') id: string) {
+    return this.announcementsService.publish(schoolId, id);
   }
 }

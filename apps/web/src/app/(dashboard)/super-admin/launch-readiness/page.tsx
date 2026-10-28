@@ -1,26 +1,22 @@
-"use client";
+'use client';
 
 import React, { useEffect, useState } from 'react';
 import { apiFetch } from '@/lib/api/client';
 import {
+  AlertTriangle,
+  CheckCircle,
+  Database,
+  Loader2,
+  RefreshCw,
   Rocket,
   ShieldCheck,
-  Database,
-  Globe,
-  Zap,
-  Activity,
-  AlertTriangle,
-  CheckCircle2,
-  ChevronRight,
-  Loader2,
-  RefreshCw
+  XCircle,
 } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 
 export default function LaunchReadinessPage() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     loadReadiness();
@@ -28,111 +24,110 @@ export default function LaunchReadinessPage() {
 
   async function loadReadiness() {
     setLoading(true);
+    setError('');
     try {
-      const res = await apiFetch('/super-admin/launch-readiness');
-      setData(res);
-    } catch (err) {
-      console.error(err);
+      setData(await apiFetch('/super-admin/launch-readiness'));
+    } catch (err: any) {
+      setError(err.message || 'Unable to load launch readiness');
     } finally {
       setLoading(false);
     }
   }
 
-  if (loading) return <div className="p-20 text-center"><Loader2 className="animate-spin mx-auto text-blue-600" size={48} /></div>;
+  if (loading && !data) {
+    return <div className="py-20 text-center"><Loader2 className="mx-auto animate-spin text-forest-700" size={42} /></div>;
+  }
+
+  const statusStyles: any = {
+    PASS: 'border-success-200 bg-success-50 text-success-700',
+    WARNING: 'border-warning-200 bg-warning-50 text-warning-700',
+    FAIL: 'border-danger-200 bg-danger-50 text-danger-700',
+  };
 
   return (
-    <div className="p-8 max-w-6xl mx-auto space-y-10">
-      <div className="flex justify-between items-center">
+    <div className="mx-auto max-w-6xl space-y-8">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-black text-gray-900 tracking-tight flex items-center gap-3">
-            <Rocket className="text-orange-500" /> Launch Readiness
+          <h1 className="flex items-center gap-3 text-2xl sm:text-3xl font-semibold tracking-tight text-charcoal-900">
+            <Rocket className="text-terracotta-500" /> Launch Readiness
           </h1>
-          <p className="text-gray-500 font-medium mt-1">Final production certification and system health audit.</p>
+          <p className="mt-1 font-medium text-warm-500">Live production certification derived from database, security, queue, and integration checks.</p>
         </div>
-        <button onClick={loadReadiness} className="p-3 bg-white border border-gray-200 rounded-2xl hover:bg-gray-50 transition-all shadow-sm">
-          <RefreshCw size={20} />
+        <button onClick={loadReadiness} disabled={loading} className="rounded-xl border border-warm-200 bg-card p-3 text-warm-500 shadow-sm transition hover:text-forest-700">
+          <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
         </button>
       </div>
 
-      {/* Summary Scorecard */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-        <Card className="bg-gray-900 text-white border-0 shadow-2xl rounded-[2.5rem]">
-          <CardHeader>
-            <CardTitle className="text-xs font-black uppercase tracking-[0.2em] text-gray-400">Readiness Score</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-7xl font-black">{data?.summary?.score}%</div>
-            <p className="text-sm font-bold mt-4 flex items-center gap-2">
-              Status: <Badge className={data?.summary?.status === 'READY' ? 'bg-green-500' : 'bg-orange-500'}>{data?.summary?.status}</Badge>
-            </p>
-          </CardContent>
-        </Card>
+      {error && <div className="rounded-xl border border-danger-200 bg-danger-50 px-4 py-3 text-sm font-semibold text-danger-700">{error}</div>}
 
-        <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
-           {data?.categories.map((cat: any) => (
-             <div key={cat.name} className="bg-white border border-gray-100 p-6 rounded-3xl shadow-sm flex items-center justify-between">
-                <div>
-                   <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{cat.name}</p>
-                   <p className="text-xs font-bold text-gray-600 mt-1">{cat.details}</p>
-                </div>
-                <div className={cat.status === 'PASS' ? 'text-green-500' : 'text-orange-500'}>
-                   {cat.status === 'PASS' ? <CheckCircle2 /> : <AlertTriangle />}
-                </div>
-             </div>
-           ))}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+        <div className="rounded-2xl bg-charcoal-900 p-6 text-white shadow-sm">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-warm-400">Readiness Score</p>
+          <p className="mt-3 text-6xl font-semibold">{data?.summary?.score}%</p>
+          <p className={`mt-4 inline-flex rounded-full px-3 py-1 text-[10px] font-bold uppercase ${data?.summary?.status === 'READY' ? 'bg-success-500' : 'bg-terracotta-500'}`}>
+            {data?.summary?.status?.replace(/_/g, ' ')}
+          </p>
+          <p className="mt-4 text-[11px] font-semibold text-warm-400">Checked {data?.summary?.checkedAt ? new Date(data.summary.checkedAt).toLocaleString() : 'just now'}</p>
+        </div>
+        <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {data?.categories?.map((category: any) => (
+            <div key={category.name} className="flex items-center justify-between gap-3 rounded-2xl border border-warm-200 bg-card p-4 shadow-sm">
+              <div className="min-w-0">
+                <p className="text-[10px] font-bold uppercase tracking-wide text-warm-400">{category.name}</p>
+                <p className="mt-1 text-xs font-semibold text-warm-600 leading-relaxed">{category.details}</p>
+              </div>
+              <span className={`shrink-0 rounded-full border px-2 py-1 text-[10px] font-bold ${statusStyles[category.status] || 'border-warm-200 bg-warm-50 text-warm-600'}`}>
+                {category.status}
+              </span>
+            </div>
+          ))}
         </div>
       </div>
 
-      {/* Integrity Audit */}
-      <Card className="rounded-[2.5rem]">
-        <CardHeader className="border-b border-gray-50 p-8">
-           <CardTitle className="text-xl font-black text-gray-900">Database Integrity Audit</CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-           <div className="divide-y divide-gray-50">
-              {data?.integrity?.issues.length === 0 ? (
-                <div className="p-20 text-center text-gray-400">
-                   <ShieldCheck size={48} className="mx-auto mb-4 opacity-20" />
-                   <p className="font-bold uppercase tracking-widest text-xs">No data integrity violations detected.</p>
-                </div>
-              ) : (
-                data?.integrity?.issues.map((issue: any) => (
-                  <div key={issue.type} className="p-6 flex items-center justify-between hover:bg-gray-50 transition-colors">
-                     <div className="flex items-center gap-4">
-                        <div className="p-3 bg-red-50 text-red-600 rounded-2xl"><AlertTriangle size={20}/></div>
-                        <div>
-                           <p className="text-sm font-black text-gray-900 uppercase tracking-tight">{issue.type.replace(/_/g, ' ')}</p>
-                           <p className="text-xs text-gray-500 font-medium">Anomalous records found that may require manual cleanup.</p>
-                        </div>
-                     </div>
-                     <Badge variant="destructive" className="font-black px-4 py-1 rounded-lg">{issue.count} VIOLATIONS</Badge>
+      <div className="rounded-2xl border border-warm-200 bg-card shadow-sm">
+        <div className="border-b border-warm-100 p-5">
+          <h2 className="flex items-center gap-2 text-lg font-semibold text-charcoal-900"><Database size={19} className="text-forest-700" /> Database Integrity Audit</h2>
+        </div>
+        {data?.integrity?.issues?.length ? (
+          <div className="divide-y divide-warm-100">
+            {data.integrity.issues.map((issue: any) => (
+              <div key={issue.type} className="flex items-center justify-between p-5">
+                <div className="flex items-center gap-3">
+                  <div className="rounded-xl bg-danger-50 p-2.5 text-danger-600"><AlertTriangle size={18} /></div>
+                  <div>
+                    <p className="text-sm font-semibold uppercase tracking-tight text-charcoal-900">{issue.type.replace(/_/g, ' ')}</p>
+                    <p className="text-xs font-medium text-warm-500">Anomalous records may require manual cleanup.</p>
                   </div>
-                ))
-              )}
-           </div>
-        </CardContent>
-      </Card>
-
-      {/* Production Blockers */}
-      <div className="bg-orange-50 border border-orange-100 p-8 rounded-[2.5rem] relative overflow-hidden">
-         <div className="relative z-10">
-            <h3 className="text-lg font-black text-orange-900 mb-4 flex items-center gap-2">
-               <AlertTriangle /> Critical Release Blockers
-            </h3>
-            <ul className="space-y-3">
-               <li className="flex items-center gap-2 text-sm font-bold text-orange-800">
-                  <ChevronRight size={14} /> MFA implementation currently uses static verification (000000)
-               </li>
-               <li className="flex items-center gap-2 text-sm font-bold text-orange-800">
-                  <ChevronRight size={14} /> Malware scanning provider is not yet configured (Mock active)
-               </li>
-               <li className="flex items-center gap-2 text-sm font-bold text-orange-800">
-                  <ChevronRight size={14} /> Infrastructure storage check currently returns 'operational' bypass
-               </li>
-            </ul>
-         </div>
-         <AlertTriangle size={150} className="absolute -bottom-10 -right-10 text-orange-100/50 -rotate-12" />
+                </div>
+                <span className="rounded-lg bg-danger-100 px-3 py-1 text-[11px] font-bold text-danger-700">{issue.count}</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="p-12 text-center">
+            <ShieldCheck size={42} className="mx-auto mb-3 text-success-300" />
+            <p className="text-xs font-bold uppercase tracking-wide text-warm-400">No data integrity violations detected.</p>
+          </div>
+        )}
       </div>
+
+      {data?.blockers?.length > 0 ? (
+        <div className="rounded-2xl border border-terracotta-200 bg-terracotta-50 p-6">
+          <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-terracotta-900"><AlertTriangle size={19} /> Production Warnings & Blockers</h3>
+          <div className="space-y-2">
+            {data.blockers.map((blocker: any, index: number) => (
+              <div key={`${blocker.category}-${index}`} className="flex items-start gap-2 text-sm font-semibold text-terracotta-800">
+                <XCircle size={15} className="mt-0.5 shrink-0" />
+                <span><span className="uppercase">{blocker.category}:</span> {blocker.message}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div className="rounded-2xl border border-success-200 bg-success-50 p-5 text-sm font-semibold text-success-800 flex items-center gap-2">
+          <CheckCircle size={18} /> All readiness checks passed. The platform is ready for launch.
+        </div>
+      )}
     </div>
   );
 }

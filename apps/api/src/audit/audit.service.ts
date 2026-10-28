@@ -5,20 +5,25 @@ import { PrismaService } from '../prisma/prisma.service';
 export class AuditService {
   constructor(private prisma: PrismaService) {}
 
-  async log(data: {
-    schoolId?: string;
-    userId?: string;
-    action: string;
-    module: string;
-    resourceId?: string;
-    metadata?: any;
-    ipAddress?: string;
-    userAgent?: string;
-  }) {
+  async log(
+    data: {
+      schoolId?: string;
+      userId?: string;
+      action: string;
+      module: string;
+      resourceId?: string;
+      metadata?: any;
+      ipAddress?: string;
+      userAgent?: string;
+      tx?: any;
+    },
+    tx?: any,
+  ) {
     // Redact sensitive fields from metadata
     const cleanMetadata = this.redactSensitiveInfo(data.metadata);
 
-    return this.prisma.auditLog.create({
+    const client = tx || data.tx || this.prisma;
+    return client.auditLog.create({
       data: {
         schoolId: data.schoolId,
         userId: data.userId,

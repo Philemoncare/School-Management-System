@@ -1,6 +1,8 @@
 import { Module } from "@nestjs/common";
 import { AppController } from "./app.controller";
 import { PrismaModule } from "./prisma/prisma.module";
+import { FrontOfficeModule } from "./front-office/front-office.module";
+import { HealthModule } from "./health/health.module";
 import { AuthModule } from "./auth/auth.module";
 import { AuditModule } from "./audit/audit.module";
 import { SchoolsModule } from "./schools/schools.module";
@@ -8,6 +10,8 @@ import { StudentsModule } from "./students/students.module";
 import { TeachersModule } from "./teachers/teachers.module";
 import { GuardiansModule } from "./guardians/guardians.module";
 import { StaffModule } from "./staff/staff.module";
+import { InventoryModule } from "./inventory/inventory.module";
+import { ProcurementModule } from "./procurement/procurement.module";
 import { AcademicsModule } from "./academics/academics.module";
 import { EnrollmentsModule } from "./enrollments/enrollments.module";
 import { AttendanceModule } from "./attendance/attendance.module";
@@ -30,6 +34,10 @@ import { AdmissionsModule } from "./admissions/admissions.module";
 import { TimetableModule } from "./timetable/timetable.module";
 import { WorkflowModule } from "./workflow/workflow.module";
 import { ReportingModule } from "./reporting/reporting.module";
+import { ParentPortalModule } from "./parent-portal/parent-portal.module";
+import { StudentPortalModule } from "./student-portal/student-portal.module";
+import { SearchModule } from "./search/search.module";
+import { IntegrationsModule } from "./integrations/integrations.module";
 import { BullModule } from "@nestjs/bullmq";
 import { ThrottlerModule, ThrottlerGuard } from "@nestjs/throttler";
 import { APP_GUARD, APP_INTERCEPTOR } from "@nestjs/core";
@@ -60,26 +68,39 @@ import { JwtAuthGuard } from "./auth/guards/jwt-auth.guard";
     LibraryModule,
     TransportModule,
     HRModule,
+    InventoryModule,
+    ProcurementModule,
     AdmissionsModule,
     TimetableModule,
     WorkflowModule,
     ReportingModule,
+    ParentPortalModule,
+    StudentPortalModule,
+    SearchModule,
     RedisModule,
     CommunicationModule,
     MessagesModule,
     SuperAdminModule,
     SettingsModule,
     SecurityModule,
+    FrontOfficeModule,
+    HealthModule,
+    IntegrationsModule,
     BullModule.forRoot({
       connection: {
-        host: process.env.REDIS_HOST || "localhost",
+        host: process.env.REDIS_HOST || "127.0.0.1",
         port: parseInt(process.env.REDIS_PORT || "6379"),
+        maxRetriesPerRequest: null,
+        enableOfflineQueue: true,
+        retryStrategy: (times) => {
+          return Math.min(times * 500, 5000);
+        },
       },
     }),
     ThrottlerModule.forRoot([
       {
         ttl: 60000,
-        limit: 10,
+        limit: 100,
       },
     ]),
   ],

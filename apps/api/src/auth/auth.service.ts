@@ -4,33 +4,49 @@ import {
   ForbiddenException,
   BadRequestException,
   ConflictException,
+  Logger,
 } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import { PrismaService } from "../prisma/prisma.service";
 import { AuditService } from "../audit/audit.service";
 import { SessionService } from "../security/services/session.service";
-import { MfaService } from "../security/services/mfa.service";
 import { SecurityRiskService } from "../security/services/security-risk.service";
 import { SecurityEventService } from "../security/services/security-event.service";
 import * as argon2 from "argon2";
 import { randomBytes, createHash } from "node:crypto";
+import { EmailProvider } from "../communication/providers/email.provider";
 import {
+  EmailOtpService,
+  LOGIN_OTP_TOKEN_TTL,
+  OTP_CODE_LENGTH,
+  OTP_TTL_MS,
+} from "./email-otp.service";
+import {
+  Prisma,
   SecurityEventType,
   SecuritySeverity,
   AccountState,
   InvitationStatus,
 } from "@prisma/client";
-
+import {
+  expandRoleAliases,
+  platformPermissionsFor,
+  schoolPermissionsFor,
+} from "./platform-roles";
+import { provisionPlatformSuperAdmin } from "./platform-role-provisioning";
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly audit: AuditService,
     private readonly sessionService: SessionService,
-    private readonly mfaService: MfaService,
     private readonly riskService: SecurityRiskService,
     private readonly securityEventService: SecurityEventService,
+    private readonly emailProvider: EmailProvider,
+    private readonly emailOtp: EmailOtpService,
   ) {}
 
   async validateUser(email: string, pass: string, context?: any): Promise<any> {
@@ -46,32 +62,47 @@ export class AuthService {
       },
     });
 
-    if (!user) {
+    // To prevent timing attacks/enumeration, we always perform the hash verification.
+    // If user is not found, we verify against a dummy hash.
+    const DUMMY_HASH = "$argon2id$v=19$m=65536,t=3,p=4$c29tZXNhbHQ$Rdesc8r6hJ5dRQo6S9y/G7a5t41P9Xm+kX5Z+z4I6X4";
+
+    const targetHash = user ? user.passwordHash : DUMMY_HASH;
+    const passwordMatches = await argon2.verify(targetHash, pass).catch(() => false);
+
+    if (!user || !passwordMatches) {
+      if (user) {
+        await this.securityEventService.logEvent({
+          userId: user.id,
+          eventType: "LOGIN_FAILURE" as any,
+          severity: SecuritySeverity.LOW,
+          metadata: { reason: "Invalid credentials" },
+          ipAddress: context?.ip,
+          userAgent: context?.userAgent,
+        });
+
+        // Check for brute force and lock account if necessary
+        await this.checkAndLockAccount(user.id, context);
+      }
       return null;
     }
 
-    const passwordMatches = await argon2
-      .verify(user.passwordHash, pass)
-      .catch(() => false);
-
-    if (!passwordMatches) {
-      await this.securityEventService.logEvent({
-        userId: user.id,
-        eventType: "LOGIN_FAILURE" as any,
-        severity: SecuritySeverity.LOW,
-        metadata: { reason: "Invalid password" },
-        ipAddress: context?.ip,
-        userAgent: context?.userAgent,
-      });
-      return null;
-    }
-
-    const blockedStates = [
+    const blockedStates: AccountState[] = [
       AccountState.DISABLED,
       AccountState.SUSPENDED,
       AccountState.LOCKED,
       AccountState.COMPROMISED,
     ];
+
+    const isVerificationRequired = process.env.SKIP_EMAIL_VERIFICATION !== 'true';
+    if (isVerificationRequired && user.accountState === AccountState.PENDING_VERIFICATION) {
+      blockedStates.push(AccountState.PENDING_VERIFICATION);
+    }
+
+    if (!user.isActive) {
+      throw new ForbiddenException(
+        "Your account is unavailable. Please contact your administrator.",
+      );
+    }
 
     if (blockedStates.includes(user.accountState)) {
       await this.securityEventService.logEvent({
@@ -82,39 +113,149 @@ export class AuthService {
         ipAddress: context?.ip,
         userAgent: context?.userAgent,
       });
+      throw new ForbiddenException({
+        message:
+          user.accountState === AccountState.PENDING_VERIFICATION
+            ? "Verify your email with the 5-digit code before signing in."
+            : "Your account is unavailable. Please contact your administrator.",
+        code:
+          user.accountState === AccountState.PENDING_VERIFICATION
+            ? "EMAIL_VERIFICATION_REQUIRED"
+            : "ACCOUNT_UNAVAILABLE",
+      });
+    }
+
+    const { passwordHash, ...result } = user;
+    return result;
+  }
+
+  private async checkAndLockAccount(userId: string, context?: any) {
+    const lockoutThreshold = 5; // Should ideally come from SecurityPolicy
+    const recentFailures = await this.prisma.securityEvent.count({
+      where: {
+        userId,
+        eventType: 'LOGIN_FAILURE' as any,
+        createdAt: { gte: new Date(Date.now() - 15 * 60 * 1000) } // Last 15 mins
+      }
+    });
+
+    if (recentFailures >= lockoutThreshold) {
+      await this.prisma.user.update({
+        where: { id: userId },
+        data: { accountState: AccountState.LOCKED }
+      });
+
+      await this.securityEventService.logEvent({
+        userId,
+        eventType: SecurityEventType.ACCOUNT_LOCKED as any,
+        severity: SecuritySeverity.HIGH,
+        metadata: { reason: "Maximum login attempts exceeded" },
+        ipAddress: context?.ip,
+        userAgent: context?.userAgent,
+      });
+
+      // Optional: Send security alert email
+      const user = await this.prisma.user.findUnique({ where: { id: userId } });
+      if (user) {
+          await this.emailProvider.send({
+              to: user.email,
+              subject: "SchooMA Security Alert: Account Locked",
+              body: "Your account has been locked due to multiple failed login attempts. Please reset your password or contact support to regain access."
+          });
+      }
+    }
+  }
+
+  async login(user: any, context?: any) {
+    return this.issueLoginOtp(user, context);
+  }
+
+  async resendLoginOtp(otpToken: string, context?: any) {
+    const user = await this.resolveLoginOtpToken(otpToken);
+    return this.issueLoginOtp(user, context);
+  }
+
+  async verifyLoginOtp(otpToken: string, code: string, context?: any) {
+    const user = await this.resolveLoginOtpToken(otpToken);
+    const verification = await this.emailOtp.verifyCode(
+      user.id,
+      'LOGIN',
+      code,
+      context,
+    );
+
+    if (!verification.valid) {
+      if (verification.locked) {
+        throw new UnauthorizedException(
+          "Too many incorrect codes. Request a new sign-in code.",
+        );
+      }
+      if (verification.expired) {
+        throw new UnauthorizedException(
+          "That code has expired. Request a new sign-in code.",
+        );
+      }
+      throw new UnauthorizedException(
+        "That code is incorrect. Check your email and try again.",
+      );
+    }
+
+    return this.createAuthenticatedSession(user, context);
+  }
+
+  private async issueLoginOtp(user: any, context?: any) {
+    const challenge = await this.emailOtp.issueChallenge(user.id, "LOGIN");
+    const delivery = await this.emailOtp.sendLoginCode(user, challenge.code);
+
+    return {
+      otpRequired: true,
+      otp_token: this.jwtService.sign(
+        { sub: user.id, otp: true, purpose: "LOGIN_OTP" },
+        { expiresIn: LOGIN_OTP_TOKEN_TTL },
+      ),
+      email: user.email,
+      emailSent: delivery.emailSent,
+      emailDelivery: delivery.emailDelivery,
+      codeLength: OTP_CODE_LENGTH,
+      expiresInSeconds: Math.floor(OTP_TTL_MS / 1000),
+    };
+  }
+
+  private async resolveLoginOtpToken(otpToken: string) {
+    let payload: any;
+    try {
+      payload = this.jwtService.verify(otpToken);
+    } catch {
+      throw new UnauthorizedException(
+        "Your sign-in session expired. Enter your password again.",
+      );
+    }
+
+    if (!payload?.otp || payload.purpose !== "LOGIN_OTP" || !payload.sub) {
+      throw new UnauthorizedException("Invalid sign-in challenge.");
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: payload.sub },
+    });
+    if (!user) {
+      throw new UnauthorizedException("Invalid sign-in challenge.");
+    }
+
+    const blockedStates: AccountState[] = [
+      AccountState.DISABLED,
+      AccountState.SUSPENDED,
+      AccountState.LOCKED,
+      AccountState.COMPROMISED,
+      AccountState.PENDING_VERIFICATION,
+    ];
+    if (!user.isActive || blockedStates.includes(user.accountState)) {
       throw new ForbiddenException(
         "Your account is unavailable. Please contact your administrator.",
       );
     }
 
-    const mfaEnabled = await this.mfaService.isMfaEnabled(user.id);
-    const { passwordHash, ...result } = user;
-    return { ...result, mfaRequired: mfaEnabled };
-  }
-
-  async login(user: any, context?: any) {
-    if (user.mfaRequired) {
-      // Create a short-lived token for MFA stage
-      const mfaToken = this.jwtService.sign(
-        { sub: user.id, mfa: true },
-        { expiresIn: "5m" },
-      );
-
-      await this.securityEventService.logEvent({
-        userId: user.id,
-        eventType: SecurityEventType.LOGIN_MFA_REQUIRED as any,
-        severity: SecuritySeverity.LOW,
-        ipAddress: context?.ip,
-        userAgent: context?.userAgent,
-      });
-
-      return {
-        mfaRequired: true,
-        mfa_token: mfaToken,
-      };
-    }
-
-    return this.createAuthenticatedSession(user, context);
+    return user;
   }
 
   async createAuthenticatedSession(user: any, context?: any) {
@@ -138,11 +279,15 @@ export class AuthService {
       },
     });
 
+    const persistedRoles =
+      userWithDetails?.userRoles.map((ur: any) => ur.role.name) || [];
+    const resolvedRoles = expandRoleAliases(persistedRoles);
+
     const payload = {
       email: user.email,
       sub: user.id,
       sid: session.id,
-      roles: userWithDetails?.userRoles.map((ur: any) => ur.role.name) || [],
+      roles: resolvedRoles,
     };
 
     await this.securityEventService.logEvent({
@@ -165,132 +310,121 @@ export class AuthService {
         lastName: user.lastName,
         memberships: userWithDetails?.memberships || [],
         userRoles: userWithDetails?.userRoles || [],
+        roles: resolvedRoles,
+        platformPermissions: platformPermissionsFor(resolvedRoles),
+        schoolPermissions: schoolPermissionsFor(persistedRoles),
       },
     };
   }
 
-  async registerSchool(dto: any) {
-    const { school, admin } = dto;
-
-    // Check for duplicates
-    const existingSchool = await this.prisma.school.findFirst({
-      where: { OR: [{ code: school.code }, { slug: school.slug }] },
-    });
-    if (existingSchool)
-      throw new ConflictException("School code or slug already exists");
-
-    const existingUser = await this.prisma.user.findUnique({
-      where: { email: admin.email },
-    });
-    if (existingUser) throw new ConflictException("Email already registered");
-
-    const passwordHash = await argon2.hash(admin.password);
-
-    return this.prisma.$transaction(async (tx) => {
-      // 1. Create School
-      const newSchool = await tx.school.create({
-        data: {
-          name: school.name,
-          code: school.code,
-          slug: school.slug,
-          email: school.email,
-          phone: school.phone,
-          address: school.address,
-          timezone: school.timezone || "UTC",
-          currency: school.currency || "USD",
-          status: "TRIAL",
-        },
-      });
-
-      // 2. Create Admin User
-      const newUser = await tx.user.create({
-        data: {
-          email: admin.email,
-          firstName: admin.firstName,
-          lastName: admin.lastName,
-          passwordHash,
-          accountState: AccountState.PENDING_VERIFICATION,
-        },
-      });
-
-      // 3. Create Role
-      const adminRole = await tx.role.create({
-        data: {
-          name: "SCHOOL_ADMIN",
-          schoolId: newSchool.id,
-          isSystem: true,
-        },
-      });
-
-      // 4. Create Membership & Role Assignment
-      await tx.schoolMembership.create({
-        data: {
-          schoolId: newSchool.id,
-          userId: newUser.id,
-          status: "ACTIVE",
-        },
-      });
-
-      await tx.userRole.create({
-        data: {
-          userId: newUser.id,
-          roleId: adminRole.id,
-          schoolId: newSchool.id,
-        },
-      });
-
-      // 5. Generate Verification Token
-      const token = randomBytes(32).toString("hex");
-      const tokenHash = createHash("sha256").update(token).digest("hex");
-
-      await tx.emailVerificationToken.create({
-        data: {
-          userId: newUser.id,
-          tokenHash,
-          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
-        },
-      });
-
-      // Email delivery is intentionally deferred to the configured email provider abstraction.
-
-      return { school: newSchool, user: newUser, verificationToken: token };
-    });
-  }
-
-  async verifyEmail(token: string) {
-    const tokenHash = createHash("sha256").update(token).digest("hex");
-    const record = await this.prisma.emailVerificationToken.findUnique({
-      where: { tokenHash },
-    });
-
-    if (!record || record.expiresAt < new Date()) {
-      throw new BadRequestException("Invalid or expired verification token");
+  async verifyEmail(
+    email: string,
+    code: string,
+    context?: { ip?: string; userAgent?: string },
+  ) {
+    const normalizedEmail = email?.trim().toLowerCase();
+    if (!normalizedEmail || !code) {
+      throw new BadRequestException(
+        "Enter the email address and 5-digit code we sent you.",
+      );
     }
 
-    return this.prisma.$transaction(async (tx) => {
-      await tx.user.update({
-        where: { id: record.userId },
-        data: {
-          emailVerified: new Date(),
-          accountState: AccountState.ACTIVE,
-        },
-      });
-
-      await tx.emailVerificationToken.delete({ where: { id: record.id } });
-
-      await this.securityEventService.logEvent({
-        userId: record.userId,
-        eventType: "LOGIN_SUCCESS" as any,
-        severity: SecuritySeverity.LOW,
-        metadata: { action: "EMAIL_VERIFIED" },
-      });
-
-      return { success: true };
+    const user = await this.prisma.user.findUnique({
+      where: { email: normalizedEmail },
     });
+
+    if (!user || user.accountState !== AccountState.PENDING_VERIFICATION) {
+      throw new BadRequestException("That code is invalid or has expired.");
+    }
+
+    const verification = await this.emailOtp.verifyCode(
+      user.id,
+      "EMAIL_VERIFICATION",
+      code,
+      context,
+    );
+
+    if (!verification.valid) {
+      if (verification.locked) {
+        throw new BadRequestException(
+          "Too many incorrect codes. Request a new verification code.",
+        );
+      }
+      if (verification.expired) {
+        throw new BadRequestException(
+          "That code has expired. Request a new verification code.",
+        );
+      }
+      throw new BadRequestException(
+        "That code is incorrect. Check your email and try again.",
+      );
+    }
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        emailVerified: new Date(),
+        accountState: AccountState.ACTIVE,
+      },
+    });
+
+    await this.securityEventService.logEvent({
+      userId: user.id,
+      eventType: "LOGIN_SUCCESS" as any,
+      severity: SecuritySeverity.LOW,
+      metadata: { action: "EMAIL_VERIFIED" },
+      ipAddress: context?.ip,
+      userAgent: context?.userAgent,
+    });
+
+    return {
+      success: true,
+      message: "Email verified successfully. You can now sign in.",
+    };
+  }
+
+  async resendVerificationEmail(email: string) {
+    const normalizedEmail = email?.trim().toLowerCase();
+    if (!normalizedEmail) {
+      throw new BadRequestException("Email address is required");
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { email: normalizedEmail },
+      include: {
+        memberships: {
+          include: { school: { select: { name: true } } },
+          take: 1,
+        },
+      },
+    });
+
+    if (user && user.accountState === AccountState.PENDING_VERIFICATION) {
+      const challenge = await this.emailOtp.issueChallenge(
+        user.id,
+        "EMAIL_VERIFICATION",
+      );
+      await this.emailOtp.sendVerificationCode(
+        user,
+        user.memberships[0]?.school?.name || "your school",
+        challenge.code,
+      );
+    }
+
+    return {
+      message:
+        "If an unverified account exists for this email, a new 5-digit code has been sent.",
+      codeLength: OTP_CODE_LENGTH,
+      expiresInSeconds: Math.floor(OTP_TTL_MS / 1000),
+    };
   }
 
   async forgotPassword(email: string) {
     const normalizedEmail = email?.trim().toLowerCase();
+    if (!normalizedEmail) {
+      throw new BadRequestException("Email address is required");
+    }
+
     const user = await this.prisma.user.findUnique({
       where: { email: normalizedEmail },
     });
@@ -316,7 +450,14 @@ export class AuthService {
         severity: SecuritySeverity.LOW,
       });
 
-      // A real delivery system should send the token via email here.
+      const appUrl = process.env.APP_URL || 'http://localhost:3000';
+      const resetUrl = `${appUrl}/reset-password?token=${token}`;
+
+      await this.emailProvider.send({
+        to: user.email,
+        subject: "Reset your SchooMA Workspace Password",
+        body: `Hello ${user.firstName || 'User'},\n\nA password reset request was received for your SchooMA account.\n\nPlease click the secure link below to establish new credentials:\n\n${resetUrl}\n\nThis security link will expire in 1 hour.\n\nIf you did not initiate this request, please ignore this email.`,
+      });
     }
 
     return {
@@ -330,6 +471,10 @@ export class AuthService {
       throw new BadRequestException("Token and new password are required");
     }
 
+    if (newPass.length < 12 || !/(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[^a-zA-Z0-9])/.test(newPass)) {
+      throw new BadRequestException("Password must be at least 12 characters and contain uppercase, lowercase, number, and special character.");
+    }
+
     const tokenHash = createHash("sha256").update(token).digest("hex");
     const resetRecord = await this.prisma.passwordResetToken.findUnique({
       where: { tokenHash },
@@ -339,7 +484,12 @@ export class AuthService {
       throw new BadRequestException("Invalid or expired reset token");
     }
 
-    const passwordHash = await argon2.hash(newPass);
+    const passwordHash = await argon2.hash(newPass, {
+      type: argon2.argon2id,
+      memoryCost: 65536,
+      timeCost: 3,
+      parallelism: 4,
+    });
 
     await this.prisma.$transaction(async (tx) => {
       await tx.user.update({
@@ -382,7 +532,18 @@ export class AuthService {
 
   async acceptInvitation(token: string, password: string) {
     const invite = await this.getInvitationDetails(token);
-    const passwordHash = await argon2.hash(password);
+
+    // Enforce strong password rules
+    if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[^a-zA-Z0-9])/.test(password) || password.length < 12) {
+      throw new BadRequestException("Password must be at least 12 characters and contain uppercase, lowercase, numbers and symbols.");
+    }
+
+    const passwordHash = await argon2.hash(password, {
+      type: argon2.argon2id,
+      memoryCost: 65536,
+      timeCost: 3,
+      parallelism: 4,
+    });
 
     return this.prisma.$transaction(async (tx) => {
       // 1. Create or update user
@@ -397,6 +558,16 @@ export class AuthService {
             lastName: "",
             accountState: AccountState.ACTIVE,
             emailVerified: new Date(),
+          },
+        });
+      } else {
+        user = await tx.user.update({
+          where: { id: user.id },
+          data: {
+            passwordHash,
+            accountState: AccountState.ACTIVE,
+            emailVerified: user.emailVerified || new Date(),
+            isActive: true,
           },
         });
       }
@@ -475,7 +646,99 @@ export class AuthService {
 
     if (!user) throw new UnauthorizedException();
 
+    if (user.accountState === AccountState.DISABLED || user.accountState === AccountState.SUSPENDED) {
+      throw new ForbiddenException('Account is disabled');
+    }
+
     const { passwordHash, ...result } = user;
-    return result;
+    const persistedRoles = result.userRoles.map((userRole: any) => userRole.role.name);
+    const resolvedRoles = expandRoleAliases(persistedRoles);
+
+    return {
+      ...result,
+      roles: resolvedRoles,
+      platformPermissions: platformPermissionsFor(resolvedRoles),
+      schoolPermissions: schoolPermissionsFor(persistedRoles),
+    };
+  }
+
+  async bootstrapSuperAdmin(data: { email: string; password: string; firstName: string; lastName: string }) {
+    const email = data.email?.trim().toLowerCase();
+    if (!email) {
+      throw new BadRequestException('Super admin email is required');
+    }
+    if (
+      !data.password ||
+      data.password.length < 12 ||
+      !/(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[^a-zA-Z0-9])/.test(data.password)
+    ) {
+      throw new BadRequestException(
+        'Password must be at least 12 characters and contain uppercase, lowercase, number, and special character.',
+      );
+    }
+
+    const passwordHash = await argon2.hash(data.password, {
+      type: argon2.argon2id,
+      memoryCost: 65536,
+      timeCost: 3,
+      parallelism: 4,
+    });
+
+    return this.prisma.$transaction(async (tx) => {
+      const existing = await tx.user.findUnique({ where: { email } });
+      const user = existing
+        ? await tx.user.update({
+            where: { id: existing.id },
+            data: {
+              passwordHash,
+              firstName: data.firstName || existing.firstName,
+              lastName: data.lastName || existing.lastName,
+              accountState: AccountState.ACTIVE,
+              emailVerified: existing.emailVerified || new Date(),
+              isActive: true,
+            },
+          })
+        : await tx.user.create({
+            data: {
+              email,
+              passwordHash,
+              firstName: data.firstName,
+              lastName: data.lastName,
+              accountState: AccountState.ACTIVE,
+              emailVerified: new Date(),
+              isActive: true,
+            },
+          });
+
+      const platformRoles = await provisionPlatformSuperAdmin(tx, user.id);
+
+      // Preserve the legacy role for existing deployments and endpoints that
+      // have not yet moved to the canonical platform role.
+      const legacyRole = await tx.role.findFirst({
+        where: { name: 'SUPER_ADMIN', schoolId: null },
+      }) || await tx.role.create({
+        data: {
+          name: 'SUPER_ADMIN',
+          description: 'Legacy platform super administrator alias',
+          isSystem: true,
+          schoolId: null,
+        },
+      });
+
+      const legacyAssignment = await tx.userRole.findFirst({
+        where: { userId: user.id, roleId: legacyRole.id, schoolId: null },
+      });
+
+      if (!legacyAssignment) {
+        await tx.userRole.create({
+          data: { userId: user.id, roleId: legacyRole.id, schoolId: null },
+        });
+      }
+
+      return {
+        ...user,
+        platformRoleId: platformRoles.PLATFORM_SUPER_ADMIN.id,
+      };
+    });
   }
 }

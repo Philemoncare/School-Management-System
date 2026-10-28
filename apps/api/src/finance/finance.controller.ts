@@ -130,10 +130,22 @@ export class FinanceController {
     return this.financeService.getOutstandingBalances(schoolId, filters);
   }
 
-  // Reports (Placeholder for now)
+  // Reports
+  @Roles('ACCOUNTANT', 'SCHOOL_ADMIN')
+  @Get('reports/summary')
+  getFinancialReport(@ActiveSchool() schoolId: string) {
+    return this.dashboardService.getFinancialReport(schoolId);
+  }
+
   @Roles('ACCOUNTANT', 'SCHOOL_ADMIN')
   @Get('reports/collections')
   getCollectionReport(@ActiveSchool() schoolId: string, @Query() filters: any) {
-     return { message: 'Report generation started' };
+    return this.paymentService.getPayments(schoolId, filters);
+  }
+
+  @Roles('ACCOUNTANT', 'SCHOOL_ADMIN')
+  @Get('billing-runs')
+  getBillingRuns(@ActiveSchool() schoolId: string) {
+    return this.billingService.findAllRuns(schoolId);
   }
 }

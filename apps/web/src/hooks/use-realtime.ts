@@ -1,60 +1,76 @@
-import { useEffect, useRef } from 'react';
+﻿import { useEffect, useRef, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { useAuth } from '../context/auth-context';
-import Cookies from 'js-cookie';
 
-const WEBSOCKET_URL = process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:4000';
+function resolveWebSocketUrl() {
+  if (process.env.NEXT_PUBLIC_WS_URL) return process.env.NEXT_PUBLIC_WS_URL;
+  if (typeof window === 'undefined') return '';
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || '/api/v1';
+  if (apiUrl.startsWith('http')) return new URL(apiUrl).origin;
+  return `${window.location.protocol}//${window.location.hostname}:4000`;
+}
 
 export function useRealtime() {
   const { user } = useAuth();
   const socketRef = useRef<Socket | null>(null);
+  const [socket, setSocket] = useState<Socket | null>(null);
 
   useEffect(() => {
     if (!user) {
-      if (socketRef.current) {
-        socketRef.current.disconnect();
-        socketRef.current = null;
-      }
+      socketRef.current?.disconnect();
+      socketRef.current = null;
+      setSocket(null);
       return;
     }
 
-    const token = Cookies.get('token');
+    const token =
+      typeof window !== 'undefined' ? localStorage.getItem('token') : null;
 
-    const socket = io(WEBSOCKET_URL, {
+    const client = io(resolveWebSocketUrl(), {
       auth: { token },
       transports: ['websocket'],
     });
 
-    socket.on('connect', () => {
-      console.log('Connected to realtime services');
+    client.on('connect', () => {
       const schoolId = localStorage.getItem('schoolId');
       if (schoolId) {
-        socket.emit('join-school', schoolId);
+        client.emit('join-school', schoolId);
       }
     });
 
-    socket.on('disconnect', () => {
-      console.log('Disconnected from realtime services');
-    });
-
-    socketRef.current = socket;
+    socketRef.current = client;
+    setSocket(client);
 
     return () => {
-      socket.disconnect();
+      client.disconnect();
+      socketRef.current = null;
+      setSocket(null);
     };
   }, [user]);
 
-  const on = (event: string, callback: (data: any) => void) => {
-    useEffect(() => {
-      const socket = socketRef.current;
-      if (!socket) return;
-
-      socket.on(event, callback);
-      return () => {
-        socket.off(event, callback);
-      };
-    }, [event, callback]);
-  };
-
-  return { on, socket: socketRef.current };
+  return { socket };
 }
+
+export function useRealtimeEvent(
+  socket: Socket | null,
+  event: string,
+  callback: (data: any) => void,
+) {
+  const callbackRef = useRef(callback);
+
+  useEffect(() => {
+    callbackRef.current = callback;
+  }, [callback]);
+
+  useEffect(() => {
+    if (!socket) return;
+
+    const handler = (data: any) => callbackRef.current(data);
+    socket.on(event, handler);
+
+    return () => {
+      socket.off(event, handler);
+    };
+  }, [socket, event]);
+}
+

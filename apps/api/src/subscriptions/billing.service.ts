@@ -10,27 +10,27 @@ export class BillingService {
    */
   calculateNextBillingDate(startDate: Date, interval: BillingInterval): Date {
     const nextDate = new Date(startDate);
-    const dayOfMonth = startDate.getDate();
+    const dayOfMonth = startDate.getUTCDate();
 
     switch (interval) {
       case BillingInterval.MONTHLY:
-        nextDate.setMonth(nextDate.getMonth() + 1);
+        nextDate.setUTCMonth(nextDate.getUTCMonth() + 1);
         break;
       case BillingInterval.QUARTERLY:
-        nextDate.setMonth(nextDate.getMonth() + 3);
+        nextDate.setUTCMonth(nextDate.getUTCMonth() + 3);
         break;
       case BillingInterval.SEMI_ANNUAL:
-        nextDate.setMonth(nextDate.getMonth() + 6);
+        nextDate.setUTCMonth(nextDate.getUTCMonth() + 6);
         break;
       case BillingInterval.ANNUAL:
-        nextDate.setFullYear(nextDate.getFullYear() + 1);
+        nextDate.setUTCFullYear(nextDate.getUTCFullYear() + 1);
         break;
     }
 
     // Month-End Rule implementation
     // If the day changed (e.g. Jan 31 -> Mar 3), set to last day of previous month (Feb 28/29)
-    if (nextDate.getDate() !== dayOfMonth) {
-      nextDate.setDate(0);
+    if (nextDate.getUTCDate() !== dayOfMonth) {
+      nextDate.setUTCDate(0);
     }
 
     return nextDate;

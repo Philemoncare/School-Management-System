@@ -1,6 +1,15 @@
 import { IsString, IsNotEmpty, IsOptional, IsUUID, IsInt, IsBoolean, IsArray, IsEnum, IsDate, Min, Max, Matches } from 'class-validator';
 import { Type } from 'class-transformer';
-import { RoomType, CalendarEventType, TimetableStatus, EntryStatus, SubstitutionStatus } from '@prisma/client';
+import { RoomType, CalendarEventType } from '@prisma/client';
+
+// TimetableStatus values
+export type TimetableStatus = 'DRAFT' | 'PUBLISHED' | 'ARCHIVED' | 'ACTIVE';
+
+// EntryStatus values
+export type EntryStatus = 'ACTIVE' | 'CANCELLED' | 'REPLACED' | 'COMPLETED';
+
+// SubstitutionStatus values
+export type SubstitutionStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'COMPLETED';
 
 export class CreateRoomDto {
   @IsString()
@@ -38,21 +47,21 @@ export class CreateRoomDto {
 export class CreatePeriodDto {
   @IsInt()
   @Min(1)
-  periodNumber: number;
+  periodNumber: number = 1;
 
   @IsString()
   @IsNotEmpty()
-  name: string;
+  name: string = '';
 
   @IsString()
   @IsNotEmpty()
   @Matches(/^([01]\d|2[0-3]):([0-5]\d)$/, { message: 'startTime must be in HH:mm format' })
-  startTime: string;
+  startTime: string = '';
 
   @IsString()
   @IsNotEmpty()
   @Matches(/^([01]\d|2[0-3]):([0-5]\d)$/, { message: 'endTime must be in HH:mm format' })
-  endTime: string;
+  endTime: string = '';
 
   @IsBoolean()
   @IsOptional()
@@ -60,7 +69,7 @@ export class CreatePeriodDto {
 
   @IsInt()
   @Min(1)
-  duration: number;
+  duration: number = 1;
 
   @IsInt()
   @IsOptional()
@@ -90,122 +99,124 @@ export class CreateBellScheduleDto {
 export class CreateTimetableEntryDto {
   @IsUUID()
   @IsNotEmpty()
-  academicYearId: string;
+  academicYearId: string = '';
 
   @IsUUID()
   @IsOptional()
-  termId?: string;
+  termId?: string = undefined;
 
   @IsUUID()
   @IsOptional()
-  versionId?: string;
+  versionId?: string = undefined;
 
   @IsUUID()
   @IsNotEmpty()
-  classId: string;
+  classId: string = '';
 
   @IsUUID()
   @IsOptional()
-  sectionId?: string;
+  sectionId?: string = undefined;
 
   @IsUUID()
   @IsNotEmpty()
-  subjectId: string;
+  subjectId: string = '';
 
   @IsUUID()
   @IsNotEmpty()
-  teacherId: string;
+  teacherId: string = '';
 
   @IsUUID()
   @IsOptional()
-  teacherAssignmentId?: string;
+  teacherAssignmentId?: string = undefined;
 
   @IsUUID()
   @IsOptional()
-  roomId?: string;
+  roomId?: string = undefined;
 
   @IsUUID()
   @IsOptional()
-  periodId?: string;
+  periodId?: string = undefined;
 
   @IsInt()
   @Min(1)
   @Max(7)
-  dayOfWeek: number;
+  dayOfWeek: number = 1;
 
   @IsString()
-  @IsOptional()
-  startTime?: string;
+  @IsNotEmpty()
+  @Matches(/^([01]\d|2[0-3]):([0-5]\d)$/, { message: 'startTime must be in HH:mm format' })
+  startTime: string = '';
 
   @IsString()
-  @IsOptional()
-  endTime?: string;
+  @IsNotEmpty()
+  @Matches(/^([01]\d|2[0-3]):([0-5]\d)$/, { message: 'endTime must be in HH:mm format' })
+  endTime: string = '';
 }
 
 export class CreateTimetableVersionDto {
   @IsUUID()
   @IsNotEmpty()
-  academicYearId: string;
+  academicYearId: string = '';
 
   @IsUUID()
   @IsOptional()
-  termId?: string;
+  termId?: string = undefined;
 
   @IsInt()
   @Min(1)
-  versionNumber: number;
+  versionNumber: number = 1;
 
   @IsString()
   @IsOptional()
-  name?: string;
+  name?: string = '';
 }
 
 export class CreateSubstitutionDto {
   @IsUUID()
   @IsNotEmpty()
-  timetableEntryId: string;
+  timetableEntryId: string = '';
 
   @IsUUID()
   @IsNotEmpty()
-  originalTeacherId: string;
+  originalTeacherId: string = '';
 
   @IsUUID()
   @IsNotEmpty()
-  substituteTeacherId: string;
+  substituteTeacherId: string = '';
 
   @IsDate()
   @Type(() => Date)
-  date: Date;
+  date: Date = new Date();
 
   @IsString()
   @IsOptional()
-  reason?: string;
+  reason?: string = '';
 }
 
 export class CreateCalendarEventDto {
   @IsUUID()
   @IsNotEmpty()
-  academicYearId: string;
+  academicYearId: string = '';
 
   @IsUUID()
   @IsOptional()
-  termId?: string;
+  termId?: string = undefined;
 
   @IsString()
   @IsNotEmpty()
-  title: string;
+  title: string = '';
 
   @IsString()
   @IsOptional()
-  description?: string;
+  description?: string = undefined;
 
   @IsDate()
   @Type(() => Date)
-  startDate: Date;
+  startDate: Date = new Date();
 
   @IsDate()
   @Type(() => Date)
-  endDate: Date;
+  endDate: Date = new Date();
 
   @IsEnum(CalendarEventType)
   type: CalendarEventType;

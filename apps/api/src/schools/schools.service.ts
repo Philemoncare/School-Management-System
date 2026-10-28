@@ -1,16 +1,21 @@
-import { Injectable, ConflictException, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, ConflictException, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { AuthService } from '../auth/auth.service';
 import { CreateSchoolDto } from './dto/create-school.dto';
 import { UpdateSchoolDto, UpdateSchoolStatusDto } from './dto/update-school.dto';
-import { SchoolStatus, MembershipStatus } from '@prisma/client';
+import { AccountState, SchoolStatus, MembershipStatus } from '@prisma/client';
+import { randomBytes } from 'crypto';
 import * as argon2 from 'argon2';
 
 @Injectable()
 export class SchoolsService {
+  private readonly logger = new Logger(SchoolsService.name);
+
   constructor(
     private prisma: PrismaService,
     private audit: AuditService,
+    private authService: AuthService,
   ) {}
 
   async create(dto: CreateSchoolDto, actorId: string) {
@@ -26,8 +31,9 @@ export class SchoolsService {
     }
 
     const slug = dto.slug || this.slugify(dto.name);
+    let createdAdminEmail: string | null = null;
 
-    return this.prisma.$transaction(async (tx) => {
+    const school = await this.prisma.$transaction(async (tx) => {
       // 1. Create School
       const school = await tx.school.create({
         data: {
@@ -46,14 +52,23 @@ export class SchoolsService {
       // 2. Create School Admin User or Link Existing
       let user = await tx.user.findUnique({ where: { email: dto.adminEmail } });
       if (!user) {
+        const temporaryPassword = `Aa1!${randomBytes(24).toString('base64url')}`;
         user = await tx.user.create({
           data: {
             email: dto.adminEmail,
             firstName: dto.adminFirstName,
             lastName: dto.adminLastName,
-            passwordHash: await argon2.hash('InitialPassword123!'), // Should be an invitation in production
+            passwordHash: await argon2.hash(temporaryPassword, {
+              type: argon2.argon2id,
+              memoryCost: 65536,
+              timeCost: 3,
+              parallelism: 4,
+            }),
+            accountState: AccountState.ACTIVE,
+            emailVerified: new Date(),
           },
         });
+        createdAdminEmail = user.email;
       }
 
       // 3. Create Membership
@@ -99,6 +114,19 @@ export class SchoolsService {
 
       return school;
     });
+
+    if (createdAdminEmail) {
+      try {
+        await this.authService.forgotPassword(createdAdminEmail);
+      } catch (error) {
+        this.logger.error(
+          `Failed to send initial school admin setup email to ${createdAdminEmail}`,
+          error instanceof Error ? error.stack : undefined,
+        );
+      }
+    }
+
+    return school;
   }
 
   async findAll() {
@@ -148,7 +176,7 @@ export class SchoolsService {
 
     const updated = await this.prisma.school.update({
       where: { id },
-      data: { status: dto.status },
+      data: { status: dto.status as SchoolStatus },
     });
 
     await this.audit.log({

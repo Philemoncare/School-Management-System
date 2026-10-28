@@ -16,6 +16,7 @@ import {
   Award,
   ShieldCheck,
   ChevronLeft,
+  ChevronRight,
   Loader2,
   MapPin,
   CheckCircle,
@@ -46,21 +47,21 @@ export default function StaffProfilePage() {
     .finally(() => setLoading(false));
   }, [staffId, type]);
 
-  if (loading) return <div className="p-20 text-center"><Loader2 className="animate-spin mx-auto text-blue-600" size={48} /></div>;
+  if (loading) return <div className="p-20 text-center"><Loader2 className="animate-spin mx-auto text-forest-700" size={48} /></div>;
 
   return (
     <div className="p-8 space-y-10">
       <div className="flex items-center gap-6">
-        <Link href="/dashboard/hr/staff" className="p-3 bg-white border border-gray-200 rounded-2xl text-gray-400 hover:text-blue-600 transition-all shadow-sm">
+        <Link href="/dashboard/hr/staff" className="p-3 bg-card border border-warm-200 rounded-2xl text-warm-400 hover:text-forest-700 transition-all shadow-sm">
           <ChevronLeft size={20}/>
         </Link>
         <div>
-          <h1 className="text-3xl font-black text-gray-900 tracking-tight flex items-center gap-3">
+          <h1 className="text-3xl font-semibold text-charcoal-900 tracking-tight flex items-center gap-3">
             {staff.firstName} {staff.lastName}
-            <span className="px-3 py-1 bg-blue-50 text-blue-600 text-[10px] font-black uppercase rounded-full tracking-widest">{type}</span>
+            <span className="px-3 py-1 bg-sage-50 text-forest-700 text-[11px] font-semibold uppercase rounded-full tracking-wide">{type}</span>
           </h1>
-          <p className="text-gray-500 font-bold mt-1 uppercase tracking-widest text-xs flex items-center gap-2">
-            <Briefcase size={14} className="text-gray-400" /> {staff.position?.name || staff.designation || 'Unassigned Position'}
+          <p className="text-warm-500 font-bold mt-1 uppercase tracking-wide text-xs flex items-center gap-2">
+            <Briefcase size={14} className="text-warm-400" /> {staff.position?.name || staff.designation || 'Unassigned Position'}
           </p>
         </div>
       </div>
@@ -68,8 +69,8 @@ export default function StaffProfilePage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="space-y-8">
           {/* Contact Card */}
-          <section className="bg-white border border-gray-200 rounded-[2.5rem] p-8 shadow-sm">
-            <div className="w-24 h-24 bg-gray-50 border-4 border-white shadow-xl rounded-3xl flex items-center justify-center text-gray-200 mb-8 overflow-hidden">
+          <section className="bg-card border border-warm-200 rounded-xl p-8 shadow-sm">
+            <div className="w-24 h-24 bg-ivory-50 border-4 border-white shadow-xs rounded-3xl flex items-center justify-center text-warm-200 mb-8 overflow-hidden">
                <User size={64} />
             </div>
             <div className="space-y-6">
@@ -81,16 +82,16 @@ export default function StaffProfilePage() {
           </section>
 
           {/* Quick Metrics */}
-          <section className="bg-gray-900 rounded-[2.5rem] p-8 shadow-xl text-white">
-            <h3 className="text-lg font-black mb-6 tracking-tight">Workforce Pulse</h3>
+          <section className="bg-charcoal-900 rounded-xl p-8 shadow-xs text-white">
+            <h3 className="text-lg font-semibold mb-6 tracking-tight">Workforce Pulse</h3>
             <div className="grid grid-cols-2 gap-4">
-               <div className="p-4 bg-white/5 rounded-2xl border border-white/5">
-                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Attendance</p>
-                  <p className="text-xl font-black">98.4%</p>
+               <div className="p-4 bg-card/5 rounded-2xl border border-white/5">
+                  <p className="text-[11px] font-semibold text-warm-400 uppercase tracking-wide mb-1">Attendance</p>
+                  <p className="text-xl font-semibold">98.4%</p>
                </div>
-               <div className="p-4 bg-white/5 rounded-2xl border border-white/5">
-                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Leave Days</p>
-                  <p className="text-xl font-black">12/20</p>
+               <div className="p-4 bg-card/5 rounded-2xl border border-white/5">
+                  <p className="text-[11px] font-semibold text-warm-400 uppercase tracking-wide mb-1">Leave Days</p>
+                  <p className="text-xl font-semibold">12/20</p>
                </div>
             </div>
           </section>
@@ -98,8 +99,8 @@ export default function StaffProfilePage() {
 
         <div className="lg:col-span-2 space-y-8">
           {/* Tabs */}
-          <div className="bg-white border border-gray-200 rounded-[2.5rem] p-8 shadow-sm">
-             <div className="flex border-b border-gray-100 gap-8 mb-8 overflow-x-auto pb-4">
+          <div className="bg-card border border-warm-200 rounded-xl p-8 shadow-sm">
+             <div className="flex border-b border-warm-100 gap-8 mb-8 overflow-x-auto pb-4">
                 <TabLink active label="Employment" />
                 <TabLink label="Qualifications" />
                 <TabLink label="Documents" />
@@ -109,10 +110,10 @@ export default function StaffProfilePage() {
 
              <div className="space-y-10">
                 <section>
-                   <h3 className="text-sm font-black uppercase tracking-widest text-gray-900 mb-6 flex items-center gap-2">
-                      <Briefcase size={16} className="text-blue-600"/> Employment Details
+                   <h3 className="text-sm font-semibold uppercase tracking-wide text-charcoal-900 mb-6 flex items-center gap-2">
+                      <Briefcase size={16} className="text-forest-700"/> Employment Details
                    </h3>
-                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8 bg-gray-50 p-8 rounded-[2rem] border border-gray-100">
+                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8 bg-ivory-50 p-8 rounded-xl border border-warm-100">
                       <ProfileField label="Employment Type" value="Full-Time Permanent" />
                       <ProfileField label="Joined Date" value={new Date(staff.createdAt).toLocaleDateString()} />
                       <ProfileField label="Probation End" value="Mar 12, 2027" />
@@ -124,33 +125,33 @@ export default function StaffProfilePage() {
 
                 <section>
                    <div className="flex justify-between items-center mb-6">
-                      <h3 className="text-sm font-black uppercase tracking-widest text-gray-900 flex items-center gap-2">
-                        <FileText size={16} className="text-purple-600"/> Verified Documents
+                      <h3 className="text-sm font-semibold uppercase tracking-wide text-charcoal-900 flex items-center gap-2">
+                        <FileText size={16} className="text-terracotta-600"/> Verified Documents
                       </h3>
-                      <button className="text-[9px] font-black text-blue-600 uppercase tracking-widest border border-blue-200 px-3 py-1.5 rounded-lg hover:bg-blue-50 transition-all">Upload New</button>
+                      <button className="text-[11px] font-semibold text-forest-700 uppercase tracking-wide border border-sage-200 px-3 py-1.5 rounded-lg hover:bg-sage-50 transition-all">Upload New</button>
                    </div>
                    <div className="space-y-4">
                       {documents.map((doc) => (
-                        <div key={doc.id} className="flex items-center justify-between p-4 bg-white border border-gray-100 rounded-2xl hover:shadow-md transition-all">
+                        <div key={doc.id} className="flex items-center justify-between p-4 bg-card border border-warm-100 rounded-2xl hover:shadow-md transition-all">
                            <div className="flex items-center gap-4">
-                              <div className="p-3 bg-gray-50 rounded-xl text-gray-400"><FileText size={18}/></div>
+                              <div className="p-3 bg-ivory-50 rounded-xl text-warm-400"><FileText size={18}/></div>
                               <div>
-                                 <p className="text-xs font-black text-gray-900">{doc.title}</p>
-                                 <p className="text-[9px] font-bold text-gray-400 uppercase tracking-tight">{doc.documentType} • {new Date(doc.createdAt).toLocaleDateString()}</p>
+                                 <p className="text-xs font-semibold text-charcoal-900">{doc.title}</p>
+                                 <p className="text-[11px] font-bold text-warm-400 uppercase tracking-tight">{doc.documentType} • {new Date(doc.createdAt).toLocaleDateString()}</p>
                               </div>
                            </div>
                            <div className="flex items-center gap-4">
-                              <span className={`px-2 py-0.5 rounded-lg text-[8px] font-black uppercase ${
-                                 doc.verificationStatus === 'VERIFIED' ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'
+                              <span className={`px-2 py-0.5 rounded-lg text-[11px] font-semibold uppercase ${
+                                 doc.verificationStatus === 'VERIFIED' ? 'bg-success-50 text-success-700' : 'bg-warning-50 text-warning-700'
                               }`}>{doc.verificationStatus}</span>
-                              <button className="p-2 hover:bg-gray-50 rounded-xl text-gray-400 transition-all"><ChevronRight size={16}/></button>
+                              <button className="p-2 hover:bg-ivory-50 rounded-xl text-warm-400 transition-all"><ChevronRight size={16}/></button>
                            </div>
                         </div>
                       ))}
                       {documents.length === 0 && (
-                        <div className="py-12 text-center border-2 border-dashed border-gray-100 rounded-[2rem]">
-                           <FileText className="mx-auto text-gray-200 mb-4" size={40} />
-                           <p className="text-gray-400 font-bold uppercase tracking-widest text-xs">No documents uploaded</p>
+                        <div className="py-12 text-center border-2 border-dashed border-warm-100 rounded-xl">
+                           <FileText className="mx-auto text-warm-200 mb-4" size={40} />
+                           <p className="text-warm-400 font-bold uppercase tracking-wide text-xs">No documents uploaded</p>
                         </div>
                       )}
                    </div>
@@ -166,10 +167,10 @@ export default function StaffProfilePage() {
 function ContactItem({ icon, label, value }: any) {
   return (
     <div className="flex items-center gap-4">
-       <div className="p-2.5 bg-gray-50 rounded-xl text-gray-400">{icon}</div>
+       <div className="p-2.5 bg-ivory-50 rounded-xl text-warm-400">{icon}</div>
        <div>
-          <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-0.5">{label}</p>
-          <p className="text-xs font-bold text-gray-700">{value}</p>
+          <p className="text-[11px] font-semibold text-warm-400 uppercase tracking-wide mb-0.5">{label}</p>
+          <p className="text-xs font-bold text-warm-700">{value}</p>
        </div>
     </div>
   );
@@ -177,8 +178,8 @@ function ContactItem({ icon, label, value }: any) {
 
 function TabLink({ label, active }: any) {
   return (
-    <button className={`text-[10px] font-black uppercase tracking-widest pb-4 border-b-2 transition-all ${
-       active ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-400 hover:text-gray-600'
+    <button className={`text-[11px] font-semibold uppercase tracking-wide pb-4 border-b-2 transition-all ${
+       active ? 'border-forest-700 text-forest-700' : 'border-transparent text-warm-400 hover:text-warm-600'
     }`}>{label}</button>
   );
 }
@@ -186,8 +187,8 @@ function TabLink({ label, active }: any) {
 function ProfileField({ label, value }: any) {
   return (
     <div className="space-y-1.5">
-       <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{label}</p>
-       <p className="text-sm font-bold text-gray-700">{value}</p>
+       <p className="text-[11px] font-semibold text-warm-400 uppercase tracking-wide">{label}</p>
+       <p className="text-sm font-bold text-warm-700">{value}</p>
     </div>
   );
 }

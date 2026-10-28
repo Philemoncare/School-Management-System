@@ -5,65 +5,67 @@ export class CreateGradeBandDto {
   @IsNumber()
   @Min(0)
   @Max(100)
-  minimumPercentage: number;
+  minimumPercentage: number = 0;
 
   @IsNumber()
   @Min(0)
   @Max(100)
-  maximumPercentage: number;
+  maximumPercentage: number = 100;
 
   @IsString()
   @IsNotEmpty()
-  grade: string;
+  grade: string = '';
 
   @IsNumber()
   @IsOptional()
-  gradePoint?: number;
+  gradePoint?: number = undefined;
 
   @IsString()
   @IsOptional()
-  remark?: string;
+  remark?: string = undefined;
 
   @IsNumber()
   @IsOptional()
-  sequence?: number;
+  @Min(0)
+  @Max(100)
+  sequence?: number = 0;
 }
 
 export class CreateGradingScaleDto {
   @IsString()
   @IsNotEmpty()
-  name: string;
+  name: string = '';
 
   @IsString()
   @IsNotEmpty()
-  code: string;
+  code: string = '';
 
   @IsString()
   @IsOptional()
-  description?: string;
+  description?: string = undefined;
 
   @IsUUID()
   @IsOptional()
-  policyId?: string;
+  policyId?: string = undefined;
 
   @IsArray()
   @Type(() => CreateGradeBandDto)
-  gradeBands: CreateGradeBandDto[];
+  gradeBands: CreateGradeBandDto[] = [];
 }
 
 export class CreateGradingPolicyDto {
   @IsString()
   @IsNotEmpty()
-  name: string;
+  name: string = '';
 
   @IsString()
   @IsOptional()
-  description?: string;
+  description?: string = undefined;
 
   @IsBoolean()
   @IsOptional()
-  isDefault?: boolean;
+  isDefault?: boolean = undefined;
 
   @IsOptional()
-  calculationRules?: any;
+  calculationRules?: any = undefined;
 }

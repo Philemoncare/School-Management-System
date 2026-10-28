@@ -1,5 +1,6 @@
 'use client';
 
+import { Select } from '@/components/ui/input';
 import React, { useState, useEffect } from 'react';
 import { apiFetch } from '@/lib/api/client';
 import { Save, Loader2, RefreshCw } from 'lucide-react';
@@ -42,40 +43,40 @@ export default function NumberingSettings() {
     }
   };
 
-  if (loading) return <div className="flex items-center justify-center py-20"><Loader2 className="animate-spin text-blue-600" /></div>;
+  if (loading) return <div className="flex items-center justify-center py-20"><Loader2 className="animate-spin text-forest-700" /></div>;
 
   return (
     <div>
       <div className="mb-8">
-        <h2 className="text-xl font-black text-gray-900">Numbering & Sequences</h2>
-        <p className="text-gray-500 text-sm font-medium">Define how identifiers are generated across the system.</p>
+        <h2 className="text-xl font-semibold text-charcoal-900">Numbering & Sequences</h2>
+        <p className="text-warm-500 text-sm font-medium">Define how identifiers are generated across the system.</p>
       </div>
 
       <div className="space-y-6">
         {ENTITIES.map((entity) => (
-          <div key={entity.key} className="p-6 bg-gray-50 rounded-3xl border border-gray-100">
+          <div key={entity.key} className="p-6 bg-ivory-50 rounded-3xl border border-warm-100">
              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-black text-gray-800 uppercase tracking-widest">{entity.label}</h3>
-                <div className="px-3 py-1 bg-white rounded-lg border border-gray-200 text-[10px] font-black text-gray-400">
+                <h3 className="text-sm font-semibold text-charcoal-800 uppercase tracking-wide">{entity.label}</h3>
+                <div className="px-3 py-1 bg-card rounded-lg border border-warm-200 text-[11px] font-semibold text-warm-400">
                    Current Val: {rules[entity.key]?.currentValue || 0}
                 </div>
              </div>
 
              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Prefix</label>
+                  <label className="text-[11px] font-semibold text-warm-400 uppercase tracking-wide px-1">Prefix</label>
                   <input
                     type="text"
-                    className="w-full bg-white border-none rounded-xl text-sm font-bold focus:ring-2 focus:ring-blue-600 p-2.5"
+                    className="w-full bg-card border-none rounded-xl text-sm font-bold focus:ring-2 focus:ring-forest-700 p-2.5"
                     placeholder="e.g. STU"
                     value={rules[entity.key]?.prefix || ''}
                     onChange={e => setRules({...rules, [entity.key]: {...rules[entity.key], prefix: e.target.value}})}
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Padding</label>
-                  <select
-                    className="w-full bg-white border-none rounded-xl text-sm font-bold focus:ring-2 focus:ring-blue-600 p-2.5"
+                  <label className="text-[11px] font-semibold text-warm-400 uppercase tracking-wide px-1">Padding</label>
+                  <Select
+                    className="w-full bg-card border-none rounded-xl text-sm font-bold focus:ring-2 focus:ring-forest-700 p-2.5"
                     value={rules[entity.key]?.padding || 6}
                     onChange={e => setRules({...rules, [entity.key]: {...rules[entity.key], padding: parseInt(e.target.value)}})}
                   >
@@ -83,32 +84,32 @@ export default function NumberingSettings() {
                     <option value={5}>5 Digits</option>
                     <option value={6}>6 Digits</option>
                     <option value={8}>8 Digits</option>
-                  </select>
+                  </Select>
                 </div>
                 <div className="flex items-end pb-1.5">
                   <label className="flex items-center gap-3 cursor-pointer group">
                     <input
                       type="checkbox"
-                      className="w-5 h-5 rounded-lg border-gray-300 text-blue-600 focus:ring-blue-600"
+                      className="w-5 h-5 rounded-lg border-warm-300 text-forest-700 focus:ring-forest-700"
                       checked={rules[entity.key]?.includeYear ?? true}
                       onChange={e => setRules({...rules, [entity.key]: {...rules[entity.key], includeYear: e.target.checked}})}
                     />
-                    <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest group-hover:text-gray-700 transition-colors">Include Year</span>
+                    <span className="text-[11px] font-semibold text-warm-500 uppercase tracking-wide group-hover:text-warm-700 transition-colors">Include Year</span>
                   </label>
                 </div>
                 <div className="flex items-end">
                    <button
                      onClick={() => handleSave(entity.key)}
                      disabled={saving}
-                     className="w-full flex items-center justify-center gap-2 py-2.5 bg-white border border-gray-200 text-gray-700 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-gray-100 transition-all shadow-sm"
+                     className="w-full flex items-center justify-center gap-2 py-2.5 bg-card border border-warm-200 text-warm-700 rounded-xl font-semibold text-[11px] uppercase tracking-wide hover:bg-warm-100 transition-all shadow-sm"
                    >
                      <Save size={14} /> Update Rule
                    </button>
                 </div>
              </div>
 
-             <div className="mt-4 pt-4 border-t border-dashed border-gray-200">
-                <p className="text-[10px] font-bold text-gray-400 uppercase">Preview: <span className="text-blue-600 ml-2">
+             <div className="mt-4 pt-4 border-t border-dashed border-warm-200">
+                <p className="text-[11px] font-bold text-warm-400 uppercase">Preview: <span className="text-forest-700 ml-2">
                   {rules[entity.key]?.prefix || 'PREFIX'}-{rules[entity.key]?.includeYear !== false ? new Date().getFullYear() : ''}-{ '0'.repeat(rules[entity.key]?.padding || 6).slice(0, -1) + '1' }
                 </span></p>
              </div>

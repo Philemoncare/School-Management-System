@@ -56,6 +56,22 @@ export class HRController {
     return this.hrService.createPosition(schoolId, dto);
   }
 
+  // Self-service
+  @Get('me/leave')
+  getMyLeaveRequests(@ActiveSchool() schoolId: string, @CurrentUser() user: any) {
+    return this.hrService.getMyLeaveRequests(schoolId, user.id);
+  }
+
+  @Get('me/leave-balances')
+  getMyLeaveBalances(@ActiveSchool() schoolId: string, @CurrentUser() user: any) {
+    return this.hrService.getMyLeaveBalances(schoolId, user.id);
+  }
+
+  @Get('me/schedule')
+  getMySchedule(@ActiveSchool() schoolId: string, @CurrentUser() user: any) {
+    return this.hrService.getMySchedule(schoolId, user.id);
+  }
+
   // Leave
   @Get('leave/types')
   getLeaveTypes(@ActiveSchool() schoolId: string) {
@@ -68,6 +84,7 @@ export class HRController {
     return this.hrService.createLeaveType(schoolId, dto);
   }
 
+  @Roles('HR_OFFICER', 'SCHOOL_ADMIN', 'PRINCIPAL')
   @Get('leave/requests')
   getLeaveRequests(@ActiveSchool() schoolId: string, @Query() filters: any) {
     return this.hrService.findAllLeaveRequests(schoolId, filters);

@@ -9,14 +9,36 @@ export class MessagesService {
     private comms: CommunicationService,
   ) {}
 
-  async createConversation(schoolId: string, participantIds: string[], title?: string) {
+  async createConversation(
+    schoolId: string,
+    creatorId: string,
+    participantIds: string[],
+    title?: string,
+  ) {
+    const ids = Array.from(new Set([creatorId, ...(participantIds || [])].filter(Boolean)));
+    if (ids.length < 2) {
+      throw new ForbiddenException('A conversation requires at least two participants');
+    }
+
+    const memberships = await this.prisma.schoolMembership.count({
+      where: {
+        schoolId,
+        userId: { in: ids },
+        status: 'ACTIVE',
+      },
+    });
+
+    if (memberships !== ids.length) {
+      throw new ForbiddenException('All participants must belong to this school');
+    }
+
     return this.prisma.conversation.create({
       data: {
         schoolId,
         title,
-        isGroup: participantIds.length > 2,
+        isGroup: ids.length > 2,
         participants: {
-          create: participantIds.map(userId => ({ userId })),
+          create: ids.map(userId => ({ userId })),
         },
       },
       include: { participants: true },
@@ -52,7 +74,7 @@ export class MessagesService {
 
       // Create read status for all other participants
       const otherParticipants = conversation.participants.filter(p => p.userId !== userId);
-      await tx.messageRecipient.createMany({
+      await tx.messageReadStatus.createMany({
         data: otherParticipants.map(p => ({
           messageId: message.id,
           userId: p.userId,

@@ -39,7 +39,7 @@ export class EnrollmentsService {
     if (existing) throw new ConflictException('Student already has an active enrollment for this period');
 
     const enrollment = await this.prisma.enrollment.create({
-      data: dto,
+      data: { ...dto, schoolId },
     });
 
     await this.audit.log({
@@ -96,6 +96,7 @@ export class EnrollmentsService {
       // Create new enrollment
       const moved = await tx.enrollment.create({
         data: {
+          schoolId: enrollment.schoolId,
           studentId: enrollment.studentId,
           academicYearId: enrollment.academicYearId,
           termId: enrollment.termId,

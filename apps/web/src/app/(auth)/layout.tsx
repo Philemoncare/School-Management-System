@@ -1,47 +1,121 @@
-'use client';
+"use client";
 
-import React from 'react';
-import { GraduationCap } from 'lucide-react';
-import Link from 'next/link';
+import React from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { BrandLockup } from "@/components/brand/schoolma-logo";
+
+const PLATFORM_POINTS = [
+  {
+    title: "One record for every learner",
+    text: "Admissions, guardians, attendance and academic history stay connected.",
+  },
+  {
+    title: "The right work for each role",
+    text: "Administrators, teachers, finance and families each see their own workspace.",
+  },
+  {
+    title: "School data kept separate",
+    text: "Every record and permission remains inside the school it belongs to.",
+  },
+];
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const isWidePage = pathname?.includes("/register");
+
   return (
-    <div className="min-h-screen bg-[#F8FAFC] flex flex-col items-center justify-center p-4 sm:p-6">
-      <div className="w-full max-w-[440px] space-y-8">
-        {/* Brand Header */}
-        <div className="flex flex-col items-center text-center space-y-4">
-          <Link href="/" className="group transition-transform hover:scale-105 active:scale-95">
-            <div className="bg-blue-600 p-3 rounded-2xl shadow-xl shadow-blue-100 flex items-center justify-center">
-              <GraduationCap className="text-white w-8 h-8" />
-            </div>
+    <div className="min-h-screen bg-ivory-100 text-charcoal-900">
+      <div className="mx-auto flex min-h-screen w-full max-w-[1680px]">
+        <aside className="relative hidden w-[42%] max-w-[660px] shrink-0 flex-col justify-between bg-forest-900 px-10 py-10 text-ivory-100 lg:flex xl:px-14 xl:py-12">
+          <Link
+            href="/"
+            className="inline-flex w-fit rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-sage-300"
+          >
+            <BrandLockup inverted markSize={40} subtitle="School Operations" />
           </Link>
-          <div className="space-y-1">
-            <h1 className="text-2xl font-black text-gray-900 tracking-tight">EduFlow ERP</h1>
-            <p className="text-sm font-bold text-gray-400 uppercase tracking-[0.2em]">Enterprise OS for Education</p>
+
+          <div className="max-w-md py-10">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-sage-300">
+              School operations platform
+            </p>
+            <h1 className="mt-4 text-[34px] font-semibold leading-[1.15] text-ivory-50 xl:text-[40px]">
+              Run the school day from one dependable workspace.
+            </h1>
+            <p className="mt-4 max-w-sm text-sm leading-relaxed text-sage-200">
+              SchooMA brings admissions, attendance, fees and communication together
+              without burying your team in extra administration.
+            </p>
+
+            <div className="mt-9 border-t border-white/10">
+              {PLATFORM_POINTS.map((point, index) => (
+                <div
+                  key={point.title}
+                  className="flex gap-4 border-b border-white/10 py-4"
+                >
+                  <span className="pt-0.5 text-[11px] font-semibold tracking-wide text-sage-400">
+                    0{index + 1}
+                  </span>
+                  <div>
+                    <p className="text-[13px] font-semibold text-ivory-100">{point.title}</p>
+                    <p className="mt-1 text-[11px] leading-relaxed text-sage-300">
+                      {point.text}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
 
-        {/* Main Auth Card */}
-        <div className="bg-white border border-gray-100 rounded-[2rem] p-8 sm:p-10 shadow-2xl shadow-gray-200/50">
-          {children}
-        </div>
+          <div className="flex items-center justify-between border-t border-white/10 pt-5 text-[11px] font-semibold uppercase tracking-[0.15em] text-sage-300/70">
+            <span>Secure multi-tenant platform</span>
+            <span>SchooMA</span>
+          </div>
+        </aside>
 
-        {/* Footer info */}
-        <div className="text-center space-y-4">
-           <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-relaxed">
-             By continuing, you agree to EduFlow's <br />
-             <Link href="/terms" className="text-blue-600 hover:underline">Terms of Service</Link> and <Link href="/privacy" className="text-blue-600 hover:underline">Privacy Policy</Link>.
-           </p>
-           <div className="pt-4 border-t border-gray-100">
-              <p className="text-[9px] font-bold text-gray-300 uppercase tracking-tighter">© 2024 EduFlow Systems Inc. All rights reserved.</p>
-           </div>
-        </div>
-      </div>
+        <main className="relative flex min-w-0 flex-1 flex-col px-4 py-6 sm:px-8 sm:py-9 lg:px-12 xl:px-16">
+          <div className="mb-6 flex items-center justify-between lg:hidden">
+            <Link href="/" className="inline-flex">
+              <BrandLockup markSize={34} />
+            </Link>
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-warm-500">
+              School operations
+            </span>
+          </div>
 
-      {/* Decorative blobs for premium feel */}
-      <div className="fixed top-0 left-0 w-full h-full pointer-events-none overflow-hidden -z-10">
-         <div className="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] bg-blue-50 rounded-full blur-[120px] opacity-60"></div>
-         <div className="absolute -bottom-[10%] -right-[10%] w-[40%] h-[40%] bg-indigo-50 rounded-full blur-[120px] opacity-60"></div>
+          <div
+            className={`mx-auto my-auto w-full ${
+              isWidePage ? "max-w-3xl" : "max-w-[420px]"
+            }`}
+          >
+            <div className="rounded-xl border border-warm-200 bg-card p-4 shadow-xs sm:p-6 md:p-7">
+              {children}
+            </div>
+
+            <div className="mt-5 space-y-2 text-center">
+              <p className="px-2 text-[11px] leading-relaxed text-warm-500">
+                By continuing, you agree to SchooMA&apos;s{" "}
+                <Link
+                  href="/terms"
+                  className="font-semibold text-forest-800 underline decoration-warm-300 underline-offset-2 hover:text-forest-950"
+                >
+                  Terms of Service
+                </Link>{" "}
+                and{" "}
+                <Link
+                  href="/privacy"
+                  className="font-semibold text-forest-800 underline decoration-warm-300 underline-offset-2 hover:text-forest-950"
+                >
+                  Privacy Policy
+                </Link>
+                .
+              </p>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-warm-400">
+                © {new Date().getFullYear()} SchooMA
+              </p>
+            </div>
+          </div>
+        </main>
       </div>
     </div>
   );

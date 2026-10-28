@@ -4,7 +4,7 @@ import { AuditService } from '../audit/audit.service';
 import { BillingService } from './billing.service';
 import {
   SubscriptionStatus,
-  SubscriptionInvoiceStatus,
+  PlatformInvoiceStatus,
   CreditSource,
   BillingInterval,
   Prisma
@@ -224,7 +224,7 @@ export class SubscriptionsService {
   // --- 3. FINANCIAL HELPERS ---
 
   private async applyCreditsToInvoice(tx: Prisma.TransactionClient, schoolId: string, invoiceId: string) {
-    const invoice = await tx.subscriptionInvoice.findUnique({ where: { id: invoiceId } });
+    const invoice = await tx.platformInvoice.findUnique({ where: { id: invoiceId } });
     if (!invoice) return;
 
     const credits = await tx.subscriptionCredit.findMany({
@@ -250,10 +250,10 @@ export class SubscriptionsService {
 
     if (remainingInvoiceBalance.lt(invoice.total)) {
       // Update invoice if any credit was applied
-      await tx.subscriptionInvoice.update({
+      await tx.platformInvoice.update({
         where: { id: invoiceId },
         data: {
-          status: remainingInvoiceBalance.lte(0) ? SubscriptionInvoiceStatus.PAID : SubscriptionInvoiceStatus.ISSUED,
+          status: remainingInvoiceBalance.lte(0) ? PlatformInvoiceStatus.PAID : PlatformInvoiceStatus.ISSUED,
           // we could store the 'amountPaid' if we added it to schema
         },
       });
@@ -269,7 +269,7 @@ export class SubscriptionsService {
     description: string
   ) {
     const invoiceNumber = `PLAT-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-    return tx.subscriptionInvoice.create({
+    return tx.platformInvoice.create({
       data: {
         schoolId,
         subscriptionId: subId,
@@ -279,7 +279,7 @@ export class SubscriptionsService {
         subtotal: amount,
         total: amount,
         currency,
-        status: SubscriptionInvoiceStatus.ISSUED,
+        status: PlatformInvoiceStatus.ISSUED,
       },
     });
   }
@@ -317,6 +317,19 @@ export class SubscriptionsService {
       teachers,
       staff,
     };
+  }
+
+  async checkFeature(schoolId: string, featureCode: string): Promise<boolean> {
+    const sub = await this.prisma.schoolSubscription.findUnique({
+      where: { schoolId },
+      include: { plan: true },
+    });
+
+    if (!sub || sub.status !== SubscriptionStatus.ACTIVE) return false;
+
+    // In production, check plan.features JSON
+    const features = sub.plan.features as any;
+    return !!features?.[featureCode];
   }
 
   async subscribe(schoolId: string, planId: string, actorId: string) {
@@ -365,13 +378,19 @@ export class SubscriptionsService {
   // --- 5. SUPER ADMIN METHODS ---
 
   async createPlan(dto: CreatePlanDto, actorId: string) {
-    const { pricing, ...data } = dto;
+    const { price, interval, ...data } = dto as any;
     const plan = await this.prisma.subscriptionPlan.create({
       data: {
         ...data,
-        pricing: {
-          create: pricing
-        }
+        ...(price !== undefined ? {
+          pricing: {
+            create: {
+              price,
+              currency: 'USD',
+              interval: (interval as BillingInterval) || BillingInterval.MONTHLY,
+            }
+          }
+        } : {})
       },
       include: { pricing: true }
     });
@@ -388,21 +407,12 @@ export class SubscriptionsService {
   }
 
   async updatePlan(id: string, dto: UpdatePlanDto, actorId: string) {
-    const { pricing, ...data } = dto;
+    const { price, ...data } = dto as any;
 
     const plan = await this.prisma.subscriptionPlan.update({
       where: { id },
       data: {
         ...data,
-        ...(pricing ? {
-          pricing: {
-            upsert: pricing.map((p: any) => ({
-              where: { id: p.id || 'new-pricing' },
-              update: p,
-              create: p,
-            })),
-          },
-        } : {}),
       },
       include: { pricing: true }
     });

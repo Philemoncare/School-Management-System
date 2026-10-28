@@ -1,7 +1,7 @@
-import { Controller, Get, Post, Body, Patch, Param, UseGuards, Req } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, UseGuards } from '@nestjs/common';
 import { SchoolsService } from './schools.service';
 import { CreateSchoolDto } from './dto/create-school.dto';
-import { UpdateSchoolDto, UpdateSchoolStatusDto } from './dto/update-school.dto';
+import { UpdateSchoolStatusDto } from './dto/update-school.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -39,4 +39,5 @@ export class SchoolsController {
   ) {
     return this.schoolsService.updateStatus(id, dto, user.id);
   }
+
 }

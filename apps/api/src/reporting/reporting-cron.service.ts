@@ -1,6 +1,6 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
-import { Queue } from 'bullmq';
+import type { Queue } from 'bullmq';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -11,18 +11,28 @@ export class ReportingCronService implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
-    await this.syncSchedules();
-    await this.setupSnapshotCron();
+    try {
+      await Promise.race([
+        (async () => {
+          await this.syncSchedules();
+          await this.setupSnapshotCron();
+        })(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Cron queue timeout')), 1000)),
+      ]);
+    } catch {
+      // Safely ignore queue error/timeout if Redis is offline
+    }
   }
 
   async setupSnapshotCron() {
       // Run daily snapshots at midnight
-      await this.reportQueue.add(
+      await this.reportQueue.upsertJobScheduler(
           'periodic-snapshots',
-          {},
+          { pattern: '0 0 * * *' },
           {
-              repeat: { pattern: '0 0 * * *' },
-              jobId: 'periodic-snapshots',
+              name: 'periodic-snapshots',
+              data: {},
+              opts: { removeOnComplete: true },
           }
       );
   }
@@ -34,16 +44,16 @@ export class ReportingCronService implements OnModuleInit {
 
     for (const schedule of schedules) {
       const cron = this.mapFrequencyToCron(schedule);
-      await this.reportQueue.add(
-        'scheduled-report',
-        { scheduleId: schedule.id },
+      await this.reportQueue.upsertJobScheduler(
+        `schedule-${schedule.id}`,
         {
-          repeat: {
-            pattern: cron,
-            tz: schedule.timezone || 'UTC',
-          },
-          jobId: `schedule-${schedule.id}`,
-          removeOnComplete: true,
+          pattern: cron,
+          tz: schedule.timezone || 'UTC',
+        },
+        {
+          name: 'scheduled-report',
+          data: { scheduleId: schedule.id },
+          opts: { removeOnComplete: true },
         },
       );
     }

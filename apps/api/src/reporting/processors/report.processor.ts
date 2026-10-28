@@ -1,7 +1,8 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
-import { Job } from 'bullmq';
+import type { Job } from 'bullmq';
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AnalyticsService } from '../analytics.service';
 
 @Processor('reports')
 @Injectable()
@@ -125,7 +126,7 @@ export class ReportProcessor extends WorkerHost {
           include: {
             student: { select: { firstName: true, lastName: true, studentNumber: true } },
             items: { include: { feeCategory: true } },
-            payments: { include: { payment: true } }
+            allocations: { include: { payment: true } }
           },
           orderBy: { issueDate: 'desc' }
         });
@@ -223,7 +224,7 @@ export class ReportProcessor extends WorkerHost {
 
   private async fetchDatasetData(dataset: any, schoolId: string, parameters: any, config: any) {
     const modelName = dataset.baseModel;
-    const prismaModel = this.prisma[modelName.charAt(0).toLowerCase() + modelName.slice(1)];
+    const prismaModel = (this.prisma as any)[modelName.charAt(0).toLowerCase() + modelName.slice(1)];
 
     if (!prismaModel) {
         this.logger.error(`Model ${modelName} not found on PrismaService`);

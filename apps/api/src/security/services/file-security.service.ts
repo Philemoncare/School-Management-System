@@ -52,7 +52,7 @@ export class FileSecurityService {
     return false;
   }
 
-  private async logSecurityFailure(filename: string, reason: string, context: any, severity = SecuritySeverity.HIGH, eventType = SecurityEventType.SUSPICIOUS_ACTIVITY) {
+  private async logSecurityFailure(filename: string, reason: string, context: any, severity: SecuritySeverity = SecuritySeverity.HIGH, eventType: SecurityEventType = SecurityEventType.SUSPICIOUS_ACTIVITY) {
     await this.securityEventService.logEvent({
       eventType,
       severity,

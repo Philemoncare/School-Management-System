@@ -12,7 +12,7 @@ import {
   ChevronRight,
   Search,
   Filter,
-  CheckCircle2,
+  CheckCircle,
   AlertCircle,
   Users,
   GraduationCap,
@@ -21,6 +21,7 @@ import {
   Unlock
 } from 'lucide-react';
 import Link from 'next/link';
+import { Select } from '@/components/ui/input';
 
 export default function ResultsCommandCenter() {
   const [classes, setClasses] = useState<any[]>([]);
@@ -83,20 +84,20 @@ export default function ResultsCommandCenter() {
     }
   }
 
-  if (loading) return <div className="p-20 text-center"><Loader2 className="animate-spin mx-auto text-blue-600" size={48} /></div>;
+  if (loading) return <div className="p-20 text-center"><Loader2 className="animate-spin mx-auto text-forest-700" size={48} /></div>;
 
   return (
     <div className="p-8 space-y-10">
       <div className="flex justify-between items-end">
         <div>
-          <h1 className="text-3xl font-black text-gray-900 tracking-tight">Academic Results</h1>
-          <p className="text-gray-500 mt-1 font-medium text-sm">Calculate scores, verify grades, and publish report cards.</p>
+          <h1 className="text-3xl font-semibold text-charcoal-900 tracking-tight">Academic Results</h1>
+          <p className="text-warm-500 mt-1 font-medium text-sm">Calculate scores, verify grades, and publish report cards.</p>
         </div>
         <div className="flex gap-4">
-           <Link href="/dashboard/results/corrections" className="bg-white border border-gray-200 text-gray-700 px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-gray-50 transition-all shadow-sm flex items-center gap-2">
+           <Link href="/dashboard/results/corrections" className="bg-card border border-warm-200 text-warm-700 px-6 py-3 rounded-2xl font-semibold text-xs uppercase tracking-wide hover:bg-ivory-50 transition-all shadow-sm flex items-center gap-2">
              <History size={18} /> Correction Logs
            </Link>
-           <Link href="/dashboard/report-cards/generate" className="bg-gray-900 text-white px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-black transition-all shadow-xl flex items-center gap-2">
+           <Link href="/dashboard/report-cards/generate" className="bg-charcoal-900 text-white px-6 py-3 rounded-2xl font-semibold text-xs uppercase tracking-wide hover:bg-charcoal-950 transition-all shadow-xs flex items-center gap-2">
              <FileText size={18} /> Batch Report Cards
            </Link>
         </div>
@@ -104,9 +105,9 @@ export default function ResultsCommandCenter() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-8">
-           <section className="bg-white border border-gray-200 rounded-[2.5rem] p-8 shadow-sm">
-              <h3 className="text-xl font-black text-gray-900 tracking-tight mb-8 flex items-center gap-3">
-                 <Calculator className="text-blue-600" /> Result Processing Engine
+           <section className="bg-card border border-warm-200 rounded-xl p-8 shadow-sm">
+              <h3 className="text-xl font-semibold text-charcoal-900 tracking-tight mb-8 flex items-center gap-3">
+                 <Calculator className="text-forest-700" /> Result Processing Engine
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
                  <SelectField
@@ -129,11 +130,11 @@ export default function ResultsCommandCenter() {
                  />
               </div>
 
-              <div className="flex flex-col md:flex-row gap-4 pt-8 border-t border-gray-100">
+              <div className="flex flex-col md:flex-row gap-4 pt-8 border-t border-warm-100">
                  <button
                     onClick={handleCalculate}
                     disabled={!!processing}
-                    className="flex-1 bg-blue-50 text-blue-600 py-6 rounded-[2rem] font-black text-xs uppercase tracking-widest hover:bg-blue-100 transition-all flex flex-col items-center gap-3 border-2 border-transparent hover:border-blue-200"
+                    className="flex-1 bg-sage-50 text-forest-700 py-6 rounded-xl font-semibold text-xs uppercase tracking-wide hover:bg-sage-100 transition-all flex flex-col items-center gap-3 border-2 border-transparent hover:border-sage-200"
                  >
                     {processing === 'calculating' ? <Loader2 className="animate-spin" size={24} /> : <Calculator size={24} />}
                     Calculate Subject Totals & Ranks
@@ -141,7 +142,7 @@ export default function ResultsCommandCenter() {
                  <button
                     onClick={handlePublish}
                     disabled={!!processing}
-                    className="flex-1 bg-green-50 text-green-700 py-6 rounded-[2rem] font-black text-xs uppercase tracking-widest hover:bg-green-100 transition-all flex flex-col items-center gap-3 border-2 border-transparent hover:border-green-200"
+                    className="flex-1 bg-success-50 text-success-700 py-6 rounded-xl font-semibold text-xs uppercase tracking-wide hover:bg-success-100 transition-all flex flex-col items-center gap-3 border-2 border-transparent hover:border-success-200"
                  >
                     {processing === 'publishing' ? <Loader2 className="animate-spin" size={24} /> : <UploadCloud size={24} />}
                     Publish Official Results to Portal
@@ -149,10 +150,10 @@ export default function ResultsCommandCenter() {
               </div>
            </section>
 
-           <section className="bg-white border border-gray-200 rounded-[2.5rem] p-8 shadow-sm">
+           <section className="bg-card border border-warm-200 rounded-xl p-8 shadow-sm">
               <div className="flex justify-between items-center mb-8">
-                 <h3 className="text-xl font-black text-gray-900 tracking-tight">Recent Publications</h3>
-                 <Link href="/dashboard/results/history" className="text-[10px] font-black text-blue-600 uppercase tracking-widest flex items-center gap-1">Full History <ChevronRight size={14}/></Link>
+                 <h3 className="text-xl font-semibold text-charcoal-900 tracking-tight">Recent Publications</h3>
+                 <Link href="/dashboard/results/history" className="text-[11px] font-semibold text-forest-700 uppercase tracking-wide flex items-center gap-1">Full History <ChevronRight size={14}/></Link>
               </div>
               <div className="space-y-4">
                  <PublicationItem label="Grade 10 - Science" time="2 hours ago" status="PUBLISHED" count={42} />
@@ -163,32 +164,32 @@ export default function ResultsCommandCenter() {
         </div>
 
         <div className="space-y-8">
-           <section className="bg-gray-900 rounded-[2.5rem] p-8 shadow-xl text-white">
-              <h3 className="text-lg font-black mb-8 tracking-tight flex items-center gap-2">
-                 <TrendingUp className="text-blue-400" /> Academic Analytics
+           <section className="bg-charcoal-900 rounded-xl p-8 shadow-xs text-white">
+              <h3 className="text-lg font-semibold mb-8 tracking-tight flex items-center gap-2">
+                 <TrendingUp className="text-sage-400" /> Academic Analytics
               </h3>
               <div className="space-y-6">
-                 <div className="p-5 bg-white/5 rounded-2xl border border-white/5">
-                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Overall Pass Rate</p>
-                    <p className="text-3xl font-black">94.2%</p>
-                    <div className="mt-3 h-1.5 bg-white/10 rounded-full overflow-hidden">
-                       <div className="h-full bg-blue-500 w-[94.2%]" />
+                 <div className="p-5 bg-card/5 rounded-2xl border border-white/5">
+                    <p className="text-[11px] font-semibold text-warm-400 uppercase tracking-wide mb-1">Overall Pass Rate</p>
+                    <p className="text-3xl font-semibold">94.2%</p>
+                    <div className="mt-3 h-1.5 bg-card/10 rounded-full overflow-hidden">
+                       <div className="h-full bg-forest-500 w-[94.2%]" />
                     </div>
                  </div>
-                 <div className="p-5 bg-white/5 rounded-2xl border border-white/5">
-                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Top Subject</p>
-                    <p className="text-xl font-black">English Literature</p>
-                    <p className="text-[10px] font-bold text-gray-500 uppercase mt-1">Average: 82.4%</p>
+                 <div className="p-5 bg-card/5 rounded-2xl border border-white/5">
+                    <p className="text-[11px] font-semibold text-warm-400 uppercase tracking-wide mb-1">Top Subject</p>
+                    <p className="text-xl font-semibold">English Literature</p>
+                    <p className="text-[11px] font-bold text-warm-500 uppercase mt-1">Average: 82.4%</p>
                  </div>
               </div>
            </section>
 
-           <div className="bg-blue-600 rounded-[2.5rem] p-8 shadow-xl text-white relative overflow-hidden group">
+           <div className="bg-forest-700 rounded-xl p-8 shadow-xs text-white relative overflow-hidden group">
               <div className="relative z-10">
-                 <h3 className="text-lg font-black mb-2 flex items-center gap-2">
+                 <h3 className="text-lg font-semibold mb-2 flex items-center gap-2">
                     <Lock size={20}/> Result Integrity
                  </h3>
-                 <p className="text-blue-100 text-xs font-medium leading-relaxed opacity-80 uppercase tracking-tight">
+                 <p className="text-sage-100 text-xs font-medium leading-relaxed opacity-80 uppercase tracking-tight">
                     Published results are cryptographically timestamped and locked. Any changes require formal administrative override.
                  </p>
               </div>
@@ -202,35 +203,31 @@ export default function ResultsCommandCenter() {
 
 function SelectField({ label, value, onChange, options }: any) {
   return (
-    <div className="space-y-2">
-       <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">{label}</label>
-       <select
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-4 text-xs font-black uppercase tracking-widest focus:ring-2 focus:ring-blue-600/10 transition-all outline-none"
-       >
-          <option value="">Select...</option>
-          {options.map((o: any) => <option key={o.value} value={o.value}>{o.label}</option>)}
-       </select>
-    </div>
+    <Select
+      label={label}
+      value={value}
+      onChange={(e: any) => onChange(e.target.value)}
+      options={[{ label: 'Select...', value: '' }, ...options]}
+    />
   );
 }
 
 function PublicationItem({ label, time, status, count }: any) {
   return (
-    <div className="flex items-center justify-between p-6 bg-gray-50 rounded-[2rem] border border-gray-100 hover:border-blue-200 transition-all">
+    <div className="flex items-center justify-between p-6 bg-ivory-50 rounded-xl border border-warm-100 hover:border-sage-200 transition-all">
        <div className="flex items-center gap-5">
-          <div className="p-3 bg-white rounded-2xl text-gray-400">
+          <div className="p-3 bg-card rounded-2xl text-warm-400">
              {status === 'LOCKED' ? <Lock size={20}/> : <UploadCloud size={20}/>}
           </div>
           <div>
-             <p className="text-sm font-black text-gray-900">{label}</p>
-             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">{count} Students • {time}</p>
+             <p className="text-sm font-semibold text-charcoal-900">{label}</p>
+             <p className="text-[11px] font-bold text-warm-400 uppercase tracking-tight">{count} Students • {time}</p>
           </div>
        </div>
-       <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase ${
-          status === 'LOCKED' ? 'bg-amber-50 text-amber-700' : 'bg-green-50 text-green-700'
+       <span className={`px-2.5 py-1 rounded-full text-[11px] font-semibold uppercase ${
+          status === 'LOCKED' ? 'bg-warning-50 text-warning-700' : 'bg-success-50 text-success-700'
        }`}>{status}</span>
     </div>
   );
 }
+

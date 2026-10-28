@@ -25,7 +25,7 @@ describe('BillingService (Deterministic Calculations)', () => {
     });
   });
 
-  describe('calculateUpgradeProration', () => {
+  describe('calculateProration', () => {
     it('should calculate 50% proration halfway through a 30-day month', () => {
       const oldPrice = new Decimal(100);
       const newPrice = new Decimal(200);
@@ -33,7 +33,7 @@ describe('BillingService (Deterministic Calculations)', () => {
       const end = new Date('2026-10-31');
       const effective = new Date('2026-10-16'); // 15 days in, 15 remaining
 
-      const result = service.calculateUpgradeProration(oldPrice, start, end, newPrice, effective);
+      const result = service.calculateProration(oldPrice, newPrice, start, end, effective);
 
       // Old unused: (100 / 30) * 15 = 50
       // New remaining: (200 / 30) * 15 = 100

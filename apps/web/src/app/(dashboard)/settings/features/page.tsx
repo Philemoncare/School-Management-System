@@ -1,89 +1,131 @@
-'use client';
+﻿'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { apiFetch } from '@/lib/api/client';
-import { Save, Loader2, Zap, Info } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Loader2, Zap } from 'lucide-react';
 
-const FEATURES = [
-  { name: 'LIBRARY_MANAGEMENT', label: 'Library Module', description: 'Enable digital book catalog and loan tracking.' },
-  { name: 'TRANSPORT_MANAGEMENT', label: 'Transport Module', description: 'Route planning and vehicle management.' },
-  { name: 'ONLINE_PAYMENTS', label: 'Online Payments', description: 'Allow parents to pay fees via credit card/mobile money.' },
-  { name: 'ADMISSIONS_PORTAL', label: 'Public Admissions', description: 'Enable the public-facing application form.' },
-  { name: 'MESSAGING_SYSTEM', label: 'Private Messaging', description: 'Internal secure communication for staff and parents.' },
-];
+const FEATURE_LABELS: Record<string, string> = {
+  LIBRARY_MANAGEMENT: 'Library Module',
+  TRANSPORT_MANAGEMENT: 'Transport Module',
+  ONLINE_PAYMENTS: 'Online Payments',
+  ADMISSIONS_PORTAL: 'Public Admissions',
+  MESSAGING_SYSTEM: 'Private Messaging',
+  HEALTH_MANAGEMENT: 'Health Management',
+  INVENTORY_MANAGEMENT: 'Inventory Management',
+};
+
+type FeatureFlag = {
+  name: string;
+  description: string | null;
+  isEnabled: boolean;
+  hasOverride: boolean;
+};
 
 export default function FeatureSettings() {
-  const [flags, setFlags] = useState<any[]>([]);
+  const [flags, setFlags] = useState<FeatureFlag[]>([]);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState<string | null>(null);
+  const [error, setError] = useState('');
+  const [saved, setSaved] = useState('');
 
   useEffect(() => {
-     // Fetch features for this school
-     // For now mocking the retrieval
-     setFlags(FEATURES.map(f => ({ ...f, isEnabled: true, isLocked: false })));
-     setLoading(false);
+    apiFetch('/settings/features')
+      .then(setFlags)
+      .catch((err) => setError(err.message || 'Unable to load feature settings.'))
+      .finally(() => setLoading(false));
   }, []);
 
-  const toggleFeature = (name: string) => {
-    setFlags(flags.map(f => f.name === name ? { ...f, isEnabled: !f.isEnabled } : f));
-  };
+  async function toggleFeature(feature: FeatureFlag) {
+    const nextValue = !feature.isEnabled;
+    setSaving(feature.name);
+    setError('');
+    setSaved('');
+    try {
+      await apiFetch(`/settings/features/${feature.name}`, {
+        method: 'PUT',
+        body: JSON.stringify({ isEnabled: nextValue }),
+      });
+      setFlags((current) =>
+        current.map((item) =>
+          item.name === feature.name ? { ...item, isEnabled: nextValue, hasOverride: true } : item,
+        ),
+      );
+      setSaved(`${FEATURE_LABELS[feature.name] || feature.name} ${nextValue ? 'enabled' : 'disabled'}.`);
+    } catch (err: any) {
+      setError(err.message || 'The feature could not be updated.');
+    } finally {
+      setSaving(null);
+    }
+  }
 
-  if (loading) return <div className="flex items-center justify-center py-20"><Loader2 className="animate-spin text-blue-600" /></div>;
+  if (loading) return <div className="flex items-center justify-center py-20"><Loader2 className="animate-spin text-forest-700" /></div>;
 
   return (
     <div>
       <div className="mb-8">
-        <h2 className="text-xl font-black text-gray-900">Feature Management</h2>
-        <p className="text-gray-500 text-sm font-medium">Enable or disable specific system capabilities.</p>
+        <h2 className="text-xl font-semibold text-charcoal-900">Feature Management</h2>
+        <p className="text-warm-500 text-sm font-medium">Enable or disable capabilities for this school.</p>
       </div>
 
-      <div className="bg-blue-50 border border-blue-100 rounded-3xl p-6 mb-8 flex items-start gap-4">
-         <div className="w-10 h-10 rounded-2xl bg-blue-600 flex items-center justify-center text-white shrink-0 shadow-lg shadow-blue-200">
-            <Zap size={20} />
-         </div>
-         <div>
-            <h4 className="text-sm font-black text-blue-900 uppercase tracking-tight">Subscription Entitlements</h4>
-            <p className="text-xs font-bold text-blue-700/70 mt-1 leading-relaxed">
-              Some features are controlled by your platform subscription. Features marked with a lock icon require a plan upgrade to activate.
-            </p>
-         </div>
+      <div className="bg-sage-50 border border-sage-100 rounded-xl p-6 mb-8 flex items-start gap-4">
+        <div className="w-10 h-10 rounded-xl bg-forest-700 flex items-center justify-center text-white shrink-0">
+          <Zap size={20} />
+        </div>
+        <div>
+          <h4 className="text-sm font-semibold text-forest-950">School feature overrides</h4>
+          <p className="text-xs font-medium text-forest-800/70 mt-1 leading-relaxed">
+            Changes apply immediately to this school. Platform-wide defaults remain unchanged.
+          </p>
+        </div>
       </div>
+
+      {error && (
+        <div className="mb-6 flex items-start gap-3 rounded-xl border border-danger-200 bg-danger-50 p-4 text-danger-700">
+          <AlertCircle size={18} className="shrink-0 mt-0.5" />
+          <p className="text-xs font-semibold">{error}</p>
+        </div>
+      )}
+      {saved && (
+        <div className="mb-6 flex items-start gap-3 rounded-xl border border-success-200 bg-success-50 p-4 text-success-700">
+          <CheckCircle2 size={18} className="shrink-0 mt-0.5" />
+          <p className="text-xs font-semibold">{saved}</p>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-4">
         {flags.map((feature) => (
-          <div key={feature.name} className="flex items-center justify-between p-6 bg-white border border-gray-100 rounded-[2rem] hover:shadow-xl hover:shadow-gray-100/50 transition-all group">
-             <div className="flex-1">
-                <div className="flex items-center gap-3 mb-1">
-                  <h3 className="text-sm font-black text-gray-800">{feature.label}</h3>
-                  {feature.isLocked && (
-                    <span className="px-2 py-0.5 bg-amber-50 text-amber-600 text-[9px] font-black rounded uppercase tracking-wider">Locked</span>
-                  )}
-                </div>
-                <p className="text-xs font-bold text-gray-400 max-w-md">{feature.description}</p>
-             </div>
+          <div key={feature.name} className="flex items-center justify-between gap-6 p-6 bg-card border border-warm-100 rounded-xl">
+            <div className="flex-1">
+              <div className="flex items-center gap-3 mb-1">
+                <h3 className="text-sm font-semibold text-charcoal-800">{FEATURE_LABELS[feature.name] || feature.name}</h3>
+                {feature.hasOverride && (
+                  <span className="px-2 py-0.5 bg-sage-50 text-forest-700 text-[11px] font-semibold rounded uppercase tracking-wider">Custom</span>
+                )}
+              </div>
+              <p className="text-xs font-medium text-warm-400 max-w-md">{feature.description || 'No description provided.'}</p>
+            </div>
 
-             <div className="flex items-center gap-4">
-                <button
-                  disabled={feature.isLocked}
-                  onClick={() => toggleFeature(feature.name)}
-                  className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${
-                    feature.isEnabled ? 'bg-blue-600' : 'bg-gray-200'
-                  } ${feature.isLocked ? 'opacity-50 cursor-not-allowed' : ''}`}
-                >
-                  <span
-                    className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
-                      feature.isEnabled ? 'translate-x-6' : 'translate-x-1'
-                    }`}
-                  />
-                </button>
-             </div>
+            <button
+              type="button"
+              disabled={saving === feature.name}
+              aria-label={`${feature.isEnabled ? 'Disable' : 'Enable'} ${FEATURE_LABELS[feature.name] || feature.name}`}
+              onClick={() => toggleFeature(feature)}
+              className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors ${
+                feature.isEnabled ? 'bg-forest-700' : 'bg-warm-200'
+              } disabled:opacity-60`}
+            >
+              {saving === feature.name ? (
+                <Loader2 size={16} className="absolute left-1/2 -translate-x-1/2 animate-spin text-white" />
+              ) : (
+                <span
+                  className={`inline-block h-5 w-5 transform rounded-full bg-card transition-transform ${
+                    feature.isEnabled ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              )}
+            </button>
           </div>
         ))}
-      </div>
-
-      <div className="mt-10 pt-8 border-t border-gray-100 flex justify-end">
-         <button className="flex items-center gap-2 px-10 py-3.5 bg-gray-900 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-black transition-all shadow-xl shadow-gray-200">
-            <Save size={16} /> Save Capabilities
-         </button>
       </div>
     </div>
   );

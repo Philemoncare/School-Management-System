@@ -1,5 +1,6 @@
 'use client';
 
+import { Select } from '@/components/ui/input';
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiFetch } from '@/lib/api/client';
@@ -12,7 +13,7 @@ import {
   DollarSign,
   CreditCard,
   Building2,
-  CheckCircle2
+  CheckCircle
 } from 'lucide-react';
 
 export default function RecordPaymentPage() {
@@ -89,31 +90,31 @@ export default function RecordPaymentPage() {
     }
   }
 
-  if (loading && !selectedStudent) return <div className="p-20 text-center"><Loader2 className="animate-spin mx-auto text-blue-600" size={48} /></div>;
+  if (loading && !selectedStudent) return <div className="p-20 text-center"><Loader2 className="animate-spin mx-auto text-forest-700" size={48} /></div>;
 
   return (
     <div className="p-8 max-w-5xl mx-auto space-y-10">
       <div className="flex items-center gap-4">
-        <button onClick={() => router.back()} className="p-2.5 bg-white border border-gray-200 rounded-2xl hover:bg-gray-50 transition-colors shadow-sm text-gray-500">
+        <button onClick={() => router.back()} className="p-2.5 bg-card border border-warm-200 rounded-2xl hover:bg-ivory-50 transition-colors shadow-sm text-warm-500">
            <ChevronLeft size={20} />
         </button>
         <div>
-          <h1 className="text-3xl font-black text-gray-900 tracking-tight leading-none">Record Collection</h1>
-          <p className="text-gray-500 font-bold mt-2 uppercase tracking-widest text-[10px]">Log internal cash, bank or mobile money transactions</p>
+          <h1 className="text-3xl font-semibold text-charcoal-900 tracking-tight leading-none">Record Collection</h1>
+          <p className="text-warm-500 font-bold mt-2 uppercase tracking-wide text-[11px]">Log internal cash, bank or mobile money transactions</p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Step 1: Student Selection */}
         <div className="space-y-6">
-           <div className="bg-white border border-gray-200 rounded-[2rem] p-6 shadow-sm">
-              <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest mb-6">1. Identify Student</h3>
+           <div className="bg-card border border-warm-200 rounded-xl p-6 shadow-sm">
+              <h3 className="text-sm font-semibold text-charcoal-900 uppercase tracking-wide mb-6">1. Identify Student</h3>
               <div className="relative mb-6">
-                 <Search className="absolute left-4 top-3.5 text-gray-400" size={18} />
+                 <Search className="absolute left-4 top-3.5 text-warm-400" size={18} />
                  <input
                    type="text"
                    placeholder="Student Name or ID..."
-                   className="w-full bg-gray-50 border-none rounded-xl pl-12 pr-4 py-3 text-sm font-bold"
+                   className="w-full bg-ivory-50 border-none rounded-xl pl-12 pr-4 py-3 text-sm font-bold"
                    value={search}
                    onChange={(e) => setSearch(e.target.value)}
                  />
@@ -124,15 +125,15 @@ export default function RecordPaymentPage() {
                      key={s.id}
                      onClick={() => handleSelectStudent(s)}
                      className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${
-                       selectedStudent?.id === s.id ? 'bg-blue-600 text-white shadow-lg' : 'hover:bg-gray-50 text-gray-800'
+                       selectedStudent?.id === s.id ? 'bg-forest-700 text-white shadow-lg' : 'hover:bg-ivory-50 text-charcoal-800'
                      }`}
                    >
-                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-[10px] ${
-                        selectedStudent?.id === s.id ? 'bg-white/20' : 'bg-gray-100'
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-semibold text-[11px] ${
+                        selectedStudent?.id === s.id ? 'bg-card/20' : 'bg-warm-100'
                       }`}>{s.firstName[0]}</div>
                       <div className="text-left">
-                         <p className="text-xs font-black truncate">{s.firstName} {s.lastName}</p>
-                         <p className={`text-[9px] font-bold uppercase ${selectedStudent?.id === s.id ? 'text-blue-100' : 'text-gray-400'}`}>{s.studentNumber}</p>
+                         <p className="text-xs font-semibold truncate">{s.firstName} {s.lastName}</p>
+                         <p className={`text-[11px] font-bold uppercase ${selectedStudent?.id === s.id ? 'text-sage-100' : 'text-warm-400'}`}>{s.studentNumber}</p>
                       </div>
                    </button>
                  ))}
@@ -144,26 +145,26 @@ export default function RecordPaymentPage() {
         <div className="lg:col-span-2 space-y-6">
            {selectedStudent ? (
              <form onSubmit={handleSubmit} className="space-y-8">
-                <section className="bg-white border border-gray-200 rounded-[2.5rem] p-10 shadow-sm space-y-10">
+                <section className="bg-card border border-warm-200 rounded-xl p-10 shadow-sm space-y-10">
                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                       <div>
-                         <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3 px-1">Total Amount Received</label>
+                         <label className="block text-[11px] font-semibold text-warm-400 uppercase tracking-wide mb-3 px-1">Total Amount Received</label>
                          <div className="relative">
-                            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400"><DollarSign size={18}/></div>
+                            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-warm-400"><DollarSign size={18}/></div>
                             <input
                               type="number"
                               required
                               placeholder="0.00"
-                              className="w-full bg-gray-50 border-none rounded-2xl pl-11 pr-4 py-4 text-lg font-black text-gray-900 focus:ring-2 focus:ring-blue-600"
+                              className="w-full bg-ivory-50 border-none rounded-2xl pl-11 pr-4 py-4 text-lg font-semibold text-charcoal-900 focus:ring-2 focus:ring-forest-700"
                               value={formData.amount}
                               onChange={(e) => setFormData({...formData, amount: e.target.value})}
                             />
                          </div>
                       </div>
                       <div>
-                         <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3 px-1">Payment Channel</label>
-                         <select
-                           className="w-full bg-gray-50 border-none rounded-2xl px-5 py-4 text-sm font-black text-gray-900 focus:ring-2 focus:ring-blue-600 appearance-none"
+                         <label className="block text-[11px] font-semibold text-warm-400 uppercase tracking-wide mb-3 px-1">Payment Channel</label>
+                         <Select
+                           className="w-full bg-ivory-50 border-none rounded-2xl px-5 py-4 text-sm font-semibold text-charcoal-900 focus:ring-2 focus:ring-forest-700 appearance-none"
                            value={formData.paymentMethod}
                            onChange={(e) => setFormData({...formData, paymentMethod: e.target.value})}
                          >
@@ -171,31 +172,31 @@ export default function RecordPaymentPage() {
                             <option value="BANK_TRANSFER">Bank Transfer / Deposit</option>
                             <option value="MOBILE_MONEY">Mobile Money</option>
                             <option value="CARD">Point of Sale (POS)</option>
-                         </select>
+                         </Select>
                       </div>
                    </div>
 
                    <div>
-                      <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4 px-1">2. Allocate to Invoices</label>
+                      <label className="block text-[11px] font-semibold text-warm-400 uppercase tracking-wide mb-4 px-1">2. Allocate to Invoices</label>
                       <div className="space-y-3">
                          {invoices.map(inv => (
-                           <div key={inv.id} className="flex items-center justify-between p-5 bg-gray-50 rounded-3xl border border-gray-100">
+                           <div key={inv.id} className="flex items-center justify-between p-5 bg-ivory-50 rounded-3xl border border-warm-100">
                               <div>
-                                 <p className="text-sm font-black text-gray-900 leading-tight">{inv.invoiceNumber}</p>
-                                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter mt-1">Due {new Date(inv.dueDate).toLocaleDateString()} • Bal: GH₵ {parseFloat(inv.balance).toLocaleString()}</p>
+                                 <p className="text-sm font-semibold text-charcoal-900 leading-tight">{inv.invoiceNumber}</p>
+                                 <p className="text-[11px] font-bold text-warm-400 uppercase tracking-tighter mt-1">Due {new Date(inv.dueDate).toLocaleDateString()} • Bal: GH₵ {parseFloat(inv.balance).toLocaleString()}</p>
                               </div>
                               <div className="flex items-center gap-4">
                                  <input
                                    type="number"
                                    placeholder="0.00"
-                                   className="w-28 bg-white border-none rounded-xl px-4 py-2 text-right text-xs font-black text-blue-600 focus:ring-1 focus:ring-blue-600"
+                                   className="w-28 bg-card border-none rounded-xl px-4 py-2 text-right text-xs font-semibold text-forest-700 focus:ring-1 focus:ring-forest-700"
                                    onChange={(e) => setSelectedInvoices({...selectedInvoices, [inv.id]: parseFloat(e.target.value)})}
                                  />
                               </div>
                            </div>
                          ))}
                          {invoices.length === 0 && (
-                           <p className="py-10 text-center text-gray-400 font-bold text-xs uppercase tracking-widest bg-gray-50 rounded-[2rem] border-2 border-dashed border-gray-100">
+                           <p className="py-10 text-center text-warm-400 font-bold text-xs uppercase tracking-wide bg-ivory-50 rounded-xl border-2 border-dashed border-warm-100">
                               No outstanding invoices found for this student.
                            </p>
                          )}
@@ -203,11 +204,11 @@ export default function RecordPaymentPage() {
                    </div>
 
                    <div>
-                      <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3 px-1">External Reference / Receipt #</label>
+                      <label className="block text-[11px] font-semibold text-warm-400 uppercase tracking-wide mb-3 px-1">External Reference / Receipt #</label>
                       <input
                         type="text"
                         placeholder="e.g. Bank slip number or MoMo ID..."
-                        className="w-full bg-gray-50 border-none rounded-2xl px-6 py-4 text-sm font-bold text-gray-900"
+                        className="w-full bg-ivory-50 border-none rounded-2xl px-6 py-4 text-sm font-bold text-charcoal-900"
                         value={formData.externalReference}
                         onChange={(e) => setFormData({...formData, externalReference: e.target.value})}
                       />
@@ -218,18 +219,18 @@ export default function RecordPaymentPage() {
                    <button
                      type="submit"
                      disabled={saving || !formData.amount}
-                     className="bg-green-600 text-white px-12 py-4 rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-green-700 shadow-xl shadow-green-100 transition-all flex items-center gap-3 disabled:opacity-50"
+                     className="bg-success-600 text-white px-12 py-4 rounded-2xl font-semibold text-sm uppercase tracking-wide hover:bg-success-700 shadow-xs shadow-success-100 transition-all flex items-center gap-3 disabled:opacity-50"
                    >
-                      {saving ? <Loader2 className="animate-spin" size={20} /> : <CheckCircle2 size={20} />}
+                      {saving ? <Loader2 className="animate-spin" size={20} /> : <CheckCircle size={20} />}
                       Verify & Finalize Collection
                    </button>
                 </div>
              </form>
            ) : (
-             <div className="h-full bg-white border-2 border-dashed border-gray-200 rounded-[2.5rem] flex flex-col items-center justify-center p-20 text-center">
-                <div className="p-6 bg-blue-50 text-blue-600 rounded-full mb-6 animate-pulse"><Users size={40}/></div>
-                <h3 className="text-xl font-black text-gray-900">Student not selected</h3>
-                <p className="text-gray-400 mt-2 font-medium">Please search and select a student from the sidebar to record a payment.</p>
+             <div className="h-full bg-card border-2 border-dashed border-warm-200 rounded-xl flex flex-col items-center justify-center p-20 text-center">
+                <div className="p-6 bg-sage-50 text-forest-700 rounded-full mb-6 animate-pulse"><Users size={40}/></div>
+                <h3 className="text-xl font-semibold text-charcoal-900">Student not selected</h3>
+                <p className="text-warm-400 mt-2 font-medium">Please search and select a student from the sidebar to record a payment.</p>
              </div>
            )}
         </div>
@@ -237,3 +238,4 @@ export default function RecordPaymentPage() {
     </div>
   );
 }
+

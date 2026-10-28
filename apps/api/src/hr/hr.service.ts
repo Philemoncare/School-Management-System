@@ -145,8 +145,79 @@ export class HRService {
     });
   }
 
+  private async resolveStaffIdentity(schoolId: string, userId: string) {
+    const [staff, teacher] = await Promise.all([
+      this.prisma.staff.findFirst({ where: { schoolId, userId } }),
+      this.prisma.teacher.findFirst({ where: { schoolId, userId } }),
+    ]);
+    return { staffId: staff?.id || null, teacherId: teacher?.id || null };
+  }
+
+  async getMyLeaveRequests(schoolId: string, userId: string) {
+    const { staffId, teacherId } = await this.resolveStaffIdentity(schoolId, userId);
+    if (!staffId && !teacherId) return [];
+
+    return this.prisma.leaveRequest.findMany({
+      where: {
+        schoolId,
+        OR: [
+          ...(staffId ? [{ staffId }] : []),
+          ...(teacherId ? [{ teacherId }] : []),
+        ],
+      },
+      include: { leaveType: true },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async getMyLeaveBalances(schoolId: string, userId: string) {
+    const { staffId, teacherId } = await this.resolveStaffIdentity(schoolId, userId);
+    if (!staffId && !teacherId) return [];
+
+    return this.prisma.leaveBalance.findMany({
+      where: {
+        OR: [
+          ...(staffId ? [{ staffId }] : []),
+          ...(teacherId ? [{ teacherId }] : []),
+        ],
+      },
+      include: { leaveType: true },
+      orderBy: { period: 'desc' },
+    });
+  }
+
+  async getMySchedule(schoolId: string, userId: string) {
+    const { staffId, teacherId } = await this.resolveStaffIdentity(schoolId, userId);
+    if (!staffId && !teacherId) return [];
+
+    return this.prisma.staffSchedule.findMany({
+      where: {
+        OR: [
+          ...(staffId ? [{ staffId }] : []),
+          ...(teacherId ? [{ teacherId }] : []),
+        ],
+      },
+      orderBy: { effectiveDate: 'desc' },
+    });
+  }
+
   async requestLeave(schoolId: string, dto: CreateLeaveRequestDto, actorId: string) {
-    const { startDate, endDate, leaveTypeId, staffId, teacherId } = dto;
+    const { startDate, endDate, leaveTypeId } = dto;
+    const { staffId, teacherId } = await this.resolveStaffIdentity(schoolId, actorId);
+
+    if (!staffId && !teacherId) {
+      throw new BadRequestException('No employee profile is linked to this account.');
+    }
+    if (startDate > endDate) {
+      throw new BadRequestException('The leave end date must be on or after the start date.');
+    }
+
+    const leaveType = await this.prisma.leaveType.findFirst({
+      where: { id: leaveTypeId, schoolId, isActive: true },
+    });
+    if (!leaveType) {
+      throw new BadRequestException('Select a valid leave type for this school.');
+    }
 
     // Calculate total days (simple diff for now)
     const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
@@ -166,6 +237,8 @@ export class HRService {
       const request = await tx.leaveRequest.create({
         data: {
           ...dto,
+          staffId,
+          teacherId,
           schoolId,
           totalDays,
           status: LeaveRequestStatus.PENDING_APPROVAL

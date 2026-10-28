@@ -1,3 +1,9 @@
+import { Module, Global } from '@nestjs/common';
+import { BullModule } from '@nestjs/bullmq';
+import { WorkflowService } from './workflow.service';
+import { OutboxService } from './events/outbox.service';
+import { OutboxProcessor } from './events/outbox.processor';
+import { EventDispatcherService } from './events/event-dispatcher.service';
 import { AdmissionConfirmedHandler } from './events/handlers/admission-confirmed.handler';
 import { StudentPromotedHandler } from './events/handlers/student-promoted.handler';
 import { TeacherCreatedHandler } from './events/handlers/teacher-created.handler';

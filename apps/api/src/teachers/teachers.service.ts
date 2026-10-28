@@ -1,3 +1,6 @@
+import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
 import { CreateTeacherDto } from './dto/create-teacher.dto';
 import { PaginationDto } from '../common/dto/pagination.dto';
 import { OutboxService } from '../workflow/events/outbox.service';

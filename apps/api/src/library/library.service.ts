@@ -188,7 +188,6 @@ export class LibraryService {
           returnDate,
           status: LoanStatus.RETURNED,
           returnedBy: actorId,
-          notes: dto.notes,
         },
       });
 

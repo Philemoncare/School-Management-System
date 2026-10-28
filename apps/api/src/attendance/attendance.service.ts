@@ -286,6 +286,46 @@ export class AttendanceService {
     return updated;
   }
 
+  async findRecords(schoolId: string, filters: any = {}) {
+    const { search, status, classId, startDate, endDate } = filters;
+    const dateFilter: any = {};
+    if (startDate) dateFilter.gte = new Date(startDate);
+    if (endDate) dateFilter.lte = new Date(endDate);
+
+    return this.prisma.studentAttendance.findMany({
+      where: {
+        schoolId,
+        status: status || undefined,
+        student: search
+          ? {
+              OR: [
+                { firstName: { contains: search, mode: 'insensitive' } },
+                { lastName: { contains: search, mode: 'insensitive' } },
+                { studentNumber: { contains: search, mode: 'insensitive' } },
+              ],
+            }
+          : undefined,
+        session: {
+          schoolId,
+          classId: classId || undefined,
+          date: Object.keys(dateFilter).length ? dateFilter : undefined,
+        },
+      },
+      include: {
+        student: { select: { id: true, firstName: true, lastName: true, studentNumber: true } },
+        session: {
+          include: {
+            class: { select: { id: true, name: true } },
+            section: { select: { id: true, name: true } },
+            subject: { select: { id: true, name: true, code: true } },
+          },
+        },
+      },
+      orderBy: [{ session: { date: 'desc' } }, { student: { lastName: 'asc' } }],
+      take: 500,
+    });
+  }
+
   async findSessions(schoolId: string, filters: any) {
     return this.prisma.attendanceSession.findMany({
       where: {

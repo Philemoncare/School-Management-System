@@ -1,9 +1,30 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useAuth } from '@/context/auth-context';
-import { Mail, Lock, ArrowRight, AlertCircle, Loader2, Eye, EyeOff } from 'lucide-react';
+import { useAuth, getRoleLanding } from '@/context/auth-context';
+import {
+  Mail,
+  Lock,
+  ArrowRight,
+  Eye,
+  EyeOff,
+  RefreshCw,
+} from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Alert } from '@/components/ui/alert';
 import Link from 'next/link';
+import { apiFetch } from '@/lib/api/client';
+import { toast } from 'sonner';
+import { OtpCodeInput } from '@/components/auth/otp-code-input';
+import { useOtpTimer } from '@/components/auth/use-otp-timer';
+
+type LoginChallenge = {
+  token: string;
+  email: string;
+  codeLength: number;
+  emailDelivery: 'sent' | 'pending' | 'failed';
+};
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -11,112 +32,313 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [verificationRequired, setVerificationRequired] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [challenge, setChallenge] = useState<LoginChallenge | null>(null);
+  const [otpCode, setOtpCode] = useState('');
+  const [otpError, setOtpError] = useState('');
+  const [resending, setResending] = useState(false);
+  const otpTimer = useOtpTimer();
+
+  function completeSignIn(data: any) {
+    localStorage.setItem('token', data.access_token);
+
+    const memberships = data.user?.memberships || [];
+    const schoolId = memberships.length === 1 ? memberships[0].schoolId : null;
+
+    if (schoolId) {
+      localStorage.setItem('schoolId', schoolId);
+    }
+
+    window.location.href =
+      memberships.length > 1
+        ? '/select-school'
+        : getRoleLanding(data.user, schoolId);
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setIsLoading(true);
     setError('');
+    setVerificationRequired(false);
+    setOtpError('');
 
     try {
-      await login(email, password);
+      if (challenge) {
+        if (otpCode.length !== challenge.codeLength) {
+          setOtpError(`Enter the ${challenge.codeLength}-digit code from your email.`);
+          return;
+        }
+
+        const data = await apiFetch('/auth/login/otp', {
+          method: 'POST',
+          body: JSON.stringify({ otpToken: challenge.token, code: otpCode }),
+        });
+
+        if (data.access_token) {
+          completeSignIn(data);
+        }
+      } else {
+        const result = await login(email, password);
+        if (result?.otpRequired) {
+          setChallenge({
+            token: result.otp_token,
+            email: result.email,
+            codeLength: result.codeLength || 5,
+            emailDelivery: result.emailDelivery || 'sent',
+          });
+          setOtpCode('');
+          otpTimer.reset();
+          toast.success('We sent a 5-digit sign-in code to your email.');
+        }
+      }
     } catch (err: any) {
-      setError(err.message || 'The email or password you entered is incorrect.');
+      const message =
+        err.message || 'We could not sign you in. Check your details and try again.';
+      if (challenge) {
+        setOtpError(message);
+      } else {
+        setError(message);
+        setVerificationRequired(
+          err?.code === 'EMAIL_VERIFICATION_REQUIRED' ||
+            /verify your email/i.test(message),
+        );
+      }
     } finally {
       setIsLoading(false);
     }
   }
 
-  return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-      <div className="text-center">
-        <h2 className="text-2xl font-black text-gray-900 tracking-tight">Welcome back</h2>
-        <p className="text-sm font-medium text-gray-500 mt-1">Access your school management workspace.</p>
-      </div>
+  async function resendCode() {
+    if (!challenge || resending) return;
+    setResending(true);
+    setOtpError('');
+    try {
+      const data = await apiFetch('/auth/login/resend', {
+        method: 'POST',
+        body: JSON.stringify({ otpToken: challenge.token }),
+      });
+      setChallenge({
+        token: data.otp_token,
+        email: data.email,
+        codeLength: data.codeLength || 5,
+        emailDelivery: data.emailDelivery || 'sent',
+      });
+      setOtpCode('');
+      otpTimer.reset();
+      toast.success('A new sign-in code has been sent.');
+    } catch (err: any) {
+      setOtpError(err.message || 'We could not resend the code. Please try again.');
+    } finally {
+      setResending(false);
+    }
+  }
 
-      <form className="space-y-5" onSubmit={handleSubmit}>
-        {error && (
-          <div className="bg-red-50 border border-red-100 p-4 rounded-2xl flex items-start gap-3 animate-in shake">
-            <AlertCircle className="text-red-600 shrink-0 mt-0.5" size={18} />
-            <p className="text-xs font-bold text-red-800 leading-normal">{error}</p>
-          </div>
+  if (challenge) {
+    return (
+      <div className="w-full space-y-5 animate-in fade-in duration-300">
+        <div className="space-y-1.5">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-forest-700">
+            Email verification
+          </p>
+          <h2 className="text-2xl font-semibold leading-tight text-charcoal-950">
+            Enter the code sent to your email
+          </h2>
+          <p className="text-xs leading-relaxed text-warm-600">
+            We sent a fresh 5-digit sign-in code to{' '}
+            <span className="font-semibold text-charcoal-900">{challenge.email}</span>. It
+            expires in 5 minutes.
+          </p>
+        </div>
+
+        {challenge.emailDelivery !== 'sent' && (
+          <Alert
+            type={challenge.emailDelivery === 'failed' ? 'warning' : 'info'}
+            title={
+              challenge.emailDelivery === 'failed'
+                ? 'Code delivery was not confirmed'
+                : 'Your code is on the way'
+            }
+          >
+            {challenge.emailDelivery === 'failed'
+              ? 'Request a new code below. If it still does not arrive, check your spam folder or contact support.'
+              : 'Give it a moment, then request a new code if it does not arrive.'}
+          </Alert>
         )}
 
-        <div className="space-y-2">
-          <label htmlFor="email" className="block text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">
-            Email Address
-          </label>
-          <div className="relative group">
-            <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none text-gray-400 group-focus-within:text-blue-600 transition-colors">
-              <Mail size={18} />
-            </div>
-            <input
-              id="email"
-              type="email"
-              required
-              autoComplete="email"
-              className="block w-full pl-12 pr-5 py-4 bg-gray-50 border border-gray-100 rounded-2xl text-gray-900 font-bold placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-600/10 focus:bg-white focus:border-blue-600/30 transition-all sm:text-sm"
-              placeholder="name@school.edu"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-          </div>
-        </div>
+        <form className="space-y-5" onSubmit={handleSubmit}>
+          <OtpCodeInput
+            value={otpCode}
+            onChange={(value) => {
+              setOtpCode(value);
+              setOtpError('');
+            }}
+            length={challenge.codeLength}
+            disabled={isLoading}
+            autoFocus
+            error={otpError}
+          />
 
-        <div className="space-y-2">
-          <div className="flex justify-between items-center px-1">
-            <label htmlFor="password" className="block text-[10px] font-black text-gray-400 uppercase tracking-widest">
-              Password
-            </label>
-            <Link href="/forgot-password" size="sm" className="text-[10px] font-black text-blue-600 hover:text-blue-700 uppercase tracking-widest">
-              Forgot?
-            </Link>
-          </div>
-          <div className="relative group">
-            <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none text-gray-400 group-focus-within:text-blue-600 transition-colors">
-              <Lock size={18} />
-            </div>
-            <input
-              id="password"
-              type={showPassword ? 'text' : 'password'}
-              required
-              autoComplete="current-password"
-              className="block w-full pl-12 pr-12 py-4 bg-gray-50 border border-gray-100 rounded-2xl text-gray-900 font-bold placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-600/10 focus:bg-white focus:border-blue-600/30 transition-all sm:text-sm"
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <span
+              className={`text-[11px] font-bold uppercase tracking-wide ${
+                otpTimer.expired ? 'text-danger-600' : 'text-warm-500'
+              }`}
+            >
+              {otpTimer.expired ? 'Code expired' : `Expires in ${otpTimer.formattedExpiry}`}
+            </span>
             <button
               type="button"
-              onClick={() => setShowPassword(!showPassword)}
-              className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-gray-600 transition-colors"
+              onClick={resendCode}
+              disabled={resending || !otpTimer.canResend}
+              className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-forest-800 transition-colors hover:text-terracotta-600 disabled:cursor-not-allowed disabled:text-warm-400"
             >
-              {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              <RefreshCw className={`h-3.5 w-3.5 ${resending ? 'animate-spin' : ''}`} />
+              {resending
+                ? 'Sending'
+                : otpTimer.canResend
+                  ? 'Send a new code'
+                  : `Resend in ${otpTimer.resendIn}s`}
             </button>
+          </div>
+
+          <Button
+            type="submit"
+            isLoading={isLoading}
+            variant="primary"
+            size="lg"
+            className="w-full"
+            disabled={otpTimer.expired}
+            rightIcon={<ArrowRight className="h-4 w-4" />}
+          >
+            Verify and sign in
+          </Button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setChallenge(null);
+              setOtpCode('');
+              setOtpError('');
+              setPassword('');
+            }}
+            className="w-full py-2 text-[11px] font-bold uppercase tracking-wide text-warm-500 transition-colors hover:text-forest-800"
+          >
+            Use a different account
+          </button>
+        </form>
+
+        <p className="text-center text-[11px] font-medium text-warm-500">
+          Every sign-in requires your password and a single-use email code.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-full space-y-5 animate-in fade-in duration-500">
+      <div className="space-y-1.5">
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-forest-700">
+          Sign in
+        </p>
+        <h2 className="text-2xl font-semibold leading-tight tracking-tight text-charcoal-950">
+          Welcome back
+        </h2>
+        <p className="text-xs leading-relaxed text-warm-600">
+          Enter your password, then confirm the 5-digit code we email you.
+        </p>
+      </div>
+
+      <form className="space-y-4" onSubmit={handleSubmit}>
+        {error && (
+          <Alert
+            type={verificationRequired ? 'warning' : 'error'}
+            title={verificationRequired ? 'Verify your email first' : 'Unable to sign in'}
+          >
+            <div className="space-y-2">
+              <p>{error}</p>
+              {verificationRequired && (
+                <Link
+                  href={`/verify-email?email=${encodeURIComponent(email.trim().toLowerCase())}`}
+                  className="inline-flex items-center gap-1.5 font-bold text-forest-800 underline decoration-forest-300 underline-offset-2 hover:text-forest-950"
+                >
+                  Open email verification
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
+              )}
+            </div>
+          </Alert>
+        )}
+
+        <Input
+          label="Email address"
+          type="email"
+          required
+          autoComplete="email"
+          placeholder="name@school.edu.gh"
+          leftIcon={<Mail className="w-4 h-4 text-warm-400" />}
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+        />
+
+        <div className="space-y-1">
+          <Input
+            label="Password"
+            type={showPassword ? 'text' : 'password'}
+            required
+            autoComplete="current-password"
+            placeholder="Enter your password"
+            leftIcon={<Lock className="w-4 h-4 text-warm-400" />}
+            rightIcon={
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="flex min-h-[36px] min-w-[36px] items-center justify-center rounded-lg p-1.5 text-warm-400 transition-colors hover:text-warm-700"
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+              >
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            }
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+          <div className="flex justify-end px-0.5 pt-0.5">
+            <Link
+              href="/forgot-password"
+              className="py-1 text-[11px] font-bold uppercase tracking-wide text-warm-500 transition-colors hover:text-forest-700"
+            >
+              Forgot password?
+            </Link>
           </div>
         </div>
 
-        <button
+        <Button
           type="submit"
-          disabled={isLoading}
-          className="w-full flex justify-center items-center gap-2 py-5 px-4 border border-transparent rounded-[1.25rem] shadow-xl shadow-blue-100 text-sm font-black uppercase tracking-widest text-white bg-blue-600 hover:bg-blue-700 active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+          isLoading={isLoading}
+          variant="primary"
+          size="lg"
+          className="w-full"
+          rightIcon={<ArrowRight className="w-4 h-4" />}
         >
-          {isLoading ? (
-            <Loader2 className="animate-spin" size={20} />
-          ) : (
-            <>Sign in to Dashboard <ArrowRight size={18} /></>
-          )}
-        </button>
+          Continue with email code
+        </Button>
       </form>
 
-      <div className="pt-2 text-center">
-        <p className="text-sm font-bold text-gray-500">
-          New to EduFlow?{' '}
-          <Link href="/register-school" className="text-blue-600 hover:text-blue-700 underline underline-offset-4">
-            Register your school
+      <div className="rounded-lg border border-warm-200 bg-ivory-100 px-4 py-3 text-center">
+        <p className="text-[11px] text-warm-600">
+          Setting up a new school?{' '}
+          <Link
+            href="/register-school"
+            className="font-semibold text-forest-800 underline decoration-warm-300 underline-offset-2 hover:text-forest-950"
+          >
+            Create a workspace
           </Link>
         </p>
       </div>
+
+      <p className="pt-1 text-center text-[11px] font-medium leading-relaxed text-warm-500">
+        Sessions are encrypted and school records remain isolated.
+      </p>
     </div>
   );
 }

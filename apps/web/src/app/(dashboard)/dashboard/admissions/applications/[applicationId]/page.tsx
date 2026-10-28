@@ -76,22 +76,22 @@ export default function ApplicationDetailPage() {
     }
   }
 
-  if (loading) return <div className="p-20 text-center"><Loader2 className="animate-spin mx-auto text-blue-600" size={48} /></div>;
+  if (loading) return <div className="p-20 text-center"><Loader2 className="animate-spin mx-auto text-forest-700" size={48} /></div>;
 
   return (
     <div className="p-8 space-y-10">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-6">
-          <Link href="/dashboard/admissions/applications" className="p-3 bg-white border border-gray-200 rounded-2xl text-gray-400 hover:text-blue-600 transition-all shadow-sm">
+          <Link href="/dashboard/admissions/applications" className="p-3 bg-card border border-warm-200 rounded-2xl text-warm-400 hover:text-forest-700 transition-all shadow-sm">
             <ChevronLeft size={20}/>
           </Link>
           <div>
             <div className="flex items-center gap-3">
-               <h1 className="text-3xl font-black text-gray-900 tracking-tight">{application.firstName} {application.lastName}</h1>
+               <h1 className="text-3xl font-semibold text-charcoal-900 tracking-tight">{application.firstName} {application.lastName}</h1>
                <StatusBadge status={application.status} />
             </div>
-            <p className="text-gray-500 font-bold mt-1 uppercase tracking-widest text-[10px] flex items-center gap-2">
-               Ref: <span className="text-blue-600 font-mono">{application.reference}</span> • Submitted {new Date(application.submissionDate).toLocaleDateString()}
+            <p className="text-warm-500 font-bold mt-1 uppercase tracking-wide text-[11px] flex items-center gap-2">
+               Ref: <span className="text-forest-700 font-mono">{application.reference}</span> • Submitted {new Date(application.submissionDate).toLocaleDateString()}
             </p>
           </div>
         </div>
@@ -99,15 +99,15 @@ export default function ApplicationDetailPage() {
         <div className="flex gap-3">
            {application.status === 'SUBMITTED' || application.status === 'UNDER_REVIEW' ? (
               <>
-                 <button onClick={() => handleDecision('REJECT')} disabled={submitting} className="px-6 py-3 bg-white border border-red-200 text-red-600 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-red-50 transition-all">
+                 <button onClick={() => handleDecision('REJECT')} disabled={submitting} className="px-6 py-3 bg-card border border-danger-200 text-danger-600 rounded-2xl font-semibold text-xs uppercase tracking-wide hover:bg-danger-50 transition-all">
                     Reject
                  </button>
-                 <button onClick={() => handleDecision('ADMIT')} disabled={submitting} className="bg-blue-600 text-white px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-blue-700 transition-all shadow-xl shadow-blue-200">
+                 <button onClick={() => handleDecision('ADMIT')} disabled={submitting} className="bg-forest-700 text-white px-6 py-3 rounded-2xl font-semibold text-xs uppercase tracking-wide hover:bg-forest-800 transition-all shadow-xs shadow-sage-200">
                     Recommend Admission
                  </button>
               </>
            ) : application.status === 'ACCEPTED' ? (
-              <button onClick={handleConfirmAdmission} disabled={submitting} className="bg-green-600 text-white px-8 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-green-700 transition-all shadow-xl shadow-green-200">
+              <button onClick={handleConfirmAdmission} disabled={submitting} className="bg-success-600 text-white px-8 py-3 rounded-2xl font-semibold text-xs uppercase tracking-wide hover:bg-success-700 transition-all shadow-xs shadow-success-200">
                  Complete Final Enrollment
               </button>
            ) : null}
@@ -117,9 +117,9 @@ export default function ApplicationDetailPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-8">
            {/* Applicant Profile */}
-           <section className="bg-white border border-gray-200 rounded-[2.5rem] p-8 shadow-sm">
-              <h3 className="text-sm font-black uppercase tracking-widest text-gray-900 mb-8 flex items-center gap-2">
-                 <User size={16} className="text-blue-600" /> Applicant Bio-data
+           <section className="bg-card border border-warm-200 rounded-xl p-8 shadow-sm">
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-charcoal-900 mb-8 flex items-center gap-2">
+                 <User size={16} className="text-forest-700" /> Applicant Bio-data
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
                  <ProfileField label="Full Name" value={`${application.firstName} ${application.middleName || ''} ${application.lastName}`} />
@@ -132,28 +132,28 @@ export default function ApplicationDetailPage() {
            </section>
 
            {/* Guardians */}
-           <section className="bg-white border border-gray-200 rounded-[2.5rem] p-8 shadow-sm">
-              <h3 className="text-sm font-black uppercase tracking-widest text-gray-900 mb-8 flex items-center gap-2">
-                 <Users size={16} className="text-purple-600" /> Guardian Contacts
+           <section className="bg-card border border-warm-200 rounded-xl p-8 shadow-sm">
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-charcoal-900 mb-8 flex items-center gap-2">
+                 <Users size={16} className="text-terracotta-600" /> Guardian Contacts
               </h3>
               <div className="space-y-6">
                  {application.guardians.map((g: any) => (
-                    <div key={g.id} className="flex items-center justify-between p-6 bg-gray-50 rounded-[2rem] border border-gray-100">
+                    <div key={g.id} className="flex items-center justify-between p-6 bg-ivory-50 rounded-xl border border-warm-100">
                        <div className="flex items-center gap-4">
-                          <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-gray-400 shadow-sm font-black text-xs">
+                          <div className="w-12 h-12 bg-card rounded-2xl flex items-center justify-center text-warm-400 shadow-sm font-semibold text-xs">
                              {g.firstName[0]}{g.lastName[0]}
                           </div>
                           <div>
-                             <p className="text-sm font-black text-gray-900">{g.firstName} {g.lastName}</p>
-                             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">{g.relationship} {g.isPrimary && '• Primary'}</p>
+                             <p className="text-sm font-semibold text-charcoal-900">{g.firstName} {g.lastName}</p>
+                             <p className="text-[11px] font-bold text-warm-400 uppercase tracking-tight">{g.relationship} {g.isPrimary && '• Primary'}</p>
                           </div>
                        </div>
                        <div className="flex items-center gap-6">
                           <div className="text-right">
-                             <p className="text-[10px] font-black text-gray-900">{g.email}</p>
-                             <p className="text-[10px] font-bold text-gray-400 uppercase">{g.phone}</p>
+                             <p className="text-[11px] font-semibold text-charcoal-900">{g.email}</p>
+                             <p className="text-[11px] font-bold text-warm-400 uppercase">{g.phone}</p>
                           </div>
-                          <button className="p-3 bg-white rounded-xl text-gray-400 hover:text-blue-600 transition-all shadow-sm"><MoreVertical size={16}/></button>
+                          <button className="p-3 bg-card rounded-xl text-warm-400 hover:text-forest-700 transition-all shadow-sm"><MoreVertical size={16}/></button>
                        </div>
                     </div>
                  ))}
@@ -163,31 +163,31 @@ export default function ApplicationDetailPage() {
 
         <div className="space-y-8">
            {/* Document Checklist */}
-           <section className="bg-white border border-gray-200 rounded-[2.5rem] p-8 shadow-sm">
-              <h3 className="text-sm font-black uppercase tracking-widest text-gray-900 mb-6 flex items-center gap-2">
-                 <FileText size={16} className="text-amber-600" /> Documents
+           <section className="bg-card border border-warm-200 rounded-xl p-8 shadow-sm">
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-charcoal-900 mb-6 flex items-center gap-2">
+                 <FileText size={16} className="text-warning-600" /> Documents
               </h3>
               <div className="space-y-4">
                  {application.documents.map((doc: any) => (
-                    <div key={doc.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                    <div key={doc.id} className="flex items-center justify-between p-4 bg-ivory-50 rounded-2xl border border-warm-100">
                        <div className="flex items-center gap-3">
-                          <div className="p-2 bg-white rounded-lg text-gray-400"><FileText size={14}/></div>
-                          <p className="text-xs font-bold text-gray-700">{doc.title}</p>
+                          <div className="p-2 bg-card rounded-lg text-warm-400"><FileText size={14}/></div>
+                          <p className="text-xs font-bold text-warm-700">{doc.title}</p>
                        </div>
-                       <button className="text-blue-600 hover:scale-110 transition-transform"><Download size={14}/></button>
+                       <button className="text-forest-700 hover:scale-110 transition-transform"><Download size={14}/></button>
                     </div>
                  ))}
                  {application.documents.length === 0 && (
-                    <div className="py-8 text-center bg-gray-50 rounded-2xl border border-dashed border-gray-200">
-                       <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">No documents uploaded</p>
+                    <div className="py-8 text-center bg-ivory-50 rounded-2xl border border-dashed border-warm-200">
+                       <p className="text-[11px] font-bold text-warm-400 uppercase tracking-wide">No documents uploaded</p>
                     </div>
                  )}
               </div>
            </section>
 
            {/* Timeline / Status History */}
-           <section className="bg-gray-900 rounded-[2.5rem] p-8 shadow-xl text-white">
-              <h3 className="text-lg font-black mb-8 tracking-tight">Processing Pipeline</h3>
+           <section className="bg-charcoal-900 rounded-xl p-8 shadow-xs text-white">
+              <h3 className="text-lg font-semibold mb-8 tracking-tight">Processing Pipeline</h3>
               <div className="space-y-8">
                  <TimelineItem active label="Submission Received" time={new Date(application.submissionDate).toLocaleString()} />
                  <TimelineItem active={!!application.decisions.length} label="Initial Screening" />
@@ -203,17 +203,17 @@ export default function ApplicationDetailPage() {
 
 function StatusBadge({ status }: { status: string }) {
   const styles: any = {
-    SUBMITTED: 'bg-blue-50 text-blue-700',
-    UNDER_REVIEW: 'bg-amber-50 text-amber-700',
-    DOCUMENTS_REQUIRED: 'bg-red-50 text-red-700',
-    OFFERED: 'bg-purple-50 text-purple-700',
-    ACCEPTED: 'bg-emerald-50 text-emerald-700',
-    REJECTED: 'bg-gray-100 text-gray-500',
-    ENROLLED: 'bg-green-600 text-white shadow-md'
+    SUBMITTED: 'bg-sage-50 text-forest-800',
+    UNDER_REVIEW: 'bg-warning-50 text-warning-700',
+    DOCUMENTS_REQUIRED: 'bg-danger-50 text-danger-700',
+    OFFERED: 'bg-terracotta-50 text-terracotta-700',
+    ACCEPTED: 'bg-sage-50 text-forest-700',
+    REJECTED: 'bg-warm-100 text-warm-500',
+    ENROLLED: 'bg-success-600 text-white shadow-md'
   };
 
   return (
-    <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${styles[status] || 'bg-gray-50 text-gray-500'}`}>
+    <span className={`px-3 py-1 rounded-full text-[11px] font-semibold uppercase tracking-wide ${styles[status] || 'bg-ivory-50 text-warm-500'}`}>
       {status.replace('_', ' ')}
     </span>
   );
@@ -222,8 +222,8 @@ function StatusBadge({ status }: { status: string }) {
 function ProfileField({ label, value }: any) {
   return (
     <div className="space-y-1.5">
-       <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{label}</p>
-       <p className="text-lg font-black text-gray-900">{value || '—'}</p>
+       <p className="text-[11px] font-semibold text-warm-400 uppercase tracking-wide">{label}</p>
+       <p className="text-lg font-semibold text-charcoal-900">{value || '—'}</p>
     </div>
   );
 }
@@ -231,13 +231,13 @@ function ProfileField({ label, value }: any) {
 function TimelineItem({ label, time, active, last }: any) {
   return (
     <div className="flex gap-4 relative">
-       {!last && <div className={`absolute left-2.5 top-5 bottom-0 w-0.5 ${active ? 'bg-blue-500' : 'bg-white/10'}`} />}
+       {!last && <div className={`absolute left-2.5 top-5 bottom-0 w-0.5 ${active ? 'bg-forest-500' : 'bg-card/10'}`} />}
        <div className={`w-5 h-5 rounded-full z-10 flex items-center justify-center border-4 ${
-          active ? 'bg-blue-500 border-blue-500/20 shadow-[0_0_10px_rgba(59,130,246,0.5)]' : 'bg-gray-900 border-white/10'
+          active ? 'bg-forest-500 border-forest-500/20 shadow-[0_0_10px_rgba(59,130,246,0.5)]' : 'bg-charcoal-900 border-white/10'
        }`} />
        <div className="-mt-0.5">
-          <p className={`text-xs font-black uppercase tracking-widest ${active ? 'text-white' : 'text-gray-500'}`}>{label}</p>
-          {time && <p className="text-[10px] font-bold text-gray-400 mt-1 uppercase">{time}</p>}
+          <p className={`text-xs font-semibold uppercase tracking-wide ${active ? 'text-white' : 'text-warm-500'}`}>{label}</p>
+          {time && <p className="text-[11px] font-bold text-warm-400 mt-1 uppercase">{time}</p>}
        </div>
     </div>
   );

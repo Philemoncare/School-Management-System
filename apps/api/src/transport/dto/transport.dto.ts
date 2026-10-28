@@ -1,248 +1,243 @@
-import {
-  IsString,
-  IsNotEmpty,
-  IsOptional,
-  IsInt,
-  IsNumber,
-  IsUUID,
-  IsEnum,
-  IsArray,
-  IsDate,
-  Min,
-} from "class-validator";
+import { IsString, IsNotEmpty, IsOptional, IsInt, IsNumber, IsUUID, IsEnum, IsArray, IsDate, Min } from "class-validator";
 import { Type } from "class-transformer";
-import {
-  VehicleStatus,
-  DriverStatus,
-  RouteDirection,
-  RouteStatus,
-  TripStatus,
-  AttendanceType,
-  TransportAttendanceStatus,
-  MaintenanceStatus,
-  EmergencyType,
-  EmergencySeverity,
-  EmergencyStatus,
-} from "@prisma/client";
+import { RouteDirection, VehicleStatus, DriverStatus, AttendanceType, TransportAttendanceStatus } from "@prisma/client";
 
-// Vehicle DTOs
+// Route status values
+export type RouteStatus = 'ACTIVE' | 'INACTIVE' | 'ARCHIVED' | 'MAINTENANCE';
+
+// Trip status values
+export type TripStatus = 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED' | 'DELAYED' | 'PENDING';
+
+// Maintenance status values
+export type MaintenanceStatus = 'ACTIVE' | 'INACTIVE' | 'REPAIR' | 'MAINTENANCE';
+
+// Emergency type values
+export type EmergencyType = 'MEDICAL' | 'ACCIDENT' | 'FIRE' | 'WEATHER' | 'SECURITY' | 'OTHER';
+
+// Emergency severity values
+export type EmergencySeverity = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+
+// Emergency status values
+export type EmergencyStatus = 'PENDING' | 'IN_PROGRESS' | 'RESOLVED' | 'CLOSED';
+
 export class CreateVehicleDto {
   @IsString()
   @IsNotEmpty()
-  registrationNumber: string;
+  registrationNumber: string = '';
 
   @IsString()
   @IsOptional()
-  make?: string;
+  make?: string = undefined;
 
   @IsString()
   @IsOptional()
-  model?: string;
+  model?: string = undefined;
 
   @IsInt()
   @IsOptional()
-  year?: number;
+  year?: number = undefined;
 
   @IsString()
   @IsOptional()
-  type?: string;
+  type?: string = undefined;
 
   @IsInt()
   @Min(1)
-  seatingCapacity: number;
+  seatingCapacity: number = 0;
 
   @IsEnum(VehicleStatus)
   @IsOptional()
-  status?: VehicleStatus;
+  status?: VehicleStatus = VehicleStatus.AVAILABLE;
 
   @IsNumber()
   @IsOptional()
-  currentMileage?: number;
+  currentMileage?: number = undefined;
 
   @IsDate()
   @IsOptional()
   @Type(() => Date)
-  acquisitionDate?: Date;
+  acquisitionDate?: Date = undefined;
 
   @IsNumber()
   @IsOptional()
-  acquisitionCost?: number;
+  acquisitionCost?: number = undefined;
 
   @IsString()
   @IsOptional()
-  insuranceNumber?: string;
+  insuranceNumber?: string = undefined;
 
   @IsDate()
   @IsOptional()
   @Type(() => Date)
-  insuranceExpiry?: Date;
+  insuranceExpiry?: Date = undefined;
 
   @IsString()
   @IsOptional()
-  notes?: string;
+  notes?: string = undefined;
 }
 
 // Driver DTOs
 export class CreateDriverDto {
   @IsUUID()
   @IsNotEmpty()
-  staffId: string;
+  staffId: string = '';
 
   @IsString()
   @IsNotEmpty()
-  licenseNumber: string;
+  licenseNumber: string = '';
 
   @IsString()
   @IsNotEmpty()
-  licenseClass: string;
+  licenseClass: string = '';
 
   @IsDate()
   @IsNotEmpty()
   @Type(() => Date)
-  licenseExpiry: Date;
+  licenseExpiry: Date = new Date();
 
   @IsEnum(DriverStatus)
   @IsOptional()
-  status?: DriverStatus;
+  status?: DriverStatus = DriverStatus.ACTIVE;
 
   @IsString()
   @IsOptional()
-  notes?: string;
+  notes?: string = undefined;
 }
 
 // Route DTOs
 export class CreateRouteDto {
   @IsString()
   @IsNotEmpty()
-  name: string;
+  name: string = '';
 
   @IsString()
   @IsOptional()
-  code?: string;
+  code?: string = undefined;
 
   @IsString()
   @IsOptional()
-  description?: string;
+  description?: string = undefined;
 
   @IsEnum(RouteDirection)
   @IsOptional()
-  direction?: RouteDirection;
+  direction?: RouteDirection = undefined;
 
   @IsInt()
   @IsOptional()
-  estimatedDuration?: number;
+  estimatedDuration?: number = undefined;
 
   @IsNumber()
   @IsOptional()
-  estimatedDistance?: number;
+  estimatedDistance?: number = undefined;
 }
 
+// Stop DTOs
 export class CreateStopDto {
   @IsString()
   @IsNotEmpty()
-  name: string;
+  name: string = '';
 
   @IsString()
   @IsOptional()
-  address?: string;
+  address?: string = undefined;
 
   @IsNumber()
   @IsOptional()
-  latitude?: number;
+  latitude?: number = undefined;
 
   @IsNumber()
   @IsOptional()
-  longitude?: number;
+  longitude?: number = undefined;
 
   @IsInt()
   @IsNotEmpty()
-  sequence: number;
+  sequence: number = 1;
 
   @IsString()
   @IsOptional()
-  estimatedArrivalTime?: string;
+  estimatedArrivalTime?: string = undefined;
 }
 
 // Assignment DTOs
 export class CreateAssignmentDto {
   @IsUUID()
   @IsNotEmpty()
-  studentId: string;
+  studentId: string = '';
 
   @IsUUID()
   @IsNotEmpty()
-  routeId: string;
+  routeId: string = '';
 
   @IsUUID()
   @IsOptional()
-  pickupStopId?: string;
+  pickupStopId?: string = undefined;
 
   @IsUUID()
   @IsOptional()
-  dropoffStopId?: string;
+  dropoffStopId?: string = undefined;
 
   @IsDate()
   @IsOptional()
   @Type(() => Date)
-  effectiveDate?: Date;
+  effectiveDate?: Date = undefined;
 
   @IsDate()
   @IsOptional()
   @Type(() => Date)
-  endDate?: Date;
+  endDate?: Date = undefined;
 
   @IsNumber()
   @IsOptional()
-  feeAmount?: number;
+  feeAmount?: number = undefined;
 }
 
 // Trip DTOs
 export class ScheduleTripDto {
   @IsUUID()
   @IsNotEmpty()
-  routeId: string;
+  routeId: string = '';
 
   @IsUUID()
   @IsNotEmpty()
-  vehicleId: string;
+  vehicleId: string = '';
 
   @IsUUID()
   @IsNotEmpty()
-  driverId: string;
+  driverId: string = '';
 
   @IsUUID()
   @IsOptional()
-  scheduleId?: string;
+  scheduleId?: string = undefined;
 
   @IsDate()
   @IsNotEmpty()
   @Type(() => Date)
-  date: Date;
+  date: Date = new Date();
 }
 
 // Attendance DTOs
 export class MarkAttendanceDto {
   @IsUUID()
   @IsNotEmpty()
-  studentId: string;
+  studentId: string = '';
 
   @IsUUID()
   @IsOptional()
-  stopId?: string;
+  stopId?: string = undefined;
 
   @IsEnum(AttendanceType)
   @IsNotEmpty()
-  type: AttendanceType;
+  type: AttendanceType = AttendanceType.PICKUP;
 
   @IsEnum(TransportAttendanceStatus)
   @IsNotEmpty()
-  status: TransportAttendanceStatus;
+  status: TransportAttendanceStatus = TransportAttendanceStatus.BOARDED;
 
   @IsNumber()
   @IsOptional()
-  latitude?: number;
+  latitude?: number = undefined;
 
   @IsNumber()
   @IsOptional()
-  longitude?: number;
+  longitude?: number = undefined;
 }

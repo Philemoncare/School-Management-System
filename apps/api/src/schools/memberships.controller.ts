@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, UseGuards, NotFoundException } from '@nestjs/common';
 import { SchoolsService } from './schools.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -19,7 +19,17 @@ export class MembershipsController {
       where: { schoolId },
       include: {
         user: {
-          include: {
+          select: {
+            id: true,
+            email: true,
+            phone: true,
+            firstName: true,
+            lastName: true,
+            isActive: true,
+            emailVerified: true,
+            accountState: true,
+            createdAt: true,
+            updatedAt: true,
             userRoles: {
               where: { schoolId },
               include: { role: true }
@@ -32,10 +42,20 @@ export class MembershipsController {
 
   @Roles('SCHOOL_ADMIN')
   @Patch(':membershipId/status')
-  async updateStatus(@Param('membershipId') id: string, @Body('status') status: any) {
-    return this.prisma.schoolMembership.update({
-      where: { id },
+  async updateStatus(
+    @ActiveSchool() schoolId: string,
+    @Param('membershipId') id: string,
+    @Body('status') status: any
+  ) {
+    const result = await this.prisma.schoolMembership.updateMany({
+      where: { id, schoolId },
       data: { status }
     });
+
+    if (result.count === 0) {
+      throw new NotFoundException('Membership not found');
+    }
+
+    return this.prisma.schoolMembership.findUnique({ where: { id } });
   }
 }

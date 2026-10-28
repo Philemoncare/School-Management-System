@@ -36,7 +36,15 @@ export class AnnouncementsService {
     });
   }
 
-  async publish(id: string) {
+  async publish(schoolId: string, id: string) {
+    const existing = await this.prisma.announcement.findFirst({
+      where: { id, schoolId },
+    });
+
+    if (!existing) {
+      throw new NotFoundException('Announcement not found');
+    }
+
     const announcement = await this.prisma.announcement.update({
       where: { id },
       data: { status: AnnouncementStatus.PUBLISHED, publishAt: new Date() },

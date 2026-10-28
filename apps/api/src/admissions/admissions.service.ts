@@ -76,6 +76,68 @@ export class AdmissionsService {
     });
   }
 
+  async getPublicCampaign(slug: string) {
+    const now = new Date();
+    const campaign = await this.prisma.admissionCampaign.findFirst({
+      where: {
+        slug,
+        status: CampaignStatus.OPEN,
+        applicationOpenDate: { lte: now },
+        applicationCloseDate: { gte: now },
+        school: { status: 'ACTIVE' },
+      },
+      include: {
+        academicYear: true,
+        school: { select: { name: true, slug: true, logo: true, currency: true } },
+      },
+    });
+
+    if (!campaign) {
+      throw new NotFoundException('This admissions campaign is not open for applications.');
+    }
+
+    const classes = await this.prisma.class.findMany({
+      where: { schoolId: campaign.schoolId, isActive: true },
+      select: { id: true, name: true, code: true, level: true },
+      orderBy: [{ level: 'asc' }, { name: 'asc' }],
+    });
+
+    return { ...campaign, classes };
+  }
+
+  async submitPublicApplication(slug: string, dto: SubmitApplicationDto) {
+    const now = new Date();
+    const campaign = await this.prisma.admissionCampaign.findFirst({
+      where: {
+        slug,
+        status: CampaignStatus.OPEN,
+        applicationOpenDate: { lte: now },
+        applicationCloseDate: { gte: now },
+        school: { status: 'ACTIVE' },
+      },
+    });
+
+    if (!campaign) {
+      throw new NotFoundException('This admissions campaign is not open for applications.');
+    }
+
+    if (dto.campaignId !== campaign.id) {
+      throw new BadRequestException('The application campaign does not match this form.');
+    }
+    if (dto.academicYearId !== campaign.academicYearId) {
+      throw new BadRequestException('The selected academic year is not valid for this campaign.');
+    }
+
+    const applicantClass = await this.prisma.class.findFirst({
+      where: { id: dto.classId, schoolId: campaign.schoolId, isActive: true },
+    });
+    if (!applicantClass) {
+      throw new BadRequestException('The selected class is not available for this school.');
+    }
+
+    return this.submitApplication(campaign.schoolId, dto);
+  }
+
   // Applications
   async submitApplication(schoolId: string, dto: SubmitApplicationDto) {
     const { guardians, ...appData } = dto;
@@ -312,6 +374,7 @@ export class AdmissionsService {
       // 3. Create Enrollment
       await tx.enrollment.create({
         data: {
+          schoolId,
           studentId: student.id,
           academicYearId: application.academicYearId,
           classId: application.classId,

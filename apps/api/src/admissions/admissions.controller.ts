@@ -39,11 +39,20 @@ export class AdmissionsController {
     return this.admissionsService.createCampaign(schoolId, dto);
   }
 
-  // Public Application Submission
-  @Public() // Allow public access for application submission
-  @Post('apply')
-  submitApplication(@ActiveSchool() schoolId: string, @Body() dto: SubmitApplicationDto) {
-    return this.admissionsService.submitApplication(schoolId, dto);
+  // Public application flow
+  @Public()
+  @Get('public/campaigns/:slug')
+  getPublicCampaign(@Param('slug') slug: string) {
+    return this.admissionsService.getPublicCampaign(slug);
+  }
+
+  @Public()
+  @Post('public/campaigns/:slug/apply')
+  submitPublicApplication(
+    @Param('slug') slug: string,
+    @Body() dto: SubmitApplicationDto,
+  ) {
+    return this.admissionsService.submitPublicApplication(slug, dto);
   }
 
   // Applications Management

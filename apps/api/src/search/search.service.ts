@@ -177,26 +177,26 @@ export class SearchService {
       // Navigation
       { id: 'nav-dashboard', title: 'Dashboard', icon: 'Layout', route: '/dashboard', roles: [] },
       { id: 'nav-students', title: 'Students', icon: 'Users', route: '/dashboard/students', roles: ['SCHOOL_ADMIN', 'TEACHER', 'ADMISSIONS_OFFICER'] },
-      { id: 'nav-teachers', title: 'Teachers', icon: 'BookOpen', route: '/dashboard/teachers', roles: ['SCHOOL_ADMIN', 'PRINCIPAL'] },
+      { id: 'nav-teachers', title: 'Teachers', icon: 'BookOpen', route: '/dashboard/hr/staff', roles: ['SCHOOL_ADMIN', 'PRINCIPAL'] },
       { id: 'nav-admissions', title: 'Admissions', icon: 'UserPlus', route: '/dashboard/admissions', roles: ['SCHOOL_ADMIN', 'ADMISSIONS_OFFICER'] },
       { id: 'nav-finance', title: 'Finance', icon: 'DollarSign', route: '/dashboard/finance', roles: ['SCHOOL_ADMIN', 'ACCOUNTANT'] },
       { id: 'nav-academics', title: 'Academics', icon: 'Award', route: '/dashboard/academics', roles: ['SCHOOL_ADMIN', 'TEACHER'] },
       { id: 'nav-library', title: 'Library', icon: 'Book', route: '/dashboard/library', roles: ['SCHOOL_ADMIN', 'LIBRARIAN', 'STUDENT'] },
       { id: 'nav-transport', title: 'Transport', icon: 'Truck', route: '/dashboard/transport', roles: ['SCHOOL_ADMIN', 'TRANSPORT_MANAGER'] },
       { id: 'nav-hr', title: 'HR & Staff', icon: 'Briefcase', route: '/dashboard/hr', roles: ['SCHOOL_ADMIN'] },
-      { id: 'nav-documents', title: 'Documents', icon: 'FileText', route: '/dashboard/documents', roles: [] },
+      { id: 'nav-health', title: 'Health & Clinic', icon: 'Heart', route: '/health', roles: ['SCHOOL_ADMIN', 'NURSE', 'MEDICAL_OFFICER'] },
       { id: 'nav-settings', title: 'Settings', icon: 'Settings', route: '/dashboard/settings', roles: ['SCHOOL_ADMIN'] },
 
       // Platform Admin Navigation
-      { id: 'nav-platform-schools', title: 'Schools Management', icon: 'Home', route: '/admin/schools', roles: ['SUPER_ADMIN'] },
-      { id: 'nav-platform-subs', title: 'Subscriptions', icon: 'CreditCard', route: '/admin/subscriptions', roles: ['SUPER_ADMIN'] },
+      { id: 'nav-platform-schools', title: 'Schools Management', icon: 'Home', route: '/super-admin/schools', roles: ['SUPER_ADMIN'] },
+      { id: 'nav-platform-subs', title: 'Subscriptions', icon: 'CreditCard', route: '/super-admin/plans', roles: ['SUPER_ADMIN'] },
 
       // Quick Actions
-      { id: 'action-create-student', title: 'Register Student', icon: 'UserPlus', route: '/dashboard/students/create', roles: ['SCHOOL_ADMIN', 'ADMISSIONS_OFFICER'] },
-      { id: 'action-record-payment', title: 'Record Payment', icon: 'DollarSign', route: '/dashboard/finance/payments/create', roles: ['SCHOOL_ADMIN', 'ACCOUNTANT'] },
-      { id: 'action-mark-attendance', title: 'Mark Attendance', icon: 'CheckSquare', route: '/dashboard/attendance/mark', roles: ['SCHOOL_ADMIN', 'TEACHER'] },
-      { id: 'action-add-book', title: 'Add Library Book', icon: 'PlusCircle', route: '/dashboard/library/books/create', roles: ['SCHOOL_ADMIN', 'LIBRARIAN'] },
-      { id: 'action-announcement', title: 'Create Announcement', icon: 'Bell', route: '/dashboard/communication/announcements/create', roles: ['SCHOOL_ADMIN'] },
+      { id: 'action-create-student', title: 'Register Student', icon: 'UserPlus', route: '/dashboard/students', roles: ['SCHOOL_ADMIN', 'ADMISSIONS_OFFICER'] },
+      { id: 'action-record-payment', title: 'Record Payment', icon: 'DollarSign', route: '/dashboard/finance/payments', roles: ['SCHOOL_ADMIN', 'ACCOUNTANT'] },
+      { id: 'action-mark-attendance', title: 'Mark Attendance', icon: 'CheckSquare', route: '/dashboard/attendance', roles: ['SCHOOL_ADMIN', 'TEACHER'] },
+      { id: 'action-add-book', title: 'Add Library Book', icon: 'PlusCircle', route: '/dashboard/library', roles: ['SCHOOL_ADMIN', 'LIBRARIAN'] },
+      { id: 'action-announcement', title: 'Create Announcement', icon: 'Bell', route: '/dashboard/announcements', roles: ['SCHOOL_ADMIN'] },
     ];
 
     return allCommands.filter(cmd => cmd.roles.length === 0 || cmd.roles.some(role => roles.includes(role)));
@@ -250,6 +250,9 @@ export class SearchService {
     if (roles.includes('LIBRARIAN')) {
         allowedTypes.push('LIBRARY_BOOK', 'LIBRARY_COPY', 'LIBRARY_LOAN', 'STUDENT');
     }
+    if (roles.includes('NURSE') || roles.includes('MEDICAL_OFFICER')) {
+        allowedTypes.push('STUDENT', 'CLINIC_VISIT', 'HEALTH_INCIDENT', 'HEALTH_PROFILE', 'CARE_PLAN', 'HEALTH_SCREENING', 'DOCUMENT');
+    }
     if (roles.includes('STUDENT')) {
         // Students can only see their own stuff and public school info
         allowedTypes.push('LIBRARY_BOOK', 'ANNOUNCEMENT', 'CONVERSATION');
@@ -293,6 +296,11 @@ export class SearchService {
       SCHOOL: `/admin/schools/${id}`,
       SUBSCRIPTION: `/admin/subscriptions/${id}`,
       PLAN: `/admin/plans/${id}`,
+      CLINIC_VISIT: `/dashboard/health/visits/${id}`,
+      HEALTH_INCIDENT: `/dashboard/health/incidents/${id}`,
+      HEALTH_PROFILE: `/dashboard/health/students/${id}`,
+      CARE_PLAN: `/dashboard/health/care-plans/${id}`,
+      HEALTH_SCREENING: `/dashboard/health/screenings/${id}`,
     };
     return routeMap[type] || '#';
   }

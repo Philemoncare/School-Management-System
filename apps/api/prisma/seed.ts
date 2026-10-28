@@ -1,5 +1,6 @@
 import {
   PrismaClient,
+  AccountState,
   SchoolStatus,
   MembershipStatus,
   StudentStatus,
@@ -31,7 +32,23 @@ dotenv.config({ path: join(__dirname, '../../../.env') });
 const prisma = new PrismaClient();
 
 async function main() {
-  const passwordHash = await argon2.hash('password123');
+  const seedPassword = process.env.SEED_ADMIN_PASSWORD;
+  if (
+    !seedPassword ||
+    seedPassword.length < 12 ||
+    !/(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[^a-zA-Z0-9])/.test(seedPassword)
+  ) {
+    throw new Error(
+      'SEED_ADMIN_PASSWORD must be at least 12 characters and contain uppercase, lowercase, number, and special character.',
+    );
+  }
+
+  const passwordHash = await argon2.hash(seedPassword, {
+    type: argon2.argon2id,
+    memoryCost: 65536,
+    timeCost: 3,
+    parallelism: 4,
+  });
 
   // 1. Platform Subscription Plans
   console.log('Seeding Subscription Plans...');
@@ -89,13 +106,19 @@ async function main() {
   console.log('Seeding Super Admin...');
   const superAdmin = await prisma.user.upsert({
     where: { email: 'superadmin@platform.com' },
-    update: {},
+    update: {
+      accountState: AccountState.ACTIVE,
+      emailVerified: new Date(),
+      isActive: true,
+    },
     create: {
       email: 'superadmin@platform.com',
       passwordHash,
       firstName: 'Platform',
       lastName: 'Admin',
       isActive: true,
+      accountState: AccountState.ACTIVE,
+      emailVerified: new Date(),
     },
   });
 
@@ -164,12 +187,18 @@ async function main() {
   const adminRole = await prisma.role.findFirst({ where: { name: 'SCHOOL_ADMIN', schoolId: demoSchool.id } });
   const schoolAdminUser = await prisma.user.upsert({
     where: { email: 'admin@greenwood.com' },
-    update: {},
+    update: {
+      accountState: AccountState.ACTIVE,
+      emailVerified: new Date(),
+      isActive: true,
+    },
     create: {
       email: 'admin@greenwood.com',
       passwordHash,
       firstName: 'Greenwood',
       lastName: 'Admin',
+      accountState: AccountState.ACTIVE,
+      emailVerified: new Date(),
     },
   });
 
@@ -254,6 +283,8 @@ async function main() {
       passwordHash,
       firstName: 'John',
       lastName: 'Smith',
+      accountState: AccountState.ACTIVE,
+      emailVerified: new Date(),
     },
   });
 
@@ -274,6 +305,8 @@ async function main() {
       passwordHash,
       firstName: 'Bobby',
       lastName: 'Doe',
+      accountState: AccountState.ACTIVE,
+      emailVerified: new Date(),
     },
   });
 
@@ -293,6 +326,7 @@ async function main() {
 
   const enrollment = await prisma.enrollment.create({
     data: {
+      schoolId: demoSchool.id,
       studentId: student.id,
       academicYearId: academicYear.id,
       termId: term1.id,
@@ -307,10 +341,10 @@ async function main() {
   const bus = await prisma.vehicle.create({
     data: {
       schoolId: demoSchool.id,
-      plateNumber: 'BUS-01-GH',
+      registrationNumber: 'BUS-01-GH',
       model: 'Toyota Coaster',
-      capacity: 30,
-      status: VehicleStatus.ACTIVE
+      seatingCapacity: 30,
+      status: VehicleStatus.AVAILABLE
     }
   });
 
@@ -324,10 +358,11 @@ async function main() {
 
   await prisma.transportAssignment.create({
     data: {
+      schoolId: demoSchool.id,
       studentId: student.id,
       vehicleId: bus.id,
       routeId: route.id,
-      pickupPoint: 'North Ridge Mall'
+      status: 'ACTIVE' as any
     }
   });
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { apiFetch } from '../../../../../lib/api/client';
+import { apiFetch } from '@/lib/api/client';
 import { useParams, useRouter } from 'next/navigation';
 import { Check, X, Clock, AlertCircle, Save } from 'lucide-react';
 
@@ -84,11 +84,11 @@ export default function AttendanceSheetPage() {
           <h1 className="text-2xl font-bold">
             Attendance Sheet: {session.class.name} {session.section?.name}
           </h1>
-          <p className="text-gray-600">
+          <p className="text-warm-600">
             Date: {new Date(session.date).toLocaleDateString()} | Type: {session.sessionType}
           </p>
           {isLocked && (
-            <div className="mt-2 inline-flex items-center text-red-600 font-bold uppercase text-xs">
+            <div className="mt-2 inline-flex items-center text-danger-600 font-bold uppercase text-xs">
               <AlertCircle size={14} className="mr-1" /> This session is locked
             </div>
           )}
@@ -98,7 +98,7 @@ export default function AttendanceSheetPage() {
             <button
               onClick={handleSave}
               disabled={saving}
-              className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 flex items-center disabled:opacity-50"
+              className="bg-forest-700 text-white px-6 py-2 rounded-lg hover:bg-forest-800 flex items-center disabled:opacity-50"
             >
               <Save size={18} className="mr-2" />
               {saving ? 'Saving...' : 'Save Attendance'}
@@ -109,31 +109,31 @@ export default function AttendanceSheetPage() {
 
       {!isLocked && (
         <div className="mb-6 flex gap-2">
-          <button onClick={() => markAll('PRESENT')} className="px-3 py-1 bg-green-50 text-green-700 border border-green-200 rounded text-sm hover:bg-green-100 transition-colors">Mark All Present</button>
-          <button onClick={() => markAll('ABSENT')} className="px-3 py-1 bg-red-50 text-red-700 border border-red-200 rounded text-sm hover:bg-red-100 transition-colors">Mark All Absent</button>
+          <button onClick={() => markAll('PRESENT')} className="px-3 py-1 bg-success-50 text-success-700 border border-success-200 rounded text-sm hover:bg-success-100 transition-colors">Mark All Present</button>
+          <button onClick={() => markAll('ABSENT')} className="px-3 py-1 bg-danger-50 text-danger-700 border border-danger-200 rounded text-sm hover:bg-danger-100 transition-colors">Mark All Absent</button>
         </div>
       )}
 
-      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
+      <div className="bg-card border border-warm-200 rounded-xl overflow-hidden shadow-sm">
+        <table className="min-w-full divide-y divide-warm-200">
+          <thead className="bg-ivory-50">
             <tr>
-              <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">Student Name</th>
-              <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase">ID</th>
-              <th className="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase">Attendance Status</th>
+              <th className="px-6 py-4 text-left text-xs font-semibold text-warm-500 uppercase">Student Name</th>
+              <th className="px-6 py-4 text-left text-xs font-semibold text-warm-500 uppercase">ID</th>
+              <th className="px-6 py-4 text-center text-xs font-semibold text-warm-500 uppercase">Attendance Status</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-200">
+          <tbody className="divide-y divide-warm-200">
             {eligibleStudents.map((enrollment: any) => {
               const student = enrollment.student;
               const status = attendance[student.id];
 
               return (
-                <tr key={student.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                <tr key={student.id} className="hover:bg-ivory-50">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-charcoal-900">
                     {student.firstName} {student.lastName}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500 font-mono">
+                  <td className="px-6 py-4 whitespace-nowrap text-xs text-warm-500 font-mono">
                     {student.studentNumber}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
@@ -176,9 +176,9 @@ export default function AttendanceSheetPage() {
 
 function StatusButton({ icon, label, active, color, onClick, disabled }: any) {
   const colors: any = {
-    green: active ? 'bg-green-600 text-white' : 'bg-white text-green-600 border-green-200 hover:bg-green-50',
-    red: active ? 'bg-red-600 text-white' : 'bg-white text-red-600 border-red-200 hover:bg-red-50',
-    orange: active ? 'bg-orange-600 text-white' : 'bg-white text-orange-600 border-orange-200 hover:bg-orange-50',
+    green: active ? 'bg-success-600 text-white' : 'bg-card text-success-600 border-success-200 hover:bg-success-50',
+    red: active ? 'bg-danger-600 text-white' : 'bg-card text-danger-600 border-danger-200 hover:bg-danger-50',
+    orange: active ? 'bg-terracotta-600 text-white' : 'bg-card text-terracotta-600 border-terracotta-200 hover:bg-terracotta-50',
   };
 
   return (

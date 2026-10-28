@@ -1,27 +1,28 @@
-import './globals.css'
-import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
-import { AuthProvider } from '../context/auth-context'
+import "./globals.css";
+import { AuthProvider } from "../context/auth-context";
 
-const inter = Inter({ subsets: ['latin'] })
+export const metadata = {
+  title: "SchooMA — School Operations",
+  description:
+    "SchooMA is a school operating system for admissions, academics, fees, communication and daily operations.",
+};
 
-export const metadata: Metadata = {
-  title: 'School Management Platform',
-  description: 'Enterprise School ERP SaaS',
-}
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  themeColor: "#174D3C",
+};
 
 export default function RootLayout({
   children,
 }: {
-  children: React.ReactNode
+  children: React.ReactNode;
 }) {
   return (
     <html lang="en">
-      <body className={inter.className}>
-        <AuthProvider>
-          {children}
-        </AuthProvider>
+      <body className="bg-background text-foreground antialiased font-sans">
+        <AuthProvider>{children}</AuthProvider>
       </body>
     </html>
-  )
+  );
 }

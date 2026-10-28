@@ -8,7 +8,7 @@ export class EncryptionService {
 
   encrypt(text: string): string {
     const iv = crypto.randomBytes(12);
-    const cipher = crypto.createCipheriv(this.algorithm, this.key, iv);
+    const cipher = crypto.createCipheriv(this.algorithm, this.key as any, iv as any);
 
     let encrypted = cipher.update(text, 'utf8', 'hex');
     encrypted += cipher.final('hex');
@@ -23,9 +23,9 @@ export class EncryptionService {
 
     const iv = Buffer.from(ivHex, 'hex');
     const authTag = Buffer.from(authTagHex, 'hex');
-    const decipher = crypto.createDecipheriv(this.algorithm, this.key, iv);
+    const decipher = crypto.createDecipheriv(this.algorithm, this.key as any, iv as any);
 
-    decipher.setAuthTag(authTag);
+    decipher.setAuthTag(authTag as any);
 
     let decrypted = decipher.update(encrypted, 'hex', 'utf8');
     decrypted += decipher.final('utf8');

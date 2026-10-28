@@ -1,37 +1,41 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service';
+import { SuperAdminService } from '../super-admin.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
 import { Roles } from '../../auth/decorators/roles.decorator';
+import { PLATFORM_READ_ROLES } from '../../auth/platform-roles';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles('SUPER_ADMIN')
+@Roles(...PLATFORM_READ_ROLES)
 @Controller('super-admin/audit')
 export class SuperAdminAuditController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly superAdminService: SuperAdminService) {}
 
   @Get()
-  async getAuditLogs(
+  getAuditLogs(
     @Query('skip') skip?: string,
     @Query('take') take?: string,
+    @Query('search') search?: string,
     @Query('action') action?: string,
     @Query('module') module?: string,
+    @Query('schoolId') schoolId?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
   ) {
-    const where = {
-      ...(action ? { action } : {}),
-      ...(module ? { module } : {}),
-    };
+    return this.superAdminService.getAuditLogs({
+      skip: skip ? parseInt(skip, 10) : undefined,
+      take: take ? parseInt(take, 10) : undefined,
+      search,
+      action,
+      module,
+      schoolId,
+      from,
+      to,
+    });
+  }
 
-    const [items, total] = await Promise.all([
-      this.prisma.auditLog.findMany({
-        where,
-        skip: skip ? parseInt(skip) : 0,
-        take: take ? parseInt(take) : 50,
-        orderBy: { createdAt: 'desc' },
-      }),
-      this.prisma.auditLog.count({ where })
-    ]);
-
-    return { items, total };
+  @Get('filters')
+  getFilters() {
+    return this.superAdminService.getAuditFilters();
   }
 }

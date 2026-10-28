@@ -1,24 +1,50 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
+const PROTECTED_PREFIXES = [
+  '/dashboard',
+  '/super-admin',
+  '/teacher',
+  '/student',
+  '/parent',
+  '/accountant',
+  '/librarian',
+  '/hr',
+  '/receptionist',
+  '/transport',
+  '/health',
+  '/inventory',
+  '/assets',
+  '/procurement',
+  '/communications',
+  '/profile',
+  '/settings',
+  '/onboarding',
+];
+
+const AUTH_PAGES = ['/login', '/register', '/register-school', '/'];
+
 export function middleware(request: NextRequest) {
-  const token = request.cookies.get('token')?.value;
+  const token = request.cookies.get('auth_token')?.value;
   const { pathname } = request.nextUrl;
 
-  // 1. If user is authenticated and tries to access public auth pages, redirect to dashboard
-  if (token && (pathname === '/login' || pathname === '/register' || pathname === '/')) {
-    // Note: We don't know the role here yet, but /dashboard layout will handle role-based routing
-    return NextResponse.redirect(new URL('/dashboard', request.url));
+  const isProtected = PROTECTED_PREFIXES.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+  );
+
+  if (!token && isProtected) {
+    const loginUrl = new URL('/login', request.url);
+    loginUrl.searchParams.set('next', pathname);
+    return NextResponse.redirect(loginUrl);
   }
 
-  // 2. If user is NOT authenticated and tries to access protected pages, redirect to login
-  if (!token && (pathname.startsWith('/dashboard') || pathname.startsWith('/super-admin'))) {
-    return NextResponse.redirect(new URL('/login', request.url));
+  if (token && AUTH_PAGES.includes(pathname)) {
+    return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ['/', '/login', '/register', '/dashboard/:path*', '/super-admin/:path*'],
+  matcher: ['/((?!api|_next/static|_next/image|favicon.ico|icon.svg|.*\\..*).*)'],
 };

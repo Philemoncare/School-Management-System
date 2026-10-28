@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SessionStatus, UserSession } from '@prisma/client';
 import * as crypto from 'crypto';
@@ -67,6 +67,18 @@ export class SessionService {
         revokeReason: reason,
       },
     });
+  }
+
+  async revokeUserSession(sessionId: string, userId: string, reason?: string) {
+    const session = await this.prisma.userSession.findFirst({
+      where: { id: sessionId, userId },
+    });
+
+    if (!session) {
+      throw new NotFoundException('Session not found');
+    }
+
+    return this.revokeSession(sessionId, reason);
   }
 
   async revokeAllUserSessions(userId: string, exceptSessionId?: string) {

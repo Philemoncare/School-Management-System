@@ -1,225 +1,237 @@
-'use client';
+"use client";
 
-import React from 'react';
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { useAuth } from '@/context/auth-context';
+import React from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useAuth } from "@/context/auth-context";
 import {
-  LayoutDashboard,
-  Users,
-  UserSquare2,
-  GraduationCap,
-  CalendarCheck,
-  BookOpenCheck,
-  FileSpreadsheet,
-  CreditCard,
-  Library,
-  Bus,
-  Bell,
-  Settings,
-  ChevronRight,
-  BookMarked,
-  ShieldCheck,
-  Building2,
-  PieChart,
-  GitPullRequest,
-  Rocket
-} from 'lucide-react';
+  SUPER_ADMIN_NAV,
+  SCHOOL_NAV,
+  TEACHER_NAV,
+  STUDENT_NAV,
+  PARENT_NAV,
+  ACCOUNTANT_NAV,
+  LIBRARIAN_NAV,
+  HR_NAV,
+  RECEPTIONIST_NAV,
+  TRANSPORT_NAV,
+  HEALTH_NAV,
+  NavigationSection,
+} from "@/config/navigation";
+import { LogOut, X } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { BrandLockup, BrandMark } from "@/components/brand/schoolma-logo";
+import {
+  collectUserRoles,
+  getActiveSupportGrantId,
+  isPlatformAdmin,
+} from "@/lib/auth/roles";
 
-export function Sidebar({ onClose }: { onClose: () => void }) {
-  const { user } = useAuth();
+interface SidebarProps {
+  isCollapsed?: boolean;
+  onClose?: () => void;
+}
+
+export function Sidebar({ isCollapsed = false, onClose }: SidebarProps) {
   const pathname = usePathname();
+  const { user, activeSchoolId, logout } = useAuth();
 
-  const role = user?.userRoles?.[0]?.role.name;
+  const userRoles = collectUserRoles(user, activeSchoolId);
+  const isSuperAdmin = isPlatformAdmin(userRoles);
+  const supportGrantId = getActiveSupportGrantId();
 
-  const navItems = getNavItems(role);
+  const getNavSections = (): NavigationSection[] => {
+    if (supportGrantId && !pathname.startsWith("/super-admin")) return SCHOOL_NAV;
+    if (pathname.startsWith("/super-admin") || isSuperAdmin) return SUPER_ADMIN_NAV;
+    if (pathname.startsWith("/teacher")) return TEACHER_NAV;
+    if (pathname.startsWith("/student")) return STUDENT_NAV;
+    if (pathname.startsWith("/parent")) return PARENT_NAV;
+    if (pathname.startsWith("/accountant")) return ACCOUNTANT_NAV;
+    if (pathname.startsWith("/librarian")) return LIBRARIAN_NAV;
+    if (pathname.startsWith("/hr")) return HR_NAV;
+    if (pathname.startsWith("/receptionist")) return RECEPTIONIST_NAV;
+    if (pathname.startsWith("/transport")) return TRANSPORT_NAV;
+    if (pathname.startsWith("/health")) return HEALTH_NAV;
+
+    if (userRoles.includes("TEACHER")) return TEACHER_NAV;
+    if (userRoles.includes("STUDENT")) return STUDENT_NAV;
+    if (userRoles.includes("PARENT") || userRoles.includes("GUARDIAN")) return PARENT_NAV;
+    if (userRoles.includes("ACCOUNTANT")) return ACCOUNTANT_NAV;
+    if (userRoles.includes("LIBRARIAN")) return LIBRARIAN_NAV;
+    if (userRoles.includes("HR")) return HR_NAV;
+
+    return SCHOOL_NAV;
+  };
+
+  const navSections = getNavSections();
+
+  const fullName =
+    user?.name || `${user?.firstName || ""} ${user?.lastName || ""}`.trim() || "User";
+  const roleDisplay = userRoles[0]?.replace("_", " ") || "Member";
+  const initials = fullName
+    ? fullName
+        .split(" ")
+        .map((n: string) => n[0])
+        .slice(0, 2)
+        .join("")
+        .toUpperCase()
+    : "S";
 
   return (
-    <div className="flex flex-col h-full bg-white">
-      {/* Brand */}
-      <div className="h-16 flex items-center px-8 border-b border-gray-100 shrink-0">
-        <Link href="/dashboard" className="flex items-center gap-2.5">
-          <div className="bg-blue-600 p-1.5 rounded-lg shadow-lg shadow-blue-200">
-            <GraduationCap className="text-white" size={22} />
-          </div>
-          <span className="text-lg font-bold text-gray-900 tracking-tight">EduFlow ERP</span>
+    <div className="h-full flex flex-col bg-ivory-50 text-charcoal-900 select-none">
+      <div
+        className={cn(
+          "flex h-16 shrink-0 items-center border-b border-warm-200",
+          isCollapsed ? "justify-center px-2" : "justify-between px-5"
+        )}
+      >
+        <Link
+          href="/dashboard"
+          onClick={onClose}
+          className="flex items-center rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-600/30"
+          aria-label="SchooMA home"
+        >
+          {isCollapsed ? (
+            <BrandMark size={36} />
+          ) : (
+            <BrandLockup markSize={36} subtitle="School Operations" />
+          )}
         </Link>
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="md:hidden p-2 text-warm-500 hover:text-forest-800 hover:bg-sage-100 rounded-xl transition-colors min-w-[40px] min-h-[40px] flex items-center justify-center"
+            aria-label="Close navigation menu"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        )}
       </div>
 
-      {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto px-4 py-6 space-y-8 custom-scrollbar">
-        {navItems.map((group: any) => (
-          <div key={group.title}>
-            <p className="px-4 text-[11px] font-bold text-gray-400 uppercase tracking-[0.1em] mb-4">
-              {group.title}
-            </p>
-            <div className="space-y-1">
-              {group.items.map((item: any) => {
-                const isActive = pathname === item.href;
-                return (
-                  <Link
-                    key={item.name}
-                    href={item.href}
-                    onClick={onClose}
-                    className={`flex items-center justify-between px-4 py-2.5 rounded-xl transition-all group ${
-                      isActive
-                        ? 'bg-blue-50 text-blue-700 shadow-sm'
-                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <item.icon size={18} className={isActive ? 'text-blue-600' : 'text-gray-400 group-hover:text-gray-600'} />
-                      <span className="text-sm font-semibold">{item.name}</span>
-                    </div>
-                    {isActive && <div className="w-1.5 h-1.5 bg-blue-600 rounded-full" />}
-                  </Link>
-                );
-              })}
-            </div>
-          </div>
-        ))}
-      </nav>
+      {!isCollapsed && (
+        <div className="flex items-center justify-between px-5 pb-1 pt-4">
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-warm-500">
+            Workspace
+          </span>
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-forest-700">
+            {isSuperAdmin ? "Platform" : "School"}
+          </span>
+        </div>
+      )}
 
-      {/* School Info / Footer */}
-      <div className="p-4 border-t border-gray-100 bg-gray-50/50">
-        <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm">
-          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Current School</p>
-          <p className="text-sm font-bold text-gray-900 truncate">
-            {user?.memberships?.[0]?.school.name || 'Platform Admin'}
-          </p>
+      <div className={cn("flex-1 overflow-y-auto py-4 space-y-5 scrollbar-thin", isCollapsed ? "px-2" : "px-3")}>
+        {navSections.map((section, sIdx) => {
+          const filteredItems = section.items.filter((item) => {
+            if (!item.roles || item.roles.length === 0) return true;
+            if (
+              isSuperAdmin ||
+              userRoles.includes("SCHOOL_ADMIN") ||
+              userRoles.includes("ADMIN") ||
+              userRoles.includes("PRINCIPAL")
+            )
+              return true;
+            return userRoles.some((r) => item.roles?.includes(r));
+          });
+
+          if (filteredItems.length === 0) return null;
+
+          return (
+            <div key={`${section.title}-${sIdx}`} className="space-y-1.5">
+              {!isCollapsed && (
+                <h5 className="px-3 text-[11px] font-bold text-warm-500 uppercase tracking-wide">
+                  {section.title}
+                </h5>
+              )}
+              <div className="space-y-0.5">
+                {filteredItems.map((item) => {
+                  const Icon = item.icon;
+                  const isExact = pathname === item.href;
+                  const isSub =
+                    item.href !== "/dashboard" &&
+                    item.href !== "/super-admin" &&
+                    pathname.startsWith(item.href);
+                  const active = isExact || isSub;
+
+                  return (
+                    <Link
+                      key={item.label}
+                      href={item.href}
+                      onClick={onClose}
+                      aria-current={active ? "page" : undefined}
+                      className={cn(
+                        "sidebar-link group min-h-[40px]",
+                        isCollapsed && "justify-center px-0",
+                        active
+                          ? "border border-forest-200 bg-forest-50 font-semibold text-forest-900"
+                          : "border border-transparent text-warm-600 hover:bg-warm-100 hover:text-forest-900"
+                      )}
+                    >
+                      {active && (
+                        <span className="absolute left-0 top-1/2 h-5 w-[2px] -translate-y-1/2 bg-forest-600" />
+                      )}
+                      <Icon
+                        className={cn(
+                          "w-[17px] h-[17px] shrink-0 transition-colors",
+                          active
+                            ? "text-forest-700"
+                            : "text-warm-400 group-hover:text-forest-600"
+                        )}
+                      />
+                      {!isCollapsed && (
+                        <>
+                          <span className="flex-1 truncate">{item.label}</span>
+                          {item.badge && (
+                            <span className="px-1.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wide bg-terracotta-100 text-terracotta-800">
+                              {item.badge}
+                            </span>
+                          )}
+                        </>
+                      )}
+                      {isCollapsed && (
+                        <span className="absolute left-full ml-3 px-3 py-1.5 bg-forest-900 text-ivory-100 text-[11px] font-semibold rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity border border-forest-700 shadow-xs z-50 whitespace-nowrap">
+                          {item.label}
+                        </span>
+                      )}
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className={cn("border-t border-warm-200/80 shrink-0", isCollapsed ? "p-2" : "p-3")}>
+        <div
+          className={cn(
+            "flex items-center gap-2.5 rounded-lg border border-warm-200 bg-card p-2",
+            isCollapsed && "flex-col justify-center gap-2 border-transparent bg-transparent p-0"
+          )}
+        >
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-forest-800 text-[11px] font-semibold text-ivory-50">
+            {initials}
+          </div>
+          {!isCollapsed && (
+            <div className="min-w-0 flex-1 px-0.5">
+              <p className="truncate text-xs font-semibold text-charcoal-900">{fullName}</p>
+              <p className="truncate text-[11px] font-semibold uppercase tracking-wide text-warm-500">
+                {roleDisplay}
+              </p>
+            </div>
+          )}
+          <button
+            onClick={() => logout()}
+            className={cn(
+              "flex min-h-[34px] min-w-[34px] items-center justify-center rounded-md text-warm-500 transition-colors hover:bg-warm-100 hover:text-danger-600",
+              isCollapsed && "border border-warm-200 bg-card"
+            )}
+            title="Sign out"
+            aria-label="Sign out"
+          >
+            <LogOut className="h-4 w-4" />
+          </button>
         </div>
       </div>
     </div>
   );
 }
-
-function getNavItems(role: string) {
-  if (role === 'SUPER_ADMIN') {
-    return [
-      {
-        title: 'Platform',
-        items: [
-          { name: 'Dashboard', href: '/super-admin', icon: LayoutDashboard },
-          { name: 'Schools', href: '/super-admin/schools', icon: Building2 },
-          { name: 'Users', href: '/super-admin/users', icon: Users },
-          { name: 'Launch Readiness', href: '/super-admin/launch-readiness', icon: Rocket },
-        ]
-      },
-      {
-        title: 'Management',
-        items: [
-          { name: 'Subscription Plans', href: '/super-admin/plans', icon: ShieldCheck },
-          { name: 'Platform Revenue', href: '/super-admin/payments', icon: CreditCard },
-          { name: 'Orchestration', href: '/dashboard/operations', icon: GitPullRequest },
-          { name: 'System Health', href: '/super-admin/monitoring', icon: PieChart },
-        ]
-      }
-    ];
-  }
-
-  if (role === 'TEACHER') {
-    return [
-      {
-        title: 'Workspace',
-        items: [
-          { name: 'Dashboard', href: '/teacher/dashboard', icon: LayoutDashboard },
-          { name: 'My Classes', href: '/teacher/classes', icon: BookMarked },
-          { name: 'My Students', href: '/teacher/students', icon: GraduationCap },
-          { name: 'Timetable', href: '/teacher/timetable', icon: Clock },
-        ]
-      },
-      {
-        title: 'Academic',
-        items: [
-          { name: 'Attendance', href: '/teacher/attendance', icon: CalendarCheck },
-          { name: 'Assessments', href: '/teacher/assessments', icon: BookOpenCheck },
-        ]
-      },
-      {
-        title: 'Communication',
-        items: [
-          { name: 'Announcements', href: '/dashboard/announcements', icon: Bell },
-          { name: 'Messages', href: '/dashboard/messages', icon: Users },
-        ]
-      }
-    ];
-  }
-
-  if (role === 'ACCOUNTANT') {
-    return [
-      {
-        title: 'Financials',
-        items: [
-          { name: 'Dashboard', href: '/accountant/dashboard', icon: LayoutDashboard },
-          { name: 'Billing Hub', href: '/accountant/billing', icon: FileText },
-          { name: 'Invoices', href: '/accountant/invoices', icon: FileSpreadsheet },
-          { name: 'Collections', href: '/accountant/payments', icon: CreditCard },
-          { name: 'Ledger Audit', href: '/accountant/ledger', icon: History },
-        ]
-      },
-      {
-        title: 'Institutional',
-        items: [
-          { name: 'Fee Structures', href: '/accountant/fees', icon: Layers },
-          { name: 'Outstanding', href: '/accountant/outstanding', icon: AlertCircle },
-          { name: 'Reports', href: '/accountant/reports', icon: TrendingUp },
-        ]
-      },
-      {
-        title: 'Communication',
-        items: [
-          { name: 'Messages', href: '/dashboard/messages', icon: Users },
-        ]
-      }
-    ];
-  }
-
-  // School Level Roles (Admin, Principal, Teacher, etc.)
-  const schoolBase = [
-    {
-      title: 'General',
-      items: [
-        { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-      ]
-    },
-    {
-      title: 'Academic',
-      items: [
-        { name: 'Students', href: '/dashboard/students', icon: GraduationCap },
-        { name: 'Academics', href: '/dashboard/academics', icon: BookMarked },
-        { name: 'Attendance', href: '/dashboard/attendance', icon: CalendarCheck },
-        { name: 'Assessments', href: '/dashboard/assessments', icon: BookOpenCheck },
-        { name: 'Results', href: '/dashboard/results', icon: FileSpreadsheet },
-      ]
-    },
-    {
-      title: 'Operations',
-      items: [
-        { name: 'Finance', href: '/dashboard/finance', icon: CreditCard },
-        { name: 'Library', href: '/dashboard/library', icon: Library },
-        { name: 'Transport', href: '/dashboard/transport', icon: Bus },
-        { name: 'System Ops', href: '/dashboard/operations', icon: ShieldCheck },
-      ]
-    },
-    {
-      title: 'Communication',
-      items: [
-        { name: 'Announcements', href: '/dashboard/announcements', icon: Bell },
-        { name: 'Messages', href: '/dashboard/messages', icon: Users },
-      ]
-    },
-    {
-      title: 'Management',
-      items: [
-        { name: 'Users & Staff', href: '/dashboard/users', icon: Users },
-        { name: 'Activity Log', href: '/dashboard/activity', icon: History },
-        { name: 'Billing', href: '/dashboard/billing', icon: CreditCard },
-        { name: 'Settings', href: '/dashboard/settings', icon: Settings },
-      ]
-    }
-  ];
-
-  return schoolBase;
-}
-
-import { History } from 'lucide-react';
