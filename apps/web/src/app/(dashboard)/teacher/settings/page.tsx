@@ -165,7 +165,7 @@ export default function TeacherSettingsPage() {
                   <InputGroup label="Phone Number" value={profile.phone || ''} onChange={(value) => setProfile({ ...profile, phone: value })} />
                 </div>
                 <div className="pt-6 border-t border-warm-100 flex justify-end">
-                  <button disabled={saving} className="bg-charcoal-900 text-white px-8 py-3 rounded-xl font-semibold text-sm hover:bg-charcoal-950 transition-all flex items-center gap-2 disabled:opacity-60">
+                  <button type="submit" disabled={saving} className="bg-charcoal-900 text-white px-8 py-3 rounded-xl font-semibold text-sm hover:bg-charcoal-950 transition-all flex items-center gap-2 disabled:opacity-60">
                     {saving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />} Save Changes
                   </button>
                 </div>
@@ -182,7 +182,7 @@ export default function TeacherSettingsPage() {
                   <InputGroup label="Confirm New Password" type="password" value={passwordForm.confirmPassword} onChange={(value) => setPasswordForm({ ...passwordForm, confirmPassword: value })} />
                 </div>
                 <div className="pt-6 border-t border-warm-100 flex justify-end">
-                  <button disabled={saving} className="bg-charcoal-900 text-white px-8 py-3 rounded-xl font-semibold text-sm hover:bg-charcoal-950 transition-all flex items-center gap-2 disabled:opacity-60">
+                  <button type="submit" disabled={saving} className="bg-charcoal-900 text-white px-8 py-3 rounded-xl font-semibold text-sm hover:bg-charcoal-950 transition-all flex items-center gap-2 disabled:opacity-60">
                     {saving ? <Loader2 size={18} className="animate-spin" /> : <Lock size={18} />} Update Password
                   </button>
                 </div>

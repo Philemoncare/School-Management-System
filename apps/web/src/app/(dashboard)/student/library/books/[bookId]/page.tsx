@@ -2,65 +2,109 @@
 import { showFeedback } from '@/components/layout/global-feedback';
 
 import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { apiFetch } from '@/lib/api/client';
 import {
   ChevronLeft,
   Book as BookIcon,
   User,
-  Building2,
   Hash,
-  Globe,
   Loader2,
-  CheckCircle2,
-  XCircle,
-  Clock,
   Bookmark,
-  Calendar,
-  Star,
-  MessageSquare,
-  ArrowRight
+  ArrowRight,
 } from 'lucide-react';
 
 export default function StudentBookDetailPage() {
-  const { bookId } = useParams();
+  const { bookId } = useParams<{ bookId: string }>();
   const router = useRouter();
   const [book, setBook] = useState<any>(null);
+  const [activeReservation, setActiveReservation] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [reserving, setReserving] = useState(false);
 
   useEffect(() => {
     loadBook();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bookId]);
 
   async function loadBook() {
+    setLoading(true);
+    setError('');
     try {
-      const data = await apiFetch(`/library/books/${bookId}`);
+      const [data, reservations] = await Promise.all([
+        apiFetch(`/library/books/${bookId}`),
+        apiFetch('/library/reservations').catch(() => []),
+      ]);
       setBook(data);
-    } catch (err) {
-      console.error(err);
+      const mine = Array.isArray(reservations)
+        ? reservations.find(
+            (reservation: any) =>
+              reservation.bookId === bookId &&
+              ['PENDING', 'READY', 'FULFILLED'].includes(String(reservation.status)),
+          )
+        : null;
+      setActiveReservation(mine ?? null);
+    } catch (err: any) {
+      setBook(null);
+      setError(err?.message || 'Could not load this book.');
     } finally {
       setLoading(false);
     }
   }
 
   async function handleReserve() {
+    if (reserving) return;
     setReserving(true);
     try {
       await apiFetch('/library/reservations', {
         method: 'POST',
-        body: JSON.stringify({ bookId })
+        body: JSON.stringify({ bookId }),
       });
-      showFeedback('SUCCESS', 'Book reserved successfully. You will be notified when it is ready for pickup.');
-    } catch (err) {
-      showFeedback('ERROR', 'Failed to reserve book');
+      showFeedback('SUCCESS', 'Book reserved. You will be notified when it is ready for pickup.');
+      await loadBook();
+    } catch (err: any) {
+      showFeedback('ERROR', err?.message || 'Failed to reserve book');
     } finally {
       setReserving(false);
     }
   }
 
-  if (loading) return <div className="p-20 text-center"><Loader2 className="animate-spin mx-auto text-forest-700" size={48} /></div>;
-  if (!book) return <div className="p-20 text-center text-warm-500">Book not found</div>;
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center gap-3 p-20 text-sm font-medium text-warm-500">
+        <Loader2 className="h-5 w-5 animate-spin text-forest-700" /> Loading book…
+      </div>
+    );
+  }
+
+  if (error || !book) {
+    return (
+      <div className="mx-auto max-w-3xl space-y-5 p-4 sm:p-6 lg:p-8">
+        <button
+          type="button"
+          onClick={() => router.push('/student/library/books')}
+          className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-forest-700"
+        >
+          <ChevronLeft size={16} /> Back to catalogue
+        </button>
+        <div
+          role="alert"
+          className="flex flex-col gap-3 rounded-2xl border border-danger-200 bg-danger-50 p-4 text-xs font-semibold text-danger-700 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <span className="flex items-center gap-2">{error || 'Book not found.'}</span>
+          <button
+            type="button"
+            onClick={loadBook}
+            className="rounded-xl border border-danger-300 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide"
+          >
+            Try again
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const availableCount = book.copies.filter((c: any) => c.status === 'AVAILABLE').length;
 
@@ -85,19 +129,31 @@ export default function StudentBookDetailPage() {
                     <p className="text-xs font-semibold text-success-700 uppercase tracking-wide">{availableCount} Copies Available</p>
                     <p className="text-[11px] font-medium text-success-600 mt-1 uppercase">Visit library to checkout</p>
                  </div>
+               ) : activeReservation ? (
+                 <div className="p-6 bg-sage-50 rounded-xl border border-sage-100 text-center">
+                    <p className="text-xs font-semibold text-forest-700 uppercase tracking-wide">
+                      Reserved • {String(activeReservation.status).replace(/_/g, ' ')}
+                    </p>
+                    <p className="text-[11px] font-medium text-forest-600 mt-1 uppercase">
+                      The librarian will notify you when a copy is ready
+                    </p>
+                 </div>
                ) : (
                  <button
                    onClick={handleReserve}
                    disabled={reserving}
-                   className="w-full bg-forest-700 text-white p-6 rounded-xl font-semibold text-xs uppercase tracking-wide hover:bg-forest-800 shadow-xs shadow-sage-100 transition-all flex items-center justify-center gap-3 disabled:opacity-50"
+                   className="w-full bg-forest-700 text-white p-6 rounded-xl font-semibold text-xs uppercase tracking-wide hover:bg-forest-800 shadow-sm transition-all flex items-center justify-center gap-3 disabled:opacity-50"
                  >
                     {reserving ? <Loader2 className="animate-spin" size={16} /> : <Bookmark size={18} />}
-                    Reserve Copy
+                    {reserving ? 'Reserving…' : 'Reserve copy'}
                  </button>
                )}
-               <button className="w-full bg-card border border-warm-200 text-warm-700 p-6 rounded-xl font-semibold text-xs uppercase tracking-wide hover:bg-ivory-50 transition-all shadow-sm flex items-center justify-center gap-3">
-                  <Star size={18} /> Add to Reading List
-               </button>
+               <Link
+                 href="/student/library/loans"
+                 className="w-full bg-card border border-warm-200 text-warm-700 p-6 rounded-xl font-semibold text-xs uppercase tracking-wide hover:bg-ivory-50 transition-all shadow-sm flex items-center justify-center gap-3"
+               >
+                  <ArrowRight size={18} /> View my loans
+               </Link>
             </div>
          </div>
 
@@ -150,7 +206,15 @@ export default function StudentBookDetailPage() {
                   <div className="space-y-3">
                      <DetailRow label="Total Copies" value={book.copies.length} />
                      <DetailRow label="Availability" value={availableCount > 0 ? 'In Stock' : 'On Loan'} color={availableCount > 0 ? 'text-success-600' : 'text-danger-500'} />
-                     <DetailRow label="Reservation Queue" value="None" />
+                     <DetailRow
+                       label="My reservation"
+                       value={
+                         activeReservation
+                           ? String(activeReservation.status).replace(/_/g, ' ')
+                           : 'None'
+                       }
+                       color={activeReservation ? 'text-forest-700' : 'text-charcoal-900'}
+                     />
                   </div>
                </div>
             </div>
