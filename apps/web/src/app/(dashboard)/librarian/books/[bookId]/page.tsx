@@ -11,30 +11,27 @@ import {
   Book as BookIcon,
   Bookmark,
   User,
-  Building2,
   Hash,
-  Layers,
-  Globe,
   Plus,
   Loader2,
   MapPin,
   Clock,
-  ShieldCheck,
+  CheckCircle,
   AlertTriangle,
-  History,
   QrCode,
   Save,
-  CheckCircle,
-  Edit3
 } from 'lucide-react';
 
 export default function BookDetailPage() {
-  const { bookId } = useParams();
+  const { bookId } = useParams<{ bookId: string }>();
   const router = useRouter();
   const [book, setBook] = useState<any>(null);
   const [locations, setLocations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [addingCopy, setAddingCopy] = useState(false);
+  const [copyError, setCopyError] = useState('');
+  const [showFullDescription, setShowFullDescription] = useState(false);
 
   const [copyData, setCopyData] = useState({
     accessionNumber: '',
@@ -46,24 +43,30 @@ export default function BookDetailPage() {
 
   useEffect(() => {
     loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bookId]);
 
   async function loadData() {
+    setLoading(true);
+    setError('');
     try {
       const [bookData, locData] = await Promise.all([
         apiFetch(`/library/books/${bookId}`),
         apiFetch('/library/locations'),
       ]);
       setBook(bookData);
-      setLocations(locData);
+      setLocations(Array.isArray(locData) ? locData : []);
 
       // Auto-generate accession number for convenience
-      setCopyData(prev => ({
+      setCopyData((prev) => ({
         ...prev,
-        accessionNumber: `ACC-${bookData.title.slice(0, 3).toUpperCase()}-${Date.now().toString().slice(-4)}`
+        accessionNumber: `ACC-${String(bookData.title ?? 'GEN')
+          .slice(0, 3)
+          .toUpperCase()}-${Date.now().toString().slice(-4)}`,
       }));
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      setBook(null);
+      setError(err?.message || 'Could not load this title.');
     } finally {
       setLoading(false);
     }
@@ -71,22 +74,70 @@ export default function BookDetailPage() {
 
   async function handleAddCopy(e: React.FormEvent) {
     e.preventDefault();
+    if (addingCopy) return;
+    if (!copyData.accessionNumber.trim()) {
+      setCopyError('Enter an accession number.');
+      return;
+    }
     setAddingCopy(true);
+    setCopyError('');
     try {
       await apiFetch('/library/copies', {
         method: 'POST',
-        body: JSON.stringify({ ...copyData, bookId })
+        body: JSON.stringify({
+          ...copyData,
+          accessionNumber: copyData.accessionNumber.trim(),
+          barcode: copyData.barcode.trim() || undefined,
+          shelf: copyData.shelf.trim() || undefined,
+          locationId: copyData.locationId || undefined,
+          bookId,
+        }),
       });
-      loadData();
+      await loadData();
       showFeedback('SUCCESS', 'Physical copy added successfully');
-    } catch (err) {
-      showFeedback('ERROR', 'Failed to add copy');
+    } catch (err: any) {
+      setCopyError(err?.message || 'Failed to add copy.');
     } finally {
       setAddingCopy(false);
     }
   }
 
-  if (loading) return <div className="p-20 text-center"><Loader2 className="animate-spin mx-auto text-forest-700" size={48} /></div>;
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center gap-3 p-20 text-sm font-medium text-warm-500">
+        <Loader2 className="h-5 w-5 animate-spin text-forest-700" /> Loading title…
+      </div>
+    );
+  }
+
+  if (error || !book) {
+    return (
+      <div className="mx-auto max-w-3xl space-y-5 p-4 sm:p-6 lg:p-8">
+        <button
+          type="button"
+          onClick={() => router.back()}
+          className="inline-flex items-center gap-2 text-sm font-semibold text-forest-700"
+        >
+          <ChevronLeft size={16} /> Back to catalogue
+        </button>
+        <div
+          role="alert"
+          className="flex flex-col gap-3 rounded-2xl border border-danger-200 bg-danger-50 p-4 text-xs font-semibold text-danger-700 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <span className="flex items-center gap-2">
+            <AlertTriangle size={16} /> {error || 'Title not found.'}
+          </span>
+          <button
+            type="button"
+            onClick={loadData}
+            className="rounded-xl border border-danger-300 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide"
+          >
+            Try again
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-10">
@@ -177,6 +228,11 @@ export default function BookDetailPage() {
                  <Plus className="text-forest-500" /> Register New Copy
               </h3>
               <form onSubmit={handleAddCopy} className="space-y-6">
+                 {copyError && (
+                    <p role="alert" className="rounded-lg bg-danger-500/20 p-3 text-[11px] font-semibold text-danger-100">
+                       {copyError}
+                    </p>
+                 )}
                  <div>
                     <label className="block text-[11px] font-semibold text-warm-500 uppercase tracking-wide mb-3 px-1">Accession Number</label>
                     <input
@@ -242,10 +298,17 @@ export default function BookDetailPage() {
                  <InfoRow label="Language" value={book.language} />
               </div>
               <div className="pt-4 mt-4 border-t border-ivory-50">
-                 <p className="text-[11px] font-bold text-warm-400 uppercase leading-relaxed line-clamp-6">{book.description}</p>
-                 <button className="mt-4 text-[11px] font-semibold text-forest-700 uppercase tracking-wide flex items-center gap-1 hover:gap-2 transition-all">
-                    Full Description <ChevronRight size={12}/>
-                 </button>
+                 <p className={`text-[11px] font-bold text-warm-400 uppercase leading-relaxed ${showFullDescription ? '' : 'line-clamp-6'}`}>{book.description || 'No description recorded for this title.'}</p>
+                 {book.description && (
+                   <button
+                     type="button"
+                     aria-expanded={showFullDescription}
+                     onClick={() => setShowFullDescription((current) => !current)}
+                     className="mt-4 text-[11px] font-semibold text-forest-700 uppercase tracking-wide flex items-center gap-1 hover:gap-2 transition-all"
+                   >
+                      {showFullDescription ? 'Show less' : 'Full description'} <ChevronRight size={12} className={`transition-transform ${showFullDescription ? 'rotate-90' : ''}`}/>
+                   </button>
+                 )}
               </div>
            </div>
         </div>

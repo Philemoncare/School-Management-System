@@ -99,12 +99,16 @@ export class LibraryService {
     const publisherId = typeof filters?.publisherId === 'string' && filters.publisherId.trim()
       ? filters.publisherId.trim()
       : undefined;
+    const language = typeof filters?.language === 'string' && filters.language.trim()
+      ? filters.language.trim()
+      : undefined;
 
     return this.prisma.book.findMany({
       where: {
         schoolId,
         ...(categoryId ? { categoryId } : {}),
         ...(publisherId ? { publisherId } : {}),
+        ...(language ? { language: { equals: language, mode: 'insensitive' as const } } : {}),
         ...(search
           ? {
               OR: [
