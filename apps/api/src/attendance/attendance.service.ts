@@ -68,6 +68,60 @@ export class AttendanceService {
     return session;
   }
 
+  /**
+   * Lists the students who can be marked for a class/section before a session
+   * exists. The roll-call screen needs this to create the session on save.
+   */
+  async getEligibleStudentsForClass(
+    schoolId: string,
+    classId: string,
+    sectionId?: string,
+    academicYearId?: string,
+  ) {
+    if (!classId) throw new BadRequestException('classId is required');
+
+    const clazz = await this.prisma.class.findFirst({ where: { id: classId, schoolId } });
+    if (!clazz) throw new NotFoundException('Class not found');
+
+    let yearId = academicYearId;
+    if (!yearId) {
+      const activeYear = await this.prisma.academicYear.findFirst({
+        where: { schoolId, status: 'ACTIVE' },
+        orderBy: { startDate: 'desc' },
+      });
+      yearId = activeYear?.id;
+      if (!yearId) {
+        const latestEnrollment = await this.prisma.enrollment.findFirst({
+          where: { schoolId, classId, status: 'ACTIVE' },
+          orderBy: { createdAt: 'desc' },
+        });
+        yearId = latestEnrollment?.academicYearId;
+      }
+    }
+    if (!yearId) {
+      throw new BadRequestException(
+        'No active academic year. Create and activate an academic year first.',
+      );
+    }
+
+    return this.prisma.enrollment.findMany({
+      where: {
+        schoolId,
+        academicYearId: yearId,
+        classId,
+        sectionId: sectionId || undefined,
+        status: 'ACTIVE',
+      },
+      include: {
+        student: true,
+        section: true,
+        class: true,
+        academicYear: true,
+      },
+      orderBy: [{ student: { lastName: 'asc' } }, { student: { firstName: 'asc' } }],
+    });
+  }
+
   async getEligibleStudents(schoolId: string, sessionId: string) {
     const session = await this.prisma.attendanceSession.findFirst({
       where: { id: sessionId, schoolId },

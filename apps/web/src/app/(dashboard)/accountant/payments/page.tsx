@@ -5,36 +5,47 @@ import { apiFetch } from '@/lib/api/client';
 import {
   CreditCard,
   Search,
-  Plus,
-  Filter,
   CheckCircle,
   Clock,
   AlertCircle,
-  MoreHorizontal,
-  Download,
   Loader2,
-  ChevronRight,
   XCircle,
-  ArrowDownLeft
+  ArrowDownLeft,
+  Eye
 } from 'lucide-react';
 import Link from 'next/link';
+
+const STATUS_OPTIONS = [
+  { value: '', label: 'All statuses' },
+  { value: 'SUCCESS', label: 'Success' },
+  { value: 'PENDING', label: 'Pending' },
+  { value: 'FAILED', label: 'Failed' },
+  { value: 'REVERSED', label: 'Reversed' },
+];
 
 export default function AccountantPaymentsPage() {
   const [payments, setPayments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [status, setStatus] = useState('');
+  const [error, setError] = useState('');
 
   useEffect(() => {
     loadPayments();
-  }, [search]);
+  }, [search, status]);
 
   async function loadPayments() {
     setLoading(true);
+    setError('');
     try {
-      const data = await apiFetch(`/finance/payments?search=${search}`);
-      setPayments(data);
-    } catch (err) {
-      console.error(err);
+      const params = new URLSearchParams();
+      if (search.trim()) params.set('search', search.trim());
+      if (status) params.set('status', status);
+      const data = await apiFetch(`/finance/payments?${params.toString()}`);
+      setPayments(Array.isArray(data) ? data : []);
+    } catch (err: any) {
+      setPayments([]);
+      setError(err?.message || 'Could not load payments.');
     } finally {
       setLoading(false);
     }
@@ -66,8 +77,23 @@ export default function AccountantPaymentsPage() {
                 onChange={(e) => setSearch(e.target.value)}
               />
            </div>
-           <button className="p-3 bg-card border border-warm-200 rounded-2xl text-warm-500 shadow-sm"><Filter size={18}/></button>
+           <select
+             aria-label="Filter payments by status"
+             value={status}
+             onChange={(e) => setStatus(e.target.value)}
+             className="p-3 bg-card border border-warm-200 rounded-2xl text-[11px] font-semibold uppercase tracking-wide text-warm-600 shadow-sm focus:border-forest-600 focus:outline-none"
+           >
+             {STATUS_OPTIONS.map((option) => (
+               <option key={option.value} value={option.value}>{option.label}</option>
+             ))}
+           </select>
         </div>
+
+        {error && (
+          <div role="alert" className="border-b border-danger-200 bg-danger-50 px-6 py-3 text-xs font-semibold text-danger-700">
+            {error}
+          </div>
+        )}
 
         <div className="relative min-h-[400px]">
            {loading && (
@@ -118,9 +144,17 @@ export default function AccountantPaymentsPage() {
                        <StatusBadge status={pay.status} />
                     </td>
                     <td className="px-8 py-6 text-right">
-                       <div className="flex items-center justify-end gap-2">
-                          <button className="p-2 text-warm-400 hover:text-forest-700 transition-colors"><ChevronRight size={18}/></button>
-                          <button className="p-2 text-warm-400 hover:text-charcoal-900 transition-colors"><MoreHorizontal size={18}/></button>
+                       <div className="flex items-center justify-end">
+                          {pay.allocations?.[0]?.invoice?.id ? (
+                            <Link
+                              href={`/accountant/invoices/${pay.allocations[0].invoice.id}`}
+                              className="inline-flex items-center gap-1.5 rounded-lg border border-warm-200 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-forest-700 hover:bg-ivory-50"
+                            >
+                              <Eye size={14} /> Invoice
+                            </Link>
+                          ) : (
+                            <span className="text-xs text-warm-400">—</span>
+                          )}
                        </div>
                     </td>
                  </tr>

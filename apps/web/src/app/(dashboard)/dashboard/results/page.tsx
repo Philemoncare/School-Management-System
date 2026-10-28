@@ -1,4 +1,5 @@
 'use client';
+import { showFeedback } from '@/components/layout/global-feedback';
 
 import React, { useEffect, useState } from 'react';
 import { apiFetch } from '@/lib/api/client';
@@ -38,8 +39,8 @@ export default function ResultsCommandCenter() {
 
   useEffect(() => {
     Promise.all([
-      apiFetch('/academics/classes'),
-      apiFetch('/academics/academic-years')
+      apiFetch('/classes'),
+      apiFetch('/academic-years')
     ]).then(([classesData, yearsData]) => {
       setClasses(classesData);
       setYears(yearsData);
@@ -50,24 +51,24 @@ export default function ResultsCommandCenter() {
   }, []);
 
   async function handleCalculate() {
-    if (!config.classId || !config.academicYearId) return alert('Please select a class and year');
+    if (!config.classId || !config.academicYearId) return showFeedback('ERROR', 'Please select a class and year');
     setProcessing('calculating');
     try {
       await apiFetch('/results/calculate', {
         method: 'POST',
         body: JSON.stringify(config)
       });
-      alert('Results calculated and ranked successfully');
+      showFeedback('SUCCESS', 'Results calculated and ranked successfully');
     } catch (err) {
       console.error(err);
-      alert('Calculation failed');
+      showFeedback('ERROR', 'Calculation failed');
     } finally {
       setProcessing(null);
     }
   }
 
   async function handlePublish() {
-    if (!config.classId || !config.academicYearId) return alert('Please select a class and year');
+    if (!config.classId || !config.academicYearId) return showFeedback('ERROR', 'Please select a class and year');
     if (!confirm('This will make results visible to students and parents. Proceed?')) return;
     setProcessing('publishing');
     try {
@@ -75,10 +76,10 @@ export default function ResultsCommandCenter() {
         method: 'POST',
         body: JSON.stringify(config)
       });
-      alert('Results published successfully');
+      showFeedback('SUCCESS', 'Results published successfully');
     } catch (err) {
       console.error(err);
-      alert('Publication failed');
+      showFeedback('ERROR', 'Publication failed');
     } finally {
       setProcessing(null);
     }

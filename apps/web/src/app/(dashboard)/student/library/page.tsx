@@ -108,7 +108,7 @@ export default function StudentLibraryDashboard() {
                   <p className="text-xs font-bold text-charcoal-900">{fine.reason}</p>
                   <p className="text-[11px] text-warm-400 font-semibold uppercase">{fine.status}</p>
                 </div>
-                <p className="text-sm font-semibold text-danger-600">${parseFloat(fine.amount).toFixed(2)}</p>
+                <p className="text-sm font-semibold text-danger-600">GH₵ {Number(fine.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
               </div>
             ))}
             {fines.length === 0 && (

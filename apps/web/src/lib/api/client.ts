@@ -112,6 +112,12 @@ function handleUnauthorized(endpoint: string) {
 
   clearClientSession();
 
+  // The auth cookie is HttpOnly, so JavaScript cannot delete it. Ask the API to
+  // clear it, otherwise a dead cookie survives and every later request fails.
+  fetch(`${API_URL}/auth/logout`, { method: "POST", credentials: "include" }).catch(
+    () => {},
+  );
+
   if (!PUBLIC_PATHS.includes(window.location.pathname)) {
     window.location.href = "/login";
   }
@@ -162,12 +168,18 @@ export async function apiFetch(endpoint: string, options: RequestInit = {}) {
       handleUnauthorized(endpoint);
     }
 
-    const error = await response
-      .json()
-      .catch(() => ({ message: "An error occurred" }));
+    const rawBody = await response.text().catch(() => "");
+    let error: any = {};
+    if (rawBody) {
+      try {
+        error = JSON.parse(rawBody);
+      } catch {
+        error = { message: rawBody };
+      }
+    }
     const errorMsg = Array.isArray(error.message)
       ? error.message.join(". ")
-      : error.message || error.error || "API request failed";
+      : error.message || error.error || response.statusText || "API request failed";
     throw new ApiError(
       errorMsg,
       response.status,
@@ -176,5 +188,15 @@ export async function apiFetch(endpoint: string, options: RequestInit = {}) {
     );
   }
 
-  return response.json();
+  // DELETE endpoints and a few commands intentionally return 204/empty bodies.
+  // `response.json()` would throw on those and the UI would report a failure
+  // even though the database write succeeded.
+  if (response.status === 204) return null;
+  const body = await response.text();
+  if (!body) return null;
+  try {
+    return JSON.parse(body);
+  } catch {
+    return body;
+  }
 }

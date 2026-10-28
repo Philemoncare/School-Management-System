@@ -55,7 +55,7 @@ export default function StudentFees() {
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="text-base font-semibold text-charcoal-900">${parseFloat(inv.totalAmount).toFixed(2)}</p>
+                    <p className="text-base font-semibold text-charcoal-900">GH₵ {Number(inv.totalAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                     <span className={`px-2 py-0.5 font-bold text-[11px] rounded-md uppercase ${
                       inv.status === 'PAID' ? 'bg-success-50 text-success-700' : 'bg-danger-50 text-danger-700'
                     }`}>{inv.status}</span>
@@ -82,7 +82,7 @@ export default function StudentFees() {
                   <p className="text-xs font-bold text-charcoal-900">Receipt #{rec.receiptNumber}</p>
                   <p className="text-[11px] text-warm-400 font-semibold">{rec.paymentMethod} • {new Date(rec.paymentDate).toLocaleDateString()}</p>
                 </div>
-                <p className="text-sm font-semibold text-success-600">${parseFloat(rec.amount).toFixed(2)}</p>
+                <p className="text-sm font-semibold text-success-600">GH₵ {Number(rec.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
               </div>
             ))}
             {receipts.length === 0 && (

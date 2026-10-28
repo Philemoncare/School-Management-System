@@ -1,4 +1,5 @@
 'use client';
+import { showFeedback } from '@/components/layout/global-feedback';
 
 import { Select } from '@/components/ui/input';
 import React, { useState, useEffect } from 'react';
@@ -32,7 +33,7 @@ export default function LocalizationSettings() {
           body: JSON.stringify({ value })
         });
       }
-      alert('Localization settings updated!');
+      showFeedback('SUCCESS', 'Localization settings updated!');
     } catch (err) {
       console.error(err);
     } finally {

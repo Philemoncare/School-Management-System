@@ -28,71 +28,86 @@ function AttendanceContent() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [academicYearId, setAcademicYearId] = useState<string>('');
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   useEffect(() => {
-    if (classId && sectionId) {
+    apiFetch('/academic-years/current')
+      .then((year: any) => setAcademicYearId(year?.id || ''))
+      .catch(() => setAcademicYearId(''));
+  }, []);
+
+  useEffect(() => {
+    if (classId) {
       loadStudents();
     }
   }, [classId, sectionId]);
 
   async function loadStudents() {
     setLoading(true);
+    setMessage(null);
     try {
-      const data = await apiFetch(`/attendance/eligible-students?classId=${classId}&sectionId=${sectionId}`);
+      const query = new URLSearchParams({ classId: classId as string });
+      if (sectionId) query.set('sectionId', sectionId);
+      if (academicYearId) query.set('academicYearId', academicYearId);
+      const data = await apiFetch(`/attendance/eligible-students?${query.toString()}`);
       setStudents(data);
-      // Initialize with PRESENT
       const initial: Record<string, string> = {};
-      data.forEach((s: any) => initial[s.student.id] = 'PRESENT');
+      data.forEach((s: any) => (initial[s.student.id] = 'PRESENT'));
       setAttendance(initial);
     } catch (err) {
-      console.error(err);
+      setMessage({ type: 'error', text: err instanceof Error ? err.message : 'Could not load students for this class.' });
+      setStudents([]);
     } finally {
       setLoading(false);
     }
   }
 
   async function handleSave() {
+    if (students.length === 0) {
+      setMessage({ type: 'error', text: 'There are no enrolled students to mark.' });
+      return;
+    }
+    if (!academicYearId) {
+      setMessage({ type: 'error', text: 'No active academic year. Activate one under Academics first.' });
+      return;
+    }
+
     setSaving(true);
+    setMessage(null);
     try {
-      // 1. Create or Find Session
       const session = await apiFetch('/attendance/sessions', {
         method: 'POST',
         body: JSON.stringify({
           date,
           classId,
-          sectionId,
+          sectionId: sectionId || undefined,
           sessionType: 'DAILY',
-          academicYearId: students[0]?.academicYearId, // Get from first enrollment
-        })
-      }).catch(err => {
-        // If conflict, try fetching existing
-        return apiFetch(`/attendance/sessions?date=${date}&classId=${classId}&sectionId=${sectionId}`).then(res => res[0]);
-      });
+          academicYearId,
+        }),
+      }).catch(() =>
+        apiFetch(`/attendance/sessions?date=${date}&classId=${classId}${sectionId ? `&sectionId=${sectionId}` : ''}`).then(
+          (res: any[]) => res?.[0],
+        ),
+      );
 
-      if (!session) throw new Error('Could not resolve attendance session');
+      if (!session?.id) throw new Error('Could not open an attendance session for this date.');
 
-      // 2. Submit Bulk Attendance
-      const records = Object.entries(attendance).map(([studentId, status]) => ({
-        studentId,
-        status,
-      }));
-
-      await apiFetch(`/attendance/sessions/${session.id}/bulk`, {
+      const records = Object.entries(attendance).map(([studentId, status]) => ({ studentId, status }));
+      await apiFetch(`/attendance/sessions/${session.id}/bulk-mark`, {
         method: 'POST',
-        body: JSON.stringify({ records })
+        body: JSON.stringify({ records }),
       });
 
-      alert('Attendance saved successfully');
-      router.push('/teacher/dashboard');
+      setMessage({ type: 'success', text: `Attendance saved for ${records.length} student${records.length === 1 ? '' : 's'}.` });
     } catch (err) {
-      console.error(err);
-      alert('Failed to save attendance');
+      setMessage({ type: 'error', text: err instanceof Error ? err.message : 'Failed to save attendance.' });
     } finally {
       setSaving(false);
     }
   }
 
-  if (!classId || !sectionId) {
+  if (!classId) {
     return (
       <div className="p-20 text-center">
          <Filter className="mx-auto text-warm-200 mb-4" size={64} />
@@ -133,10 +148,22 @@ function AttendanceContent() {
         </div>
       </div>
 
+      {message && (
+        <div
+          role="status"
+          className={`rounded-xl border px-4 py-3 text-sm font-semibold ${
+            message.type === 'success'
+              ? 'border-success-200 bg-success-50 text-success-800'
+              : 'border-danger-200 bg-danger-50 text-danger-800'
+          }`}
+        >
+          {message.text}
+        </div>
+      )}
+
       {/* Student List */}
       <div className="bg-card border border-warm-200 rounded-xl shadow-sm overflow-hidden">
-        <div className="p-6 border-b border-warm-100 bg-ivory-50/50 flex items-center justify-between">
-           <div className="flex items-center gap-2">
+        <div className="p-6 border-b border-warm-100 bg-ivory-50/50 flex items-center justify-between">           <div className="flex items-center gap-2">
               <Users size={18} className="text-forest-700" />
               <span className="text-sm font-semibold text-charcoal-900">{students.length} Students Enrolled</span>
            </div>
@@ -213,6 +240,17 @@ function AttendanceContent() {
                      </td>
                   </tr>
                 ))}
+                {students.length === 0 && !loading && (
+                  <tr>
+                    <td colSpan={3} className="px-8 py-16 text-center">
+                      <Users className="mx-auto mb-3 text-warm-300" size={40} />
+                      <p className="text-sm font-semibold text-charcoal-900">No students enrolled in this class</p>
+                      <p className="mt-1 text-xs font-medium text-warm-500">
+                        Enroll students for the active academic year, then return to mark attendance.
+                      </p>
+                    </td>
+                  </tr>
+                )}
              </tbody>
            </table>
         </div>

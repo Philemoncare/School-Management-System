@@ -17,7 +17,7 @@ export class ClassesController {
     private readonly promotionService: PromotionService,
   ) {}
 
-  @Roles('SCHOOL_ADMIN', 'ACADEMIC_COORDINATOR')
+  @Roles('SCHOOL_ADMIN', 'PRINCIPAL', 'ACADEMIC_COORDINATOR')
   @Post(':id/promote')
   promote(
     @ActiveSchool() schoolId: string,
@@ -37,13 +37,13 @@ export class ClassesController {
     return this.classesService.create(schoolId, dto, user.id);
   }
 
-  @Roles('SCHOOL_ADMIN', 'PRINCIPAL', 'TEACHER', 'RECEPTIONIST')
+  @Roles('SCHOOL_ADMIN', 'PRINCIPAL', 'TEACHER', 'RECEPTIONIST', 'TIMETABLE_OFFICER', 'ACADEMIC_COORDINATOR')
   @Get()
   findAll(@ActiveSchool() schoolId: string) {
     return this.classesService.findAll(schoolId);
   }
 
-  @Roles('SCHOOL_ADMIN', 'PRINCIPAL', 'TEACHER')
+  @Roles('SCHOOL_ADMIN', 'PRINCIPAL', 'TEACHER', 'TIMETABLE_OFFICER', 'ACADEMIC_COORDINATOR')
   @Get(':id')
   findOne(@ActiveSchool() schoolId: string, @Param('id') id: string) {
     return this.classesService.findOne(schoolId, id);

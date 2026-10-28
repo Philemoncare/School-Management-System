@@ -213,6 +213,7 @@ export const STUDENT_NAV: NavigationSection[] = [
     title: 'Academic',
     items: [
       { label: 'Attendance', href: '/student/attendance', icon: CalendarCheck },
+      { label: 'Assessments', href: '/student/assessments', icon: ClipboardList },
       { label: 'Assignments', href: '/student/assignments', icon: FileText },
       { label: 'Examinations', href: '/student/examinations', icon: ClipboardList },
       { label: 'Results', href: '/student/results', icon: FileSpreadsheet },

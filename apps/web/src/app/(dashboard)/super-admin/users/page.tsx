@@ -1,4 +1,5 @@
 'use client';
+import { showFeedback } from '@/components/layout/global-feedback';
 
 import React, { useEffect, useState } from 'react';
 import { apiFetch } from '@/lib/api/client';
@@ -96,7 +97,7 @@ export default function SuperAdminUsers() {
     try {
       await apiFetch(`/super-admin/users/${user.id}/send-password-reset`, { method: 'POST' });
       setError('');
-      window.alert(`Password reset instructions sent to ${user.email}.`);
+      showFeedback('SUCCESS', `Password reset instructions sent to ${user.email}.`);
     } catch (err: any) {
       setError(err.message || 'Unable to send reset email');
     } finally {

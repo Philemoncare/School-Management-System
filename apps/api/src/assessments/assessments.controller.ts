@@ -2,7 +2,7 @@ import { Controller, Get, Post, Body, Patch, Param, UseGuards, Query } from '@ne
 import { AssessmentsService } from './assessments.service';
 import { ScoresService } from './scores.service';
 import { CreateAssessmentDto, UpdateAssessmentDto } from './dto/assessment.dto';
-import { CreateAssessmentTypeDto } from './dto/assessment-type.dto';
+import { CreateAssessmentTypeDto, UpdateAssessmentTypeDto } from './dto/assessment-type.dto';
 import { BulkEnterScoresDto } from './dto/score.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -32,6 +32,17 @@ export class AssessmentsController {
     return this.assessmentsService.findAllTypes(schoolId);
   }
 
+  @Roles('SCHOOL_ADMIN', 'PRINCIPAL')
+  @Patch('types/:id')
+  updateType(
+    @ActiveSchool() schoolId: string,
+    @Param('id') id: string,
+    @Body() dto: UpdateAssessmentTypeDto,
+    @CurrentUser() user: any,
+  ) {
+    return this.assessmentsService.updateType(schoolId, id, dto, user.id);
+  }
+
   // Assessments
   @Roles('SCHOOL_ADMIN', 'PRINCIPAL', 'TEACHER')
   @Post()
@@ -49,6 +60,12 @@ export class AssessmentsController {
   @Get(':id')
   findOne(@ActiveSchool() schoolId: string, @Param('id') id: string) {
     return this.assessmentsService.findOne(schoolId, id);
+  }
+
+  @Roles('SCHOOL_ADMIN', 'PRINCIPAL', 'TEACHER')
+  @Patch(':id')
+  update(@ActiveSchool() schoolId: string, @Param('id') id: string, @Body() dto: UpdateAssessmentDto, @CurrentUser() user: any) {
+    return this.assessmentsService.update(schoolId, id, dto, user.id);
   }
 
   @Roles('SCHOOL_ADMIN', 'PRINCIPAL', 'TEACHER')
@@ -70,6 +87,12 @@ export class AssessmentsController {
   }
 
   // Scores
+  @Roles('SCHOOL_ADMIN', 'PRINCIPAL', 'TEACHER')
+  @Get(':id/scores')
+  getScores(@ActiveSchool() schoolId: string, @Param('id') id: string) {
+    return this.scoresService.getScores(schoolId, id);
+  }
+
   @Roles('SCHOOL_ADMIN', 'PRINCIPAL', 'TEACHER')
   @Get(':id/eligible-students')
   getEligibleStudents(@ActiveSchool() schoolId: string, @Param('id') id: string) {

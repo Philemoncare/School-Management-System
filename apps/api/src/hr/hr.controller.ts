@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, UseGuards, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, UseGuards, Query, BadRequestException } from '@nestjs/common';
 import { HRService } from './hr.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -8,7 +8,9 @@ import { ActiveSchool } from '../auth/decorators/active-school.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import {
   CreateDepartmentDto,
+  UpdateDepartmentDto,
   CreatePositionDto,
+  UpdatePositionDto,
   CreateLeaveTypeDto,
   CreateLeaveRequestDto,
   MarkStaffAttendanceDto,
@@ -44,6 +46,16 @@ export class HRController {
     return this.hrService.createDepartment(schoolId, dto);
   }
 
+  @Roles('HR_OFFICER', 'SCHOOL_ADMIN')
+  @Patch('departments/:id')
+  updateDepartment(
+    @ActiveSchool() schoolId: string,
+    @Param('id') id: string,
+    @Body() dto: UpdateDepartmentDto,
+  ) {
+    return this.hrService.updateDepartment(schoolId, id, dto);
+  }
+
   // Positions
   @Get('positions')
   getPositions(@ActiveSchool() schoolId: string) {
@@ -54,6 +66,16 @@ export class HRController {
   @Post('positions')
   createPosition(@ActiveSchool() schoolId: string, @Body() dto: CreatePositionDto) {
     return this.hrService.createPosition(schoolId, dto);
+  }
+
+  @Roles('HR_OFFICER', 'SCHOOL_ADMIN')
+  @Patch('positions/:id')
+  updatePosition(
+    @ActiveSchool() schoolId: string,
+    @Param('id') id: string,
+    @Body() dto: UpdatePositionDto,
+  ) {
+    return this.hrService.updatePosition(schoolId, id, dto);
   }
 
   // Self-service
@@ -101,6 +123,17 @@ export class HRController {
     return this.hrService.approveLeave(schoolId, id, user.id);
   }
 
+  @Roles('HR_OFFICER', 'SCHOOL_ADMIN')
+  @Post('leave/requests/:id/reject')
+  rejectLeave(
+    @ActiveSchool() schoolId: string,
+    @Param('id') id: string,
+    @CurrentUser() user: any,
+    @Body() body: { comments?: string }
+  ) {
+    return this.hrService.rejectLeave(schoolId, id, user.id, body?.comments);
+  }
+
   // Attendance
   @Roles('HR_OFFICER', 'SCHOOL_ADMIN')
   @Post('attendance')
@@ -109,8 +142,13 @@ export class HRController {
   }
 
   @Get('attendance')
-  getAttendance(@ActiveSchool() schoolId: string, @Query('date') date: string) {
-    return this.hrService.getAttendance(schoolId, new Date(date));
+  getAttendance(@ActiveSchool() schoolId: string, @Query('date') date?: string) {
+    const target = date ? new Date(date) : new Date();
+    if (Number.isNaN(target.getTime())) {
+      throw new BadRequestException('Invalid attendance date');
+    }
+    target.setHours(0, 0, 0, 0);
+    return this.hrService.getAttendance(schoolId, target);
   }
 
   // Documents
@@ -120,8 +158,17 @@ export class HRController {
   }
 
   @Get('staff/:id/documents')
-  getDocuments(@Param('id') id: string, @Query('type') type: 'STAFF' | 'TEACHER') {
-    if (type === 'STAFF') return this.hrService.getStaffDocuments(id, undefined);
-    return this.hrService.getStaffDocuments(undefined, id);
+  getDocuments(
+    @ActiveSchool() schoolId: string,
+    @Param('id') id: string,
+    @Query('type') type: 'STAFF' | 'TEACHER',
+  ) {
+    if (type === 'STAFF') return this.hrService.getStaffDocuments(schoolId, id, undefined);
+    return this.hrService.getStaffDocuments(schoolId, undefined, id);
+  }
+
+  @Get('staff/:id/profile')
+  getStaffProfile(@ActiveSchool() schoolId: string, @Param('id') id: string) {
+    return this.hrService.getStaffProfile(schoolId, id);
   }
 }

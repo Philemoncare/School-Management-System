@@ -31,6 +31,57 @@ export class ScoresService {
     });
   }
 
+  async getScores(schoolId: string, assessmentId: string) {
+    const assessment = await this.prisma.assessment.findFirst({
+      where: { id: assessmentId, schoolId },
+      include: {
+        assessmentType: true,
+        class: true,
+        section: true,
+        subject: true,
+        term: true,
+        academicYear: true,
+      },
+    });
+    if (!assessment) throw new NotFoundException('Assessment not found');
+
+    const [scores, eligible] = await Promise.all([
+      this.prisma.studentAssessmentScore.findMany({
+        where: { assessmentId, schoolId, assessmentComponentId: null },
+        include: { student: true },
+      }),
+      this.prisma.enrollment.findMany({
+        where: {
+          schoolId,
+          academicYearId: assessment.academicYearId,
+          classId: assessment.classId,
+          ...(assessment.sectionId ? { sectionId: assessment.sectionId } : {}),
+          status: 'ACTIVE',
+        },
+        include: { student: true },
+        orderBy: { student: { lastName: 'asc' } },
+      }),
+    ]);
+
+    return {
+      assessment,
+      scores: scores.map((score) => ({
+        id: score.id,
+        studentId: score.studentId,
+        rawScore: score.rawScore,
+        maximumScore: score.maximumScore,
+        percentage: score.percentage,
+        status: score.status,
+        remarks: score.remarks,
+        student: score.student,
+      })),
+      students: eligible.map((enrollment) => ({
+        enrollmentId: enrollment.id,
+        student: enrollment.student,
+      })),
+    };
+  }
+
   async bulkEnterScores(schoolId: string, assessmentId: string, dto: BulkEnterScoresDto, actorId: string) {
     const assessment = await this.prisma.assessment.findFirst({
       where: { id: assessmentId, schoolId },
@@ -49,6 +100,8 @@ export class ScoresService {
           where: {
             studentId: scoreDto.studentId,
             academicYearId: assessment.academicYearId,
+            classId: assessment.classId,
+            ...(assessment.sectionId ? { sectionId: assessment.sectionId } : {}),
             schoolId,
             status: 'ACTIVE',
           },
@@ -65,36 +118,38 @@ export class ScoresService {
           ? (scoreDto.rawScore / assessment.totalMarks) * 100
           : null;
 
-        const score = await tx.studentAssessmentScore.upsert({
-          where: {
-            assessmentId_assessmentComponentId_studentId: {
-              assessmentId,
-              assessmentComponentId: null as any,
-              studentId: scoreDto.studentId,
-            },
-          },
-          update: {
-            rawScore: scoreDto.rawScore,
-            maximumScore: assessment.totalMarks,
-            percentage,
-            status: scoreDto.status || ScoreStatus.SUBMITTED,
-            remarks: scoreDto.remarks,
-            updatedBy: actorId,
-          },
-          create: {
-            schoolId,
-            assessmentId,
-            studentId: scoreDto.studentId,
-            enrollmentId: enrollment.id,
-            rawScore: scoreDto.rawScore,
-            maximumScore: assessment.totalMarks,
-            percentage,
-            status: scoreDto.status || ScoreStatus.SUBMITTED,
-            remarks: scoreDto.remarks,
-            enteredBy: actorId,
-            enteredAt: new Date(),
-          },
+        const existing = await tx.studentAssessmentScore.findFirst({
+          where: { assessmentId, studentId: scoreDto.studentId, assessmentComponentId: null },
+          select: { id: true },
         });
+
+        const score = existing
+          ? await tx.studentAssessmentScore.update({
+              where: { id: existing.id },
+              data: {
+                rawScore: scoreDto.rawScore ?? null,
+                maximumScore: assessment.totalMarks,
+                percentage,
+                status: scoreDto.status || ScoreStatus.SUBMITTED,
+                remarks: scoreDto.remarks,
+                updatedBy: actorId,
+              },
+            })
+          : await tx.studentAssessmentScore.create({
+              data: {
+                schoolId,
+                assessmentId,
+                studentId: scoreDto.studentId,
+                enrollmentId: enrollment.id,
+                rawScore: scoreDto.rawScore,
+                maximumScore: assessment.totalMarks,
+                percentage,
+                status: scoreDto.status || ScoreStatus.SUBMITTED,
+                remarks: scoreDto.remarks,
+                enteredBy: actorId,
+                enteredAt: new Date(),
+              },
+            });
         results.push(score);
       }
 

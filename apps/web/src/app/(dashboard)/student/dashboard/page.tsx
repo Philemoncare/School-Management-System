@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import { apiFetch } from '@/lib/api/client';
 import { useAuth } from '@/context/auth-context';
 import {
   BookOpen,
@@ -25,13 +26,7 @@ export default function StudentDashboard() {
     async function fetchDashboard() {
       if (!activeSchoolId) return;
       try {
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/student/dashboard`, {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`,
-            'x-school-id': activeSchoolId,
-          },
-        });
-        const result = await response.json();
+        const result = await apiFetch('/student/dashboard');
         setData(result);
       } catch (error) {
         console.error('Failed to fetch student dashboard:', error);
@@ -50,6 +45,10 @@ export default function StudentDashboard() {
   const attendanceValues = Object.values(attendance || {}) as number[];
   const totalAttendance = attendanceValues.reduce((a, b) => a + (Number(b) || 0), 0) || 1;
   const attendanceRate = (((Number(attendance?.PRESENT) || 0) / totalAttendance) * 100).toFixed(1);
+  const submittedAssignments = assignments.filter((assignment: any) => (assignment.submissions || []).length > 0).length;
+  const completionRate = assignments.length > 0
+    ? Math.round((submittedAssignments / assignments.length) * 100)
+    : 0;
 
   return (
     <div className="space-y-6">
@@ -128,7 +127,7 @@ export default function StudentDashboard() {
               <div className="p-4 space-y-3">
                 {assignments.length > 0 ? (
                   assignments.map((item: any) => (
-                    <Link href={`/student/assignments/${item.id}`} key={item.id} className="block p-3 rounded-xl hover:bg-ivory-50 transition-colors border border-transparent hover:border-warm-100">
+                    <Link href="/student/assignments" key={item.id} className="block p-3 rounded-xl hover:bg-ivory-50 transition-colors border border-transparent hover:border-warm-100">
                       <div className="flex justify-between items-start mb-1">
                         <p className="text-sm font-bold text-charcoal-900 truncate">{item.title}</p>
                         <span className={`text-[11px] font-semibold uppercase px-1.5 py-0.5 rounded ${item.submissions.length > 0 ? 'bg-success-100 text-success-700' : 'bg-warning-100 text-warning-700'}`}>
@@ -200,17 +199,23 @@ export default function StudentDashboard() {
             <div className="space-y-4">
               <div>
                 <div className="flex justify-between text-[11px] font-bold uppercase tracking-wider mb-1.5 opacity-80">
-                  <span>Course Completion</span>
-                  <span>78%</span>
+                  <span>Assignment completion</span>
+                  <span>{completionRate}%</span>
                 </div>
                 <div className="h-1.5 w-full bg-card/20 rounded-full overflow-hidden">
-                  <div className="h-full bg-card rounded-full" style={{ width: '78%' }} />
+                  <div className="h-full bg-card rounded-full" style={{ width: `${completionRate}%` }} />
                 </div>
+                <p className="mt-2 text-[11px] font-medium text-sage-100">
+                  {submittedAssignments} of {assignments.length} published assignments submitted.
+                </p>
               </div>
-              <button className="w-full mt-4 py-3 bg-card text-forest-800 rounded-xl text-xs font-bold hover:bg-sage-50 transition-all flex items-center justify-center gap-2">
-                View Detailed Analytics
+              <Link
+                href="/student/results"
+                className="w-full mt-4 py-3 bg-card text-forest-800 rounded-xl text-xs font-bold hover:bg-sage-50 transition-all flex items-center justify-center gap-2"
+              >
+                View Academic Results
                 <ArrowRight size={14} />
-              </button>
+              </Link>
             </div>
           </section>
         </div>

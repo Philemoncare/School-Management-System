@@ -5,7 +5,6 @@ import { useParams, useRouter } from 'next/navigation';
 import { apiFetch } from '@/lib/api/client';
 import {
   ChevronLeft,
-  Download,
   Printer,
   FileText,
   CreditCard,
@@ -58,11 +57,11 @@ export default function InvoiceDetailPage() {
           </div>
         </div>
         <div className="flex items-center gap-3">
-           <button className="bg-card border border-warm-200 text-warm-700 px-6 py-2.5 rounded-2xl font-semibold text-[11px] uppercase tracking-wide hover:bg-ivory-50 transition-all shadow-sm flex items-center gap-2">
-             <Download size={16} /> Export PDF
-           </button>
-           <button className="bg-forest-700 text-white px-6 py-2.5 rounded-2xl font-semibold text-[11px] uppercase tracking-wide hover:bg-forest-800 transition-all shadow-xs shadow-sage-100 flex items-center gap-2">
-             <Printer size={16} /> Print Receipt
+           <button
+             onClick={() => window.print()}
+             className="bg-forest-700 text-white px-6 py-2.5 rounded-2xl font-semibold text-[11px] uppercase tracking-wide hover:bg-forest-800 transition-all shadow-xs shadow-sage-100 flex items-center gap-2"
+           >
+             <Printer size={16} /> Print / Save PDF
            </button>
         </div>
       </div>
@@ -150,8 +149,8 @@ export default function InvoiceDetailPage() {
                       </div>
                       <div className="text-right">
                          <p className="text-sm font-semibold text-charcoal-900">{invoice.currency} {parseFloat(alloc.amount).toLocaleString()}</p>
-                         <Link href={`/accountant/payments/${alloc.paymentId}`} className="text-[11px] font-semibold text-forest-700 uppercase tracking-wide flex items-center gap-1 mt-1 opacity-0 group-hover:opacity-100 transition-all">
-                            Details <ArrowUpRight size={10}/>
+                         <Link href="/accountant/payments" className="text-[11px] font-semibold text-forest-700 uppercase tracking-wide flex items-center gap-1 mt-1 opacity-0 group-hover:opacity-100 transition-all">
+                            View payments <ArrowUpRight size={10}/>
                          </Link>
                       </div>
                    </div>

@@ -40,7 +40,7 @@ export class HealthController {
   constructor(private readonly healthService: HealthService) {}
 
   @Get('dashboard')
-  @Roles('ADMIN', 'NURSE', 'MEDICAL_OFFICER')
+  @Roles('SCHOOL_ADMIN', 'NURSE', 'MEDICAL_OFFICER')
   @Permissions('health.view')
   getDashboard(@ActiveSchool() schoolId: string) {
     return this.healthService.getDashboard(schoolId);
@@ -48,7 +48,7 @@ export class HealthController {
 
   // --- QUEUE ---
   @Get('queue')
-  @Roles('ADMIN', 'NURSE', 'MEDICAL_OFFICER')
+  @Roles('SCHOOL_ADMIN', 'NURSE', 'MEDICAL_OFFICER')
   @Permissions('health.visit.view')
   getQueue(@ActiveSchool() schoolId: string) {
     return this.healthService.getQueue(schoolId);

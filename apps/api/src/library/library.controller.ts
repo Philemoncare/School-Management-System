@@ -14,7 +14,11 @@ import {
   CreateCategoryDto,
   CreateAuthorDto,
   CreatePublisherDto,
-  CreateLocationDto
+  CreateLocationDto,
+  UpdateCategoryDto,
+  UpdateAuthorDto,
+  UpdatePublisherDto,
+  UpdateLocationDto,
 } from './dto/library.dto';
 
 @UseGuards(JwtAuthGuard, RolesGuard, TenantGuard)
@@ -130,6 +134,16 @@ export class LibraryController {
     return this.libraryService.createCategory(schoolId, dto);
   }
 
+  @Roles('LIBRARIAN', 'SCHOOL_ADMIN')
+  @Patch('categories/:id')
+  updateCategory(
+    @ActiveSchool() schoolId: string,
+    @Param('id') id: string,
+    @Body() dto: UpdateCategoryDto,
+  ) {
+    return this.libraryService.updateCategory(schoolId, id, dto);
+  }
+
   @Get('authors')
   getAuthors(@ActiveSchool() schoolId: string) {
     return this.libraryService.findAuthors(schoolId);
@@ -139,6 +153,16 @@ export class LibraryController {
   @Post('authors')
   createAuthor(@ActiveSchool() schoolId: string, @Body() dto: CreateAuthorDto) {
     return this.libraryService.createAuthor(schoolId, dto);
+  }
+
+  @Roles('LIBRARIAN', 'SCHOOL_ADMIN')
+  @Patch('authors/:id')
+  updateAuthor(
+    @ActiveSchool() schoolId: string,
+    @Param('id') id: string,
+    @Body() dto: UpdateAuthorDto,
+  ) {
+    return this.libraryService.updateAuthor(schoolId, id, dto);
   }
 
   @Get('publishers')
@@ -152,6 +176,16 @@ export class LibraryController {
     return this.libraryService.createPublisher(schoolId, dto);
   }
 
+  @Roles('LIBRARIAN', 'SCHOOL_ADMIN')
+  @Patch('publishers/:id')
+  updatePublisher(
+    @ActiveSchool() schoolId: string,
+    @Param('id') id: string,
+    @Body() dto: UpdatePublisherDto,
+  ) {
+    return this.libraryService.updatePublisher(schoolId, id, dto);
+  }
+
   @Get('locations')
   getLocations(@ActiveSchool() schoolId: string) {
     return this.libraryService.findLocations(schoolId);
@@ -161,5 +195,15 @@ export class LibraryController {
   @Post('locations')
   createLocation(@ActiveSchool() schoolId: string, @Body() dto: CreateLocationDto) {
     return this.libraryService.createLocation(schoolId, dto);
+  }
+
+  @Roles('LIBRARIAN', 'SCHOOL_ADMIN')
+  @Patch('locations/:id')
+  updateLocation(
+    @ActiveSchool() schoolId: string,
+    @Param('id') id: string,
+    @Body() dto: UpdateLocationDto,
+  ) {
+    return this.libraryService.updateLocation(schoolId, id, dto);
   }
 }

@@ -1,4 +1,5 @@
 'use client';
+import { showFeedback } from '@/components/layout/global-feedback';
 
 import { Select } from '@/components/ui/input';
 import React, { useEffect, useState } from 'react';
@@ -49,7 +50,7 @@ export default function SchoolSettingsPage() {
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
     } catch (err) {
-      alert('Failed to save settings');
+      showFeedback('ERROR', 'Failed to save settings');
     } finally {
       setSaving(false);
     }

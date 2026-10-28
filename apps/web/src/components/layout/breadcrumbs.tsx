@@ -34,7 +34,7 @@ export function Breadcrumbs() {
     >
       <Link
         href={homeHref}
-        className="flex shrink-0 items-center gap-1.5 rounded-md px-1.5 py-1 transition-colors hover:bg-sage-100 hover:text-forest-800"
+        className="flex min-h-8 min-w-8 shrink-0 items-center justify-center gap-1.5 rounded-md px-1.5 py-1.5 transition-colors hover:bg-sage-100 hover:text-forest-800"
       >
         <Home size={13} />
         <span className="hidden sm:inline">Home</span>

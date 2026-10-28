@@ -1,17 +1,14 @@
-'use client';
+﻿'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { apiFetch } from '@/lib/api/client';
 import {
   History,
   Search,
-  Filter,
   ArrowUpRight,
   ArrowDownLeft,
   Loader2,
-  Calendar,
-  FileText,
-  CreditCard,
   RefreshCcw,
   ShieldCheck,
   Tag
@@ -21,6 +18,8 @@ export default function LedgerPage() {
   const [entries, setEntries] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [direction, setDirection] = useState('');
+  const [error, setError] = useState('');
 
   useEffect(() => {
     loadLedger();
@@ -28,15 +27,33 @@ export default function LedgerPage() {
 
   async function loadLedger() {
     setLoading(true);
+    setError('');
     try {
       const data = await apiFetch('/finance/ledger');
-      setEntries(data);
-    } catch (err) {
-      console.error(err);
+      setEntries(Array.isArray(data) ? data : []);
+    } catch (err: any) {
+      setEntries([]);
+      setError(err?.message || 'Could not load ledger entries.');
     } finally {
       setLoading(false);
     }
   }
+
+  const visible = useMemo(() => {
+    const needle = search.trim().toLowerCase();
+    return entries.filter((entry) => {
+      if (direction && entry.direction !== direction) return false;
+      if (!needle) return true;
+      return (
+        String(entry.transactionType ?? '').toLowerCase().includes(needle) ||
+        String(entry.description ?? '').toLowerCase().includes(needle) ||
+        String(entry.referenceType ?? '').toLowerCase().includes(needle) ||
+        `${entry.student?.firstName ?? ''} ${entry.student?.lastName ?? ''}`
+          .toLowerCase()
+          .includes(needle)
+      );
+    });
+  }, [entries, search, direction]);
 
   return (
     <div className="p-8 space-y-10">
@@ -51,9 +68,9 @@ export default function LedgerPage() {
            <button onClick={loadLedger} className="p-3 bg-card border border-warm-200 rounded-2xl text-warm-500 hover:text-forest-700 transition-all shadow-sm">
              <RefreshCcw size={18} className={loading ? 'animate-spin' : ''} />
            </button>
-           <button className="bg-charcoal-900 text-white px-8 py-3 rounded-2xl font-semibold text-[11px] uppercase tracking-wide hover:bg-charcoal-950 shadow-xs transition-all flex items-center gap-2">
+           <Link href="/dashboard/activity" className="bg-charcoal-900 text-white px-8 py-3 rounded-2xl font-semibold text-[11px] uppercase tracking-wide hover:bg-charcoal-950 shadow-xs transition-all flex items-center gap-2">
              <ShieldCheck size={16} /> Audit Trail
-           </button>
+           </Link>
         </div>
       </div>
 
@@ -69,10 +86,23 @@ export default function LedgerPage() {
                 onChange={(e) => setSearch(e.target.value)}
               />
            </div>
-           <button className="p-3 bg-card border border-warm-200 rounded-2xl text-warm-500 shadow-sm flex items-center gap-2 font-bold text-xs">
-              <Filter size={18}/> Filters
-           </button>
+           <select
+             aria-label="Filter ledger entries by direction"
+             value={direction}
+             onChange={(e) => setDirection(e.target.value)}
+             className="p-3 bg-card border border-warm-200 rounded-2xl text-[11px] font-bold uppercase tracking-wide text-warm-500 shadow-sm focus:border-forest-600 focus:outline-none"
+           >
+             <option value="">All entries</option>
+             <option value="DEBIT">Debits</option>
+             <option value="CREDIT">Credits</option>
+           </select>
         </div>
+
+        {error && (
+          <div role="alert" className="border-b border-danger-200 bg-danger-50 px-6 py-3 text-xs font-semibold text-danger-700">
+            {error}
+          </div>
+        )}
 
         <div className="relative min-h-[500px]">
            {loading && (
@@ -93,7 +123,7 @@ export default function LedgerPage() {
                </tr>
              </thead>
              <tbody className="divide-y divide-warm-100 bg-card">
-               {entries.map((entry) => (
+               {visible.map((entry) => (
                  <tr key={entry.id} className="hover:bg-ivory-50/50 transition-colors group">
                     <td className="px-8 py-6">
                        <div className="flex items-center gap-4">
@@ -121,12 +151,12 @@ export default function LedgerPage() {
                     </td>
                     <td className="px-8 py-6 text-right">
                        <span className={`text-sm font-semibold ${entry.direction === 'DEBIT' ? 'text-danger-600' : 'text-warm-300'}`}>
-                          {entry.direction === 'DEBIT' ? `${entry.currency} ${parseFloat(entry.amount).toLocaleString()}` : '—'}
+                          {entry.direction === 'DEBIT' ? `${entry.currency} ${parseFloat(entry.amount).toLocaleString()}` : 'â€”'}
                        </span>
                     </td>
                     <td className="px-8 py-6 text-right">
                        <span className={`text-sm font-semibold ${entry.direction === 'CREDIT' ? 'text-success-600' : 'text-warm-300'}`}>
-                          {entry.direction === 'CREDIT' ? `${entry.currency} ${parseFloat(entry.amount).toLocaleString()}` : '—'}
+                          {entry.direction === 'CREDIT' ? `${entry.currency} ${parseFloat(entry.amount).toLocaleString()}` : 'â€”'}
                        </span>
                     </td>
                     <td className="px-8 py-6 text-right">
@@ -137,11 +167,11 @@ export default function LedgerPage() {
                     </td>
                  </tr>
                ))}
-               {entries.length === 0 && !loading && (
+               {visible.length === 0 && !loading && (
                  <tr>
                     <td colSpan={6} className="px-8 py-20 text-center">
                        <History className="mx-auto text-warm-200 mb-4" size={64} />
-                       <p className="text-warm-400 font-bold text-lg uppercase tracking-wide">No ledger entries found</p>
+                       <p className="text-warm-400 font-bold text-lg uppercase tracking-wide">{entries.length === 0 ? 'No ledger entries found' : 'No entries match this filter'}</p>
                     </td>
                  </tr>
                )}

@@ -135,3 +135,47 @@ export class CreateLocationDto {
   @IsOptional()
   description?: string;
 }
+
+export class UpdateCategoryDto {
+  @IsString()
+  @IsOptional()
+  name?: string;
+
+  @IsString()
+  @IsOptional()
+  code?: string;
+
+  @IsString()
+  @IsOptional()
+  description?: string;
+}
+
+export class UpdateAuthorDto {
+  @IsString()
+  @IsOptional()
+  name?: string;
+
+  @IsString()
+  @IsOptional()
+  biography?: string;
+}
+
+export class UpdatePublisherDto {
+  @IsString()
+  @IsOptional()
+  name?: string;
+
+  @IsString()
+  @IsOptional()
+  website?: string;
+}
+
+export class UpdateLocationDto {
+  @IsString()
+  @IsOptional()
+  name?: string;
+
+  @IsString()
+  @IsOptional()
+  description?: string;
+}

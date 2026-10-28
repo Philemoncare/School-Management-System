@@ -1,4 +1,5 @@
 'use client';
+import { showFeedback } from '@/components/layout/global-feedback';
 
 import { Select } from '@/components/ui/input';
 import React, { useEffect, useState } from 'react';
@@ -33,8 +34,8 @@ export default function StudentPromotionPage() {
 
   useEffect(() => {
     Promise.all([
-      apiFetch('/academics/classes'),
-      apiFetch('/academics/academic-years')
+      apiFetch('/classes'),
+      apiFetch('/academic-years')
     ]).then(([classesData, yearsData]) => {
       setClasses(classesData);
       setYears(yearsData);
@@ -56,7 +57,7 @@ export default function StudentPromotionPage() {
   }
 
   async function handlePromote(studentId: string) {
-    if (!form.toClassId || !form.toAcademicYearId) return alert('Select target year and class');
+    if (!form.toClassId || !form.toAcademicYearId) return showFeedback('ERROR', 'Select target year and class');
     setSubmitting(true);
     try {
       await apiFetch(`/classes/${form.toClassId}/promote`, {
@@ -71,7 +72,7 @@ export default function StudentPromotionPage() {
       await loadStudents();
     } catch (err) {
       console.error(err);
-      alert('Promotion failed');
+      showFeedback('ERROR', 'Promotion failed');
     } finally {
       setSubmitting(false);
     }

@@ -11,6 +11,19 @@ interface FeedbackMessage {
   message: string;
 }
 
+const FEEDBACK_EVENT = "schoolma:feedback";
+
+/**
+ * Show a transient in-app notification. Pages use this instead of window.alert
+ * so success and failure feedback is consistent, dismissible, and accessible.
+ */
+export function showFeedback(type: FeedbackType, message: string) {
+  if (typeof window === "undefined" || !message) return;
+  window.dispatchEvent(
+    new CustomEvent(FEEDBACK_EVENT, { detail: { type, message } }),
+  );
+}
+
 export function GlobalFeedback() {
   const [messages, setMessages] = useState<FeedbackMessage[]>([]);
   const [isOffline, setIsOffline] = useState(false);
@@ -23,13 +36,20 @@ export function GlobalFeedback() {
     const handleOffline = () => {
       setIsOffline(true);
     };
+    const handleFeedback = (event: Event) => {
+      const detail = (event as CustomEvent<{ type?: FeedbackType; message?: string }>).detail;
+      if (!detail?.message) return;
+      addMessage(detail.type || "INFO", detail.message);
+    };
 
     window.addEventListener("online", handleOnline);
     window.addEventListener("offline", handleOffline);
+    window.addEventListener(FEEDBACK_EVENT, handleFeedback);
 
     return () => {
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
+      window.removeEventListener(FEEDBACK_EVENT, handleFeedback);
     };
   }, []);
 

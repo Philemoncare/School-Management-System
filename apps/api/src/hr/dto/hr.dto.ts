@@ -38,6 +38,42 @@ export class CreatePositionDto {
   departmentId?: string;
 }
 
+export class UpdateDepartmentDto {
+  @IsString()
+  @IsOptional()
+  name?: string;
+
+  @IsString()
+  @IsOptional()
+  code?: string;
+
+  @IsString()
+  @IsOptional()
+  description?: string;
+
+  @IsUUID()
+  @IsOptional()
+  headStaffId?: string;
+
+  @IsUUID()
+  @IsOptional()
+  headTeacherId?: string;
+}
+
+export class UpdatePositionDto {
+  @IsString()
+  @IsOptional()
+  name?: string;
+
+  @IsString()
+  @IsOptional()
+  description?: string;
+
+  @IsUUID()
+  @IsOptional()
+  departmentId?: string;
+}
+
 export class CreateEmploymentRecordDto {
   @IsUUID()
   @IsOptional()

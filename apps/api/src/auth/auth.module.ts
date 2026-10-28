@@ -4,6 +4,7 @@ import { AuthController } from './auth.controller';
 import { EmailOtpService } from './email-otp.service';
 import { SchoolRegistrationService } from './school-registration.service';
 import { UsersController } from './users.controller';
+import { InvitationsController } from './invitations.controller';
 import { PassportModule } from '@nestjs/passport';
 import { JwtModule } from '@nestjs/jwt';
 import { LocalStrategy } from './strategies/local.strategy';
@@ -33,7 +34,7 @@ function getJwtSecret(): string {
     LocalStrategy,
     JwtStrategy,
   ],
-  controllers: [AuthController, UsersController],
+  controllers: [AuthController, UsersController, InvitationsController],
   exports: [AuthService],
 })
 export class AuthModule {}

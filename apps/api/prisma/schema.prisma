@@ -813,8 +813,8 @@ model GradingScale {
 
 model GradeBand {
   id                String       @id @default(uuid())
-  gradingScaleId    String       @map("school_id")
-  gradepoint        Float?       @map("grade_point")
+  gradingScaleId    String       @map("grading_scale_id")
+  gradePoint        Float?       @map("grade_point")
   minimumPercentage Float        @map("minimum_percentage")
   maximumPercentage Float        @map("maximum_percentage")
   grade             String
@@ -3702,7 +3702,7 @@ model InventoryItem {
   schoolId             String                @map("school_id")
   categoryId           String                @map("category_id")
   name                 String
-  code                 String                @unique
+  code                 String
   description          String?
   unitOfMeasure        String                @map("unit_of_measure")
   itemType             InventoryItemType     @default(CONSUMABLE) @map("item_type")
@@ -5452,3 +5452,162 @@ enum HealthSeverity {
   UNKNOWN
 }
 
+
+// ---------------------------------------------------------------------------
+// Front office
+// These records used to live in an in-memory map inside the API process, so
+// every restart lost visitors, appointments and deliveries. They are persisted
+// here so the receptionist desk reads and writes real school data.
+// ---------------------------------------------------------------------------
+
+model Visitor {
+  id                   String         @id @default(uuid())
+  schoolId             String         @map("school_id")
+  fullName             String         @map("full_name")
+  phone                String?
+  email                String?
+  organization         String?
+  visitorType          String         @default("General") @map("visitor_type")
+  identificationType   String?        @map("identification_type")
+  identificationNumber String?        @map("identification_number")
+  notes                String?
+  createdAt            DateTime       @default(now()) @map("created_at")
+  updatedAt            DateTime       @updatedAt @map("updated_at")
+  visits               VisitorVisit[]
+
+  @@index([schoolId])
+  @@map("visitors")
+}
+
+model VisitorVisit {
+  id            String    @id @default(uuid())
+  schoolId      String    @map("school_id")
+  visitorId     String    @map("visitor_id")
+  purpose       String?
+  hostName      String?   @map("host_name")
+  hostStaffId   String?   @map("host_staff_id")
+  badgeNumber   String?   @map("badge_number")
+  status        String    @default("CHECKED_IN")
+  checkInAt     DateTime  @default(now()) @map("check_in_at")
+  checkOutAt    DateTime? @map("check_out_at")
+  notes         String?
+  checkedInBy   String?   @map("checked_in_by")
+  checkedOutBy  String?   @map("checked_out_by")
+  visitor       Visitor   @relation(fields: [visitorId], references: [id], onDelete: Cascade)
+
+  @@index([schoolId, status])
+  @@index([visitorId])
+  @@map("visitor_visits")
+}
+
+model FrontDeskAppointment {
+  id          String   @id @default(uuid())
+  schoolId    String   @map("school_id")
+  visitorName String   @map("visitor_name")
+  phone       String?
+  email       String?
+  hostName    String?  @map("host_name")
+  purpose     String?
+  scheduledAt DateTime @map("scheduled_at")
+  status      String   @default("CONFIRMED")
+  location    String?
+  notes       String?
+  createdBy   String?  @map("created_by")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([schoolId, scheduledAt])
+  @@map("front_desk_appointments")
+}
+
+model FrontDeskEnquiry {
+  id              String    @id @default(uuid())
+  schoolId        String    @map("school_id")
+  referenceNumber String    @map("reference_number")
+  visitorName     String    @map("visitor_name")
+  phone           String?
+  email           String?
+  category        String    @default("General")
+  subject         String
+  description     String?
+  status          String    @default("NEW")
+  resolution      String?
+  resolvedAt      DateTime? @map("resolved_at")
+  resolvedBy      String?   @map("resolved_by")
+  createdBy       String?   @map("created_by")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@index([schoolId, status])
+  @@map("front_desk_enquiries")
+}
+
+model StudentCheckout {
+  id           String   @id @default(uuid())
+  schoolId     String   @map("school_id")
+  studentId    String   @map("student_id")
+  guardianName String   @map("guardian_name")
+  relationship String?
+  reason       String
+  status       String   @default("COMPLETED")
+  checkedOutAt DateTime @default(now()) @map("checked_out_at")
+  notes        String?
+  processedBy  String?  @map("processed_by")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([schoolId, checkedOutAt])
+  @@index([studentId])
+  @@map("student_checkouts")
+}
+
+model LateArrival {
+  id          String   @id @default(uuid())
+  schoolId    String   @map("school_id")
+  studentId   String   @map("student_id")
+  arrivalTime DateTime @default(now()) @map("arrival_time")
+  reason      String   @default("Delayed")
+  notes       String?
+  recordedBy  String?  @map("recorded_by")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([schoolId, arrivalTime])
+  @@index([studentId])
+  @@map("late_arrivals")
+}
+
+model Delivery {
+  id              String    @id @default(uuid())
+  schoolId        String    @map("school_id")
+  courierCompany  String?   @map("courier_company")
+  recipientName   String    @map("recipient_name")
+  referenceNumber String?   @map("reference_number")
+  description     String?
+  status          String    @default("RECEIVED")
+  receivedAt      DateTime  @default(now()) @map("received_at")
+  collectedAt     DateTime? @map("collected_at")
+  collectedBy     String?   @map("collected_by")
+  notes           String?
+  receivedBy      String?   @map("received_by")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  @@index([schoolId, status])
+  @@map("deliveries")
+}
+
+model LostFoundItem {
+  id            String    @id @default(uuid())
+  schoolId      String    @map("school_id")
+  itemName      String    @map("item_name")
+  category      String    @default("General")
+  foundLocation String?   @map("found_location")
+  description   String?
+  status        String    @default("STORED")
+  foundAt       DateTime  @default(now()) @map("found_at")
+  claimantName  String?   @map("claimant_name")
+  claimedAt     DateTime? @map("claimed_at")
+  recordedBy    String?   @map("recorded_by")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  @@index([schoolId, status])
+  @@map("lost_found_items")
+}

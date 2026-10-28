@@ -24,8 +24,46 @@ export class PromotionService {
   }, actorId: string) {
     const { studentId, fromAcademicYearId, toAcademicYearId, toClassId, toSectionId } = params;
 
+    if (fromAcademicYearId === toAcademicYearId) {
+      throw new BadRequestException('The destination academic year must be different.');
+    }
+
+    const [student, fromYear, toYear, toClass] = await Promise.all([
+      this.prisma.student.findFirst({ where: { id: studentId, schoolId }, select: { id: true } }),
+      this.prisma.academicYear.findFirst({
+        where: { id: fromAcademicYearId, schoolId },
+        select: { id: true },
+      }),
+      this.prisma.academicYear.findFirst({
+        where: { id: toAcademicYearId, schoolId },
+        select: { id: true },
+      }),
+      this.prisma.class.findFirst({
+        where: { id: toClassId, schoolId },
+        select: { id: true },
+      }),
+    ]);
+
+    if (!student) throw new NotFoundException('Student not found in this school');
+    if (!fromYear) throw new NotFoundException('Current academic year not found');
+    if (!toYear) throw new NotFoundException('Destination academic year not found');
+    if (!toClass) throw new NotFoundException('Destination class not found');
+
+    if (toSectionId) {
+      const section = await this.prisma.section.findFirst({
+        where: { id: toSectionId, classId: toClassId },
+        select: { id: true },
+      });
+      if (!section) throw new NotFoundException('Destination section does not belong to the class');
+    }
+
     const currentEnrollment = await this.prisma.enrollment.findFirst({
-      where: { studentId, academicYearId: fromAcademicYearId, status: EnrollmentStatus.ACTIVE }
+      where: {
+        studentId,
+        schoolId,
+        academicYearId: fromAcademicYearId,
+        status: EnrollmentStatus.ACTIVE,
+      },
     });
 
     if (!currentEnrollment) throw new NotFoundException('Active enrollment for current year not found');

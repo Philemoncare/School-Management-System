@@ -50,6 +50,22 @@ export class AttendanceController {
   }
 
   @Roles('SCHOOL_ADMIN', 'PRINCIPAL', 'TEACHER')
+  @Get('eligible-students')
+  getEligibleStudentsForClass(
+    @ActiveSchool() schoolId: string,
+    @Query('classId') classId: string,
+    @Query('sectionId') sectionId?: string,
+    @Query('academicYearId') academicYearId?: string,
+  ) {
+    return this.attendanceService.getEligibleStudentsForClass(
+      schoolId,
+      classId,
+      sectionId || undefined,
+      academicYearId || undefined,
+    );
+  }
+
+  @Roles('SCHOOL_ADMIN', 'PRINCIPAL', 'TEACHER')
   @Get('sessions/:id/eligible-students')
   getEligibleStudents(
     @ActiveSchool() schoolId: string,

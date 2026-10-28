@@ -3,7 +3,9 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import {
   CreateDepartmentDto,
+  UpdateDepartmentDto,
   CreatePositionDto,
+  UpdatePositionDto,
   CreateEmploymentRecordDto,
   CreateLeaveTypeDto,
   CreateLeaveRequestDto,
@@ -73,29 +75,205 @@ export class HRService {
 
   // Departments & Positions
   async createDepartment(schoolId: string, dto: CreateDepartmentDto) {
+    const name = dto.name?.trim();
+    const code = dto.code?.trim().toUpperCase();
+    if (!name || !code) {
+      throw new BadRequestException('Department name and code are required.');
+    }
+    if (!/^[A-Z0-9-]{2,12}$/.test(code)) {
+      throw new BadRequestException(
+        'Department code must be 2–12 characters using letters, numbers or hyphens.',
+      );
+    }
+
+    const duplicate = await this.prisma.department.findFirst({
+      where: { schoolId, code },
+      select: { id: true },
+    });
+    if (duplicate) {
+      throw new ConflictException('A department with this code already exists.');
+    }
+
+    await this.assertDepartmentHeads(schoolId, dto.headStaffId, dto.headTeacherId);
+
     return this.prisma.department.create({
-      data: { ...dto, schoolId }
+      data: {
+        schoolId,
+        name,
+        code,
+        description: dto.description?.trim() || null,
+        headStaffId: dto.headStaffId || null,
+        headTeacherId: dto.headTeacherId || null,
+      },
+      include: {
+        headStaff: { select: { firstName: true, lastName: true } },
+        headTeacher: { select: { firstName: true, lastName: true } },
+      },
     });
   }
 
   async findAllDepartments(schoolId: string) {
     return this.prisma.department.findMany({
       where: { schoolId },
-      include: { headStaff: true, headTeacher: true }
+      include: {
+        headStaff: { select: { id: true, firstName: true, lastName: true } },
+        headTeacher: { select: { id: true, firstName: true, lastName: true } },
+        _count: { select: { staff: true, teachers: true, positions: true } },
+      },
+      orderBy: { name: 'asc' },
+    });
+  }
+
+  async updateDepartment(schoolId: string, id: string, dto: UpdateDepartmentDto) {
+    const department = await this.prisma.department.findFirst({ where: { id, schoolId } });
+    if (!department) throw new NotFoundException('Department not found.');
+
+    if (dto.name !== undefined && !dto.name.trim()) {
+      throw new BadRequestException('Department name cannot be empty.');
+    }
+
+    const code = dto.code === undefined ? undefined : dto.code.trim().toUpperCase();
+    if (code && !/^[A-Z0-9-]{2,12}$/.test(code)) {
+      throw new BadRequestException(
+        'Department code must be 2–12 characters using letters, numbers or hyphens.',
+      );
+    }
+    if (code && code !== department.code) {
+      const duplicate = await this.prisma.department.findFirst({
+        where: { schoolId, code, NOT: { id } },
+        select: { id: true },
+      });
+      if (duplicate) {
+        throw new ConflictException('A department with this code already exists.');
+      }
+    }
+
+    await this.assertDepartmentHeads(
+      schoolId,
+      dto.headStaffId ?? undefined,
+      dto.headTeacherId ?? undefined,
+    );
+
+    return this.prisma.department.update({
+      where: { id },
+      data: {
+        ...(dto.name !== undefined ? { name: dto.name.trim() } : {}),
+        ...(code ? { code } : {}),
+        ...(dto.description !== undefined
+          ? { description: dto.description?.trim() || null }
+          : {}),
+        ...(dto.headStaffId !== undefined ? { headStaffId: dto.headStaffId || null } : {}),
+        ...(dto.headTeacherId !== undefined ? { headTeacherId: dto.headTeacherId || null } : {}),
+      },
+      include: {
+        headStaff: { select: { firstName: true, lastName: true } },
+        headTeacher: { select: { firstName: true, lastName: true } },
+      },
     });
   }
 
   async createPosition(schoolId: string, dto: CreatePositionDto) {
+    const name = dto.name?.trim();
+    if (!name) throw new BadRequestException('Position name is required.');
+
+    const duplicate = await this.prisma.position.findFirst({
+      where: { schoolId, name },
+      select: { id: true },
+    });
+    if (duplicate) throw new ConflictException('A position with this name already exists.');
+
+    if (dto.departmentId) {
+      const department = await this.prisma.department.findFirst({
+        where: { id: dto.departmentId, schoolId },
+        select: { id: true },
+      });
+      if (!department) {
+        throw new NotFoundException('Department not found in this school.');
+      }
+    }
+
     return this.prisma.position.create({
-      data: { ...dto, schoolId }
+      data: {
+        schoolId,
+        name,
+        description: dto.description?.trim() || null,
+        departmentId: dto.departmentId || null,
+      },
+      include: { department: true },
     });
   }
 
   async findAllPositions(schoolId: string) {
     return this.prisma.position.findMany({
       where: { schoolId },
-      include: { department: true }
+      include: {
+        department: true,
+        _count: { select: { staff: true, teachers: true } },
+      },
+      orderBy: { name: 'asc' },
     });
+  }
+
+  async updatePosition(schoolId: string, id: string, dto: UpdatePositionDto) {
+    const position = await this.prisma.position.findFirst({ where: { id, schoolId } });
+    if (!position) throw new NotFoundException('Position not found.');
+
+    const name = dto.name === undefined ? undefined : dto.name.trim();
+    if (name !== undefined && !name) {
+      throw new BadRequestException('Position name cannot be empty.');
+    }
+    if (name && name !== position.name) {
+      const duplicate = await this.prisma.position.findFirst({
+        where: { schoolId, name, NOT: { id } },
+        select: { id: true },
+      });
+      if (duplicate) throw new ConflictException('A position with this name already exists.');
+    }
+
+    if (dto.departmentId) {
+      const department = await this.prisma.department.findFirst({
+        where: { id: dto.departmentId, schoolId },
+        select: { id: true },
+      });
+      if (!department) {
+        throw new NotFoundException('Department not found in this school.');
+      }
+    }
+
+    return this.prisma.position.update({
+      where: { id },
+      data: {
+        ...(name ? { name } : {}),
+        ...(dto.description !== undefined
+          ? { description: dto.description?.trim() || null }
+          : {}),
+        ...(dto.departmentId !== undefined
+          ? { departmentId: dto.departmentId || null }
+          : {}),
+      },
+      include: { department: true },
+    });
+  }
+
+  private async assertDepartmentHeads(
+    schoolId: string,
+    headStaffId?: string,
+    headTeacherId?: string,
+  ) {
+    if (headStaffId) {
+      const staff = await this.prisma.staff.findFirst({
+        where: { id: headStaffId, schoolId },
+        select: { id: true },
+      });
+      if (!staff) throw new NotFoundException('Head of department staff record not found.');
+    }
+    if (headTeacherId) {
+      const teacher = await this.prisma.teacher.findFirst({
+        where: { id: headTeacherId, schoolId },
+        select: { id: true },
+      });
+      if (!teacher) throw new NotFoundException('Head of department teacher record not found.');
+    }
   }
 
   // Staff Directory (Combined Staff & Teachers)
@@ -294,9 +472,58 @@ export class HRService {
     });
   }
 
+  async rejectLeave(schoolId: string, requestId: string, actorId: string, comments?: string) {
+    const request = await this.prisma.leaveRequest.findUnique({
+      where: { id: requestId },
+      include: { leaveType: true }
+    });
+
+    if (!request || request.schoolId !== schoolId) throw new NotFoundException('Leave request not found');
+    if (request.status !== LeaveRequestStatus.PENDING_APPROVAL)
+      throw new BadRequestException('Request is already processed');
+
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.leaveRequest.update({
+        where: { id: requestId },
+        data: {
+          status: LeaveRequestStatus.REJECTED,
+          approvedById: actorId,
+          approvedAt: new Date(),
+          comments: comments || request.comments
+        }
+      });
+
+      // Release the days that were reserved while the request was pending.
+      const period = new Date(request.startDate).getFullYear().toString();
+      const balance = await tx.leaveBalance.findFirst({
+        where: {
+          staffId: request.staffId,
+          teacherId: request.teacherId,
+          leaveTypeId: request.leaveTypeId,
+          period
+        }
+      });
+
+      if (balance && balance.pendingDays >= request.totalDays) {
+        await tx.leaveBalance.update({
+          where: { id: balance.id },
+          data: { pendingDays: { decrement: request.totalDays } }
+        });
+      }
+
+      return updated;
+    });
+  }
+
   async findAllLeaveRequests(schoolId: string, filters: any = {}) {
+    const where: any = { schoolId };
+    if (filters.status) where.status = filters.status;
+    if (filters.staffId) where.staffId = filters.staffId;
+    if (filters.teacherId) where.teacherId = filters.teacherId;
+    if (filters.leaveTypeId) where.leaveTypeId = filters.leaveTypeId;
+
     return this.prisma.leaveRequest.findMany({
-      where: { ...filters, schoolId },
+      where,
       include: {
         staff: true,
         teacher: true,
@@ -331,15 +558,141 @@ export class HRService {
 
   // Documents
   async uploadDocument(schoolId: string, dto: CreateStaffDocumentDto, actorId: string) {
+    if (!dto.staffId && !dto.teacherId) {
+      throw new BadRequestException('Select the staff member this document belongs to.');
+    }
+    if (dto.staffId) {
+      const staff = await this.prisma.staff.findFirst({
+        where: { id: dto.staffId, schoolId },
+        select: { id: true },
+      });
+      if (!staff) throw new BadRequestException('Staff member not found in this school.');
+    }
+    if (dto.teacherId) {
+      const teacher = await this.prisma.teacher.findFirst({
+        where: { id: dto.teacherId, schoolId },
+        select: { id: true },
+      });
+      if (!teacher) throw new BadRequestException('Teacher not found in this school.');
+    }
+
     return this.prisma.staffDocument.create({
-      data: { ...dto, uploadedById: actorId }
+      data: {
+        staffId: dto.staffId ?? null,
+        teacherId: dto.teacherId ?? null,
+        documentType: dto.documentType.trim(),
+        title: dto.title.trim(),
+        fileUrl: dto.fileUrl.trim(),
+        storageKey: dto.storageKey.trim(),
+        expiryDate: dto.expiryDate ?? null,
+        uploadedById: actorId,
+      },
     });
   }
 
-  async getStaffDocuments(staffId?: string, teacherId?: string) {
+  async getStaffDocuments(schoolId: string, staffId?: string, teacherId?: string) {
+    if (!staffId && !teacherId) {
+      throw new BadRequestException('A staff or teacher id is required.');
+    }
+    if (staffId) {
+      const staff = await this.prisma.staff.findFirst({
+        where: { id: staffId, schoolId },
+        select: { id: true },
+      });
+      if (!staff) throw new NotFoundException('Staff member not found.');
+    }
+    if (teacherId) {
+      const teacher = await this.prisma.teacher.findFirst({
+        where: { id: teacherId, schoolId },
+        select: { id: true },
+      });
+      if (!teacher) throw new NotFoundException('Teacher not found.');
+    }
+
     return this.prisma.staffDocument.findMany({
-      where: { staffId, teacherId },
-      orderBy: { createdAt: 'desc' }
+      where: {
+        ...(staffId ? { staffId } : {}),
+        ...(teacherId ? { teacherId } : {}),
+      },
+      orderBy: { createdAt: 'desc' },
     });
+  }
+
+  async getStaffProfile(schoolId: string, id: string) {
+    const staff = await this.prisma.staff.findFirst({
+      where: { id, schoolId },
+      include: {
+        department: true,
+        position: true,
+        user: { select: { id: true, email: true, phone: true, isActive: true } },
+      },
+    });
+    const teacher = staff
+      ? null
+      : await this.prisma.teacher.findFirst({
+          where: { id, schoolId },
+          include: {
+            department: true,
+            position: true,
+            user: { select: { id: true, email: true, phone: true, isActive: true } },
+          },
+        });
+
+    if (!staff && !teacher) {
+      throw new NotFoundException('Staff member not found.');
+    }
+
+    const entityType = staff ? 'STAFF' : 'TEACHER';
+    const scope = staff ? { staffId: staff.id } : { teacherId: teacher!.id };
+
+    const [qualifications, documents, attendance, leaveRequests, leaveBalances] = await Promise.all([
+      this.prisma.staffQualification.findMany({
+        where: scope,
+        orderBy: { startDate: 'desc' },
+      }),
+      this.prisma.staffDocument.findMany({
+        where: scope,
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.staffAttendance.findMany({
+        where: { schoolId, ...scope },
+        orderBy: { date: 'desc' },
+        take: 60,
+      }),
+      this.prisma.leaveRequest.findMany({
+        where: { schoolId, ...scope },
+        include: { leaveType: true },
+        orderBy: { startDate: 'desc' },
+      }),
+      this.prisma.leaveBalance.findMany({
+        where: scope,
+        include: { leaveType: true },
+        orderBy: { period: 'desc' },
+      }),
+    ]);
+
+    const presentDays = attendance.filter((record) =>
+      ['PRESENT', 'LATE', 'REMOTE', 'HALF_DAY'].includes(String(record.status)),
+    ).length;
+    const attendanceRate = attendance.length
+      ? Math.round((presentDays / attendance.length) * 1000) / 10
+      : null;
+
+    return {
+      entityType,
+      profile: staff ?? teacher,
+      qualifications,
+      documents,
+      attendance,
+      leaveRequests,
+      leaveBalances,
+      summary: {
+        attendanceRate,
+        attendanceRecords: attendance.length,
+        entitledDays: leaveBalances.reduce((total, balance) => total + Number(balance.entitledDays ?? 0), 0),
+        usedDays: leaveBalances.reduce((total, balance) => total + Number(balance.usedDays ?? 0), 0),
+        pendingLeaveRequests: leaveRequests.filter((request) => request.status === 'PENDING_APPROVAL').length,
+      },
+    };
   }
 }

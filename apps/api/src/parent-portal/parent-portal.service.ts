@@ -16,6 +16,14 @@ export class ParentPortalService {
       return {
         guardian: await this.prisma.guardian.findUnique({ where: { userId } }),
         students: [],
+        activeStudentId: null,
+        summary: {
+          attendance: {},
+          upcomingAssessments: [],
+          recentResults: [],
+          outstandingFees: 0,
+          timetable: [],
+        },
         announcements: await this.getAnnouncements(schoolId, []),
         notifications: await this.getNotifications(userId, schoolId),
       };

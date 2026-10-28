@@ -91,6 +91,8 @@ export class AllExceptionsFilter implements ExceptionFilter {
         code = 'CONFLICT';
       } else if (status === HttpStatus.TOO_MANY_REQUESTS) {
         code = 'RATE_LIMITED';
+        message =
+          'Too many attempts from this network. Please wait about a minute and try again.';
       } else if (status === HttpStatus.SERVICE_UNAVAILABLE) {
         code = 'SERVICE_UNAVAILABLE';
       } else if (status >= 500) {

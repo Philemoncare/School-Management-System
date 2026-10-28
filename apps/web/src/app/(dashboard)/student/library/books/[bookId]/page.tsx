@@ -1,4 +1,5 @@
 'use client';
+import { showFeedback } from '@/components/layout/global-feedback';
 
 import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
@@ -50,9 +51,9 @@ export default function StudentBookDetailPage() {
         method: 'POST',
         body: JSON.stringify({ bookId })
       });
-      alert('Book reserved successfully. You will be notified when it is ready for pickup.');
+      showFeedback('SUCCESS', 'Book reserved successfully. You will be notified when it is ready for pickup.');
     } catch (err) {
-      alert('Failed to reserve book');
+      showFeedback('ERROR', 'Failed to reserve book');
     } finally {
       setReserving(false);
     }

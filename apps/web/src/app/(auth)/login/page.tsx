@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAuth, getRoleLanding } from '@/context/auth-context';
 import {
   Mail,
@@ -27,7 +27,7 @@ type LoginChallenge = {
 };
 
 export default function LoginPage() {
-  const { login } = useAuth();
+  const { login, user, activeSchoolId } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -39,6 +39,15 @@ export default function LoginPage() {
   const [otpError, setOtpError] = useState('');
   const [resending, setResending] = useState(false);
   const otpTimer = useOtpTimer();
+
+  // The middleware no longer redirects signed-in users away from /login (it
+  // cannot verify the cookie). Do it here, once /auth/me has proven the
+  // session is valid.
+  useEffect(() => {
+    if (user && !challenge) {
+      window.location.href = getRoleLanding(user, activeSchoolId);
+    }
+  }, [user, activeSchoolId, challenge]);
 
   function completeSignIn(data: any) {
     localStorage.setItem('token', data.access_token);

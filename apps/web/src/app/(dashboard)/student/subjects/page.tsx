@@ -1,93 +1,153 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { useAuth } from '@/context/auth-context';
-import { BookOpen, User, ArrowRight, Book } from 'lucide-react';
 import Link from 'next/link';
+import { BookOpen, User, RefreshCw, AlertCircle, Lock, Inbox } from 'lucide-react';
+import { apiFetch, ApiError } from '@/lib/api/client';
+import { useAuth } from '@/context/auth-context';
+import { Button } from '@/components/ui/button';
+import { EmptyState } from '@/components/ui/empty-state';
 
 export default function StudentSubjects() {
   const { activeSchoolId } = useAuth();
   const [subjects, setSubjects] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [denied, setDenied] = useState(false);
+
+  async function load() {
+    if (!activeSchoolId) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    setDenied(false);
+    try {
+      const data = await apiFetch('/student/subjects');
+      setSubjects(Array.isArray(data) ? data : []);
+    } catch (err) {
+      setSubjects([]);
+      if (err instanceof ApiError && err.isPermissionDenied()) {
+        setDenied(true);
+      } else {
+        setError(err instanceof Error ? err.message : 'Could not load your subjects.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
-    async function fetchSubjects() {
-      if (!activeSchoolId) return;
-      try {
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/student/subjects`, {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`,
-            'x-school-id': activeSchoolId,
-          },
-        });
-        const data = await response.json();
-        setSubjects(data);
-      } catch (error) {
-        console.error('Failed to fetch subjects:', error);
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchSubjects();
+    load();
   }, [activeSchoolId]);
 
-  if (loading) return <div className="p-8 text-center text-warm-500 font-bold text-xs uppercase tracking-wider">Loading your curriculum...</div>;
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center gap-2 py-20 text-xs font-semibold text-warm-500">
+        <RefreshCw size={16} className="animate-spin" /> Loading your curriculum…
+      </div>
+    );
+  }
+
+  if (denied) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-charcoal-900">My Subjects</h1>
+          <p className="text-sm font-medium text-warm-500">Overview of your enrolled courses and assigned teachers.</p>
+        </div>
+        <EmptyState
+          title="Student portal access only"
+          description="You are signed in with a staff account. These pages belong to the student portal and are available to learners with a student profile."
+          icon={<Lock className="h-8 w-8" />}
+          actionButton={
+            <Link href="/dashboard">
+              <Button variant="primary" size="sm">Back to Dashboard</Button>
+            </Link>
+          }
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-charcoal-900 tracking-tight">My Subjects</h1>
-        <p className="text-warm-500 text-sm font-medium">Overview of your enrolled courses and assigned teachers.</p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-charcoal-900">My Subjects</h1>
+          <p className="text-sm font-medium text-warm-500">Overview of your enrolled courses and assigned teachers.</p>
+        </div>
+        <Button variant="outline" size="sm" onClick={load} isLoading={loading} leftIcon={<RefreshCw size={15} />}>
+          Refresh
+        </Button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {subjects.map((cs: any) => (
-          <div key={cs.id} className="bg-card rounded-3xl border border-warm-200 shadow-xs overflow-hidden hover:shadow-md transition-all group">
-            <div className="p-6">
-              <div className="flex items-start justify-between mb-4">
-                <div className="p-3 rounded-2xl bg-sage-50 text-forest-700 group-hover:bg-forest-700 group-hover:text-white transition-colors shadow-xs">
-                  <BookOpen size={24} />
-                </div>
-                <div className="text-right">
-                  <p className="text-[11px] font-semibold text-warm-400 uppercase tracking-wide leading-none mb-1">Subject Code</p>
-                  <p className="text-sm font-semibold text-charcoal-900 leading-none">{cs.subject.code}</p>
-                </div>
-              </div>
+      {error && (
+        <div role="alert" className="flex items-start gap-3 rounded-xl border border-danger-200 bg-danger-50 px-4 py-3 text-sm font-medium text-danger-800">
+          <AlertCircle size={18} className="mt-0.5 shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
 
-              <h3 className="text-xl font-bold text-charcoal-900 mb-2 group-hover:text-forest-700 transition-colors">{cs.subject.name}</h3>
-              <p className="text-sm text-warm-500 line-clamp-2 mb-6 font-medium">{cs.subject.description || 'No description available for this subject.'}</p>
-
-              <div className="space-y-3">
-                <p className="text-[11px] font-semibold text-warm-400 uppercase tracking-wide">Assigned Teachers</p>
-                {cs.subject.teacherAssignments?.length > 0 ? (
-                  cs.subject.teacherAssignments.map((ta: any) => (
-                    <div key={ta.id} className="flex items-center gap-3 bg-ivory-50 p-2 rounded-xl border border-warm-100">
-                      <div className="w-8 h-8 rounded-lg bg-card flex items-center justify-center text-warm-400 border border-warm-200">
-                        <User size={16} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-bold text-charcoal-900 truncate">{ta.teacher.firstName} {ta.teacher.lastName}</p>
-                        <p className="text-[11px] font-bold text-forest-700 uppercase tracking-wider">{ta.designation}</p>
-                      </div>
+      {subjects.length === 0 ? (
+        <EmptyState
+          title="No subjects assigned yet"
+          description="Your class subjects will appear here once the school has added you to a class and assigned subjects for the academic year."
+          icon={<Inbox className="h-8 w-8" />}
+        />
+      ) : (
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {subjects.map((cs: any) => {
+            const assignments: any[] = Array.isArray(cs?.subject?.teacherAssignments)
+              ? cs.subject.teacherAssignments
+              : [];
+            return (
+              <div key={cs.id} className="overflow-hidden rounded-2xl border border-warm-200 bg-card shadow-xs transition-all hover:shadow-md">
+                <div className="p-5 sm:p-6">
+                  <div className="mb-4 flex items-start justify-between gap-3">
+                    <div className="rounded-2xl bg-sage-50 p-3 text-forest-700 shadow-xs">
+                      <BookOpen size={24} />
                     </div>
-                  ))
-                ) : <p className="text-xs text-warm-400 font-medium italic">No teachers assigned yet.</p>}
-              </div>
-            </div>
+                    <div className="text-right">
+                      <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide leading-none text-warm-400">Subject Code</p>
+                      <p className="text-sm font-semibold leading-none text-charcoal-900">{cs.subject?.code || '—'}</p>
+                    </div>
+                  </div>
 
-            <div className="p-4 bg-ivory-50/50 border-t border-warm-100 grid grid-cols-2 gap-2">
-              <Link href={`/student/subjects/${cs.subject.id}/resources`} className="flex items-center justify-center gap-2 py-2 bg-card rounded-xl border border-warm-200 text-[11px] font-bold text-warm-600 hover:bg-sage-50 hover:border-sage-200 hover:text-forest-700 transition-all">
-                <Book size={14} />
-                Resources
-              </Link>
-              <Link href={`/student/subjects/${cs.subject.id}`} className="flex items-center justify-center gap-2 py-2 bg-card rounded-xl border border-warm-200 text-[11px] font-bold text-warm-600 hover:bg-sage-50 hover:border-sage-200 hover:text-forest-700 transition-all">
-                Detail
-                <ArrowRight size={14} />
-              </Link>
-            </div>
-          </div>
-        ))}
-      </div>
+                  <h3 className="mb-2 text-lg font-bold text-charcoal-900">{cs.subject?.name || 'Unnamed subject'}</h3>
+                  <p className="mb-5 line-clamp-2 text-sm font-medium text-warm-500">
+                    {cs.subject?.description || 'No description available for this subject.'}
+                  </p>
+
+                  <div className="space-y-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-warm-400">Assigned Teachers</p>
+                    {assignments.length > 0 ? (
+                      assignments.map((ta: any) => (
+                        <div key={ta.id} className="flex items-center gap-3 rounded-xl border border-warm-100 bg-ivory-50 p-2">
+                          <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-warm-200 bg-card text-warm-400">
+                            <User size={16} />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-xs font-bold text-charcoal-900">
+                              {ta.teacher?.firstName} {ta.teacher?.lastName}
+                            </p>
+                            <p className="text-[11px] font-bold uppercase tracking-wider text-forest-700">
+                              {ta.designation || 'Subject Teacher'}
+                            </p>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-xs font-medium italic text-warm-400">No teachers assigned yet.</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

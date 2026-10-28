@@ -1,4 +1,5 @@
 'use client';
+import { showFeedback } from '@/components/layout/global-feedback';
 
 import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
@@ -67,7 +68,7 @@ export default function ScoreEntryPage() {
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
     } catch (err) {
-      alert('Failed to save scores');
+      showFeedback('ERROR', 'Failed to save scores');
     } finally {
       setSaving(false);
     }

@@ -20,7 +20,12 @@ describe('AppController (e2e)', () => {
       .get('/health')
       .expect(200)
       .expect((res) => {
-        expect(res.body.status).toBe('ok');
+        // Redis is optional in SchooMA. When it is not configured the API is
+        // still healthy and reports `degraded`, never `ok`, so assert the real
+        // contract instead of a single happy-path value.
+        expect(['ok', 'degraded']).toContain(res.body.status);
+        expect(res.body.services.database).toBe('up');
+        expect(res.body.services.api).toBe('up');
       });
   });
 });

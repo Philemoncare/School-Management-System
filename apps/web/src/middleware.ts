@@ -22,8 +22,6 @@ const PROTECTED_PREFIXES = [
   '/onboarding',
 ];
 
-const AUTH_PAGES = ['/login', '/register', '/register-school', '/'];
-
 export function middleware(request: NextRequest) {
   const token = request.cookies.get('auth_token')?.value;
   const { pathname } = request.nextUrl;
@@ -38,9 +36,11 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  if (token && AUTH_PAGES.includes(pathname)) {
-    return NextResponse.redirect(new URL('/dashboard', request.url));
-  }
+  // Deliberately no "cookie present, so bounce auth pages to the dashboard"
+  // rule. The cookie cannot be validated here, and an expired token or revoked
+  // session would produce an endless /login -> /dashboard -> 401 -> /login
+  // reload loop. The app redirects signed-in users itself once /auth/me
+  // confirms the session is real.
 
   return NextResponse.next();
 }

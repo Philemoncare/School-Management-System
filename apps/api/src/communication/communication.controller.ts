@@ -24,13 +24,13 @@ export class CommunicationController {
   constructor(private readonly communicationService: CommunicationService) {}
 
   @Get('dashboard')
-  @Roles('ADMIN', 'SUPER_ADMIN')
+  @Roles('SCHOOL_ADMIN', 'SUPER_ADMIN')
   getDashboard(@ActiveSchool() schoolId: string) {
     return this.communicationService.getDashboardStats(schoolId);
   }
 
   @Post()
-  @Roles('ADMIN')
+  @Roles('SCHOOL_ADMIN')
   createCommunication(
     @ActiveSchool() schoolId: string,
     @CurrentUser() user: any,
@@ -40,7 +40,7 @@ export class CommunicationController {
   }
 
   @Get()
-  @Roles('ADMIN')
+  @Roles('SCHOOL_ADMIN')
   getCommunications(
     @ActiveSchool() schoolId: string,
     @Query('status') status?: CommunicationStatus,
@@ -51,7 +51,7 @@ export class CommunicationController {
   }
 
   @Get('announcements')
-  @Roles('ADMIN', 'TEACHER', 'STUDENT', 'PARENT')
+  @Roles('SCHOOL_ADMIN', 'TEACHER', 'STUDENT', 'PARENT')
   getAnnouncements(
     @ActiveSchool() schoolId: string,
     @CurrentUser() user: any,
@@ -61,7 +61,7 @@ export class CommunicationController {
   }
 
   @Post('announcements')
-  @Roles('ADMIN')
+  @Roles('SCHOOL_ADMIN')
   createAnnouncement(
     @ActiveSchool() schoolId: string,
     @CurrentUser() user: any,
@@ -71,7 +71,7 @@ export class CommunicationController {
   }
 
   @Get('delivery-logs')
-  @Roles('ADMIN')
+  @Roles('SCHOOL_ADMIN')
   getDeliveryLogs(
     @ActiveSchool() schoolId: string,
     @Query('page') page: number = 1,
@@ -82,19 +82,19 @@ export class CommunicationController {
   }
 
   @Post('delivery-logs/:id/retry')
-  @Roles('ADMIN')
+  @Roles('SCHOOL_ADMIN')
   retryDelivery(@ActiveSchool() schoolId: string, @Param('id') id: string) {
     return this.communicationService.retryDelivery(schoolId, id);
   }
 
   @Get(':id')
-  @Roles('ADMIN')
+  @Roles('SCHOOL_ADMIN')
   getCommunication(@ActiveSchool() schoolId: string, @Param('id') id: string) {
     return this.communicationService.getCommunication(schoolId, id);
   }
 
   @Post(':id/send')
-  @Roles('ADMIN')
+  @Roles('SCHOOL_ADMIN')
   sendCommunication(@ActiveSchool() schoolId: string, @Param('id') id: string) {
     return this.communicationService.triggerSend(schoolId, id);
   }

@@ -1,4 +1,5 @@
 'use client';
+import { showFeedback } from '@/components/layout/global-feedback';
 
 import { Select } from '@/components/ui/input';
 import React, { useState, useEffect } from 'react';
@@ -78,7 +79,7 @@ export default function AdvancedSearchPage() {
           entityScope: [entity as any]
         })
       });
-      alert('Search saved successfully!');
+      showFeedback('SUCCESS', 'Search saved successfully!');
     } catch (err) {
       console.error('Failed to save search', err);
     } finally {

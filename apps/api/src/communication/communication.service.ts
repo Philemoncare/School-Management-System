@@ -149,18 +149,23 @@ export class CommunicationService {
   }
 
   async getCommunications(schoolId: string, options: any) {
-    const { status, page, limit } = options;
+    const { status } = options;
+    const page = Math.max(1, Number(options.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(options.limit) || 10));
     const skip = (page - 1) * limit;
+
+    const where: any = { schoolId };
+    if (status) where.status = status;
 
     const [items, total] = await Promise.all([
       this.prisma.communication.findMany({
-        where: { schoolId, status },
+        where,
         orderBy: { createdAt: 'desc' },
         skip,
         take: limit,
         include: { author: { select: { firstName: true, lastName: true } } }
       }),
-      this.prisma.communication.count({ where: { schoolId, status } })
+      this.prisma.communication.count({ where })
     ]);
 
     return { items, total, page, limit };
@@ -252,13 +257,15 @@ export class CommunicationService {
   }
 
   async getDeliveryLogs(schoolId: string, options: any) {
-    const { page, limit, status } = options;
+    const page = Math.max(1, Number(options.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(options.limit) || 20));
     const skip = (page - 1) * limit;
+    const status = options.status;
 
     return this.prisma.notificationDelivery.findMany({
       where: {
         notification: { schoolId },
-        status: status as any
+        status: status || undefined
       },
       include: { notification: { select: { title: true, userId: true } } },
       orderBy: { lastAttemptAt: 'desc' },

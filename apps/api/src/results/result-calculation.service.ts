@@ -64,7 +64,7 @@ export class ResultCalculationService {
       for (const band of gradingScale.gradeBands) {
         if (finalPercentage >= band.minimumPercentage) {
           grade = band.grade;
-          gradePoint = band.gradepoint || 0;
+          gradePoint = band.gradePoint || 0;
           remark = band.remark || '';
           break;
         }

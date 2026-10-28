@@ -24,19 +24,19 @@ export class AcademicYearsController {
     return this.academicYearsService.create(schoolId, dto, user.id);
   }
 
-  @Roles('SCHOOL_ADMIN', 'PRINCIPAL', 'TEACHER', 'RECEPTIONIST')
+  @Roles('SCHOOL_ADMIN', 'PRINCIPAL', 'TEACHER', 'RECEPTIONIST', 'TIMETABLE_OFFICER', 'ACADEMIC_COORDINATOR')
   @Get()
   findAll(@ActiveSchool() schoolId: string) {
     return this.academicYearsService.findAll(schoolId);
   }
 
-  @Roles('SCHOOL_ADMIN', 'PRINCIPAL', 'TEACHER')
+  @Roles('SCHOOL_ADMIN', 'PRINCIPAL', 'TEACHER', 'TIMETABLE_OFFICER', 'ACADEMIC_COORDINATOR')
   @Get('current')
   getCurrent(@ActiveSchool() schoolId: string) {
     return this.academicYearsService.getCurrent(schoolId);
   }
 
-  @Roles('SCHOOL_ADMIN', 'PRINCIPAL', 'TEACHER')
+  @Roles('SCHOOL_ADMIN', 'PRINCIPAL', 'TEACHER', 'TIMETABLE_OFFICER', 'ACADEMIC_COORDINATOR')
   @Get(':id')
   findOne(@ActiveSchool() schoolId: string, @Param('id') id: string) {
     return this.academicYearsService.findOne(schoolId, id);

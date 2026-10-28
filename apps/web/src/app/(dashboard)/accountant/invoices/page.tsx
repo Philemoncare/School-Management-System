@@ -6,34 +6,47 @@ import {
   FileText,
   Search,
   Plus,
-  Filter,
   CheckCircle,
   Clock,
   AlertCircle,
-  MoreHorizontal,
-  Download,
   Loader2,
-  ChevronRight,
-  XCircle
+  XCircle,
+  Eye
 } from 'lucide-react';
 import Link from 'next/link';
+
+const STATUS_OPTIONS = [
+  { value: '', label: 'All statuses' },
+  { value: 'ISSUED', label: 'Issued' },
+  { value: 'PARTIALLY_PAID', label: 'Partially paid' },
+  { value: 'PAID', label: 'Paid' },
+  { value: 'OVERDUE', label: 'Overdue' },
+  { value: 'VOID', label: 'Void' },
+];
 
 export default function AccountantInvoicesPage() {
   const [invoices, setInvoices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [status, setStatus] = useState('');
+  const [error, setError] = useState('');
 
   useEffect(() => {
     loadInvoices();
-  }, [search]);
+  }, [search, status]);
 
   async function loadInvoices() {
     setLoading(true);
+    setError('');
     try {
-      const data = await apiFetch(`/finance/invoices?search=${search}`);
-      setInvoices(data);
-    } catch (err) {
-      console.error(err);
+      const params = new URLSearchParams();
+      if (search.trim()) params.set('search', search.trim());
+      if (status) params.set('status', status);
+      const data = await apiFetch(`/finance/invoices?${params.toString()}`);
+      setInvoices(Array.isArray(data) ? data : []);
+    } catch (err: any) {
+      setInvoices([]);
+      setError(err?.message || 'Could not load invoices.');
     } finally {
       setLoading(false);
     }
@@ -65,8 +78,23 @@ export default function AccountantInvoicesPage() {
                 onChange={(e) => setSearch(e.target.value)}
               />
            </div>
-           <button className="p-3 bg-card border border-warm-200 rounded-2xl text-warm-500 shadow-sm"><Filter size={18}/></button>
+           <select
+             aria-label="Filter invoices by status"
+             value={status}
+             onChange={(e) => setStatus(e.target.value)}
+             className="p-3 bg-card border border-warm-200 rounded-2xl text-[11px] font-semibold uppercase tracking-wide text-warm-600 shadow-sm focus:border-forest-600 focus:outline-none"
+           >
+             {STATUS_OPTIONS.map((option) => (
+               <option key={option.value} value={option.value}>{option.label}</option>
+             ))}
+           </select>
         </div>
+
+        {error && (
+          <div role="alert" className="border-b border-danger-200 bg-danger-50 px-6 py-3 text-xs font-semibold text-danger-700">
+            {error}
+          </div>
+        )}
 
         <div className="relative min-h-[400px]">
            {loading && (
@@ -111,10 +139,12 @@ export default function AccountantInvoicesPage() {
                        <StatusBadge status={inv.status} />
                     </td>
                     <td className="px-8 py-6 text-right">
-                       <div className="flex items-center justify-end gap-2">
-                          <button className="p-2 text-warm-400 hover:text-forest-700 transition-colors"><Download size={18}/></button>
-                          <button className="p-2 text-warm-400 hover:text-charcoal-900 transition-colors"><MoreHorizontal size={18}/></button>
-                       </div>
+                       <Link
+                          href={`/accountant/invoices/${inv.id}`}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-warm-200 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-forest-700 hover:bg-ivory-50"
+                        >
+                          <Eye size={14} /> View
+                        </Link>
                     </td>
                  </tr>
                ))}

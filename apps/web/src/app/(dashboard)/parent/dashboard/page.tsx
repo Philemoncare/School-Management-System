@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { useAuth } from '@/context/auth-context';
+import Link from 'next/link';
 import {
   Calendar,
   BookOpen,
@@ -9,260 +9,328 @@ import {
   Wallet,
   Bell,
   MessageSquare,
-  ChevronRight,
   UserCheck,
   TrendingUp,
-  AlertCircle
+  AlertCircle,
+  Users,
+  RefreshCw,
 } from 'lucide-react';
-import Link from 'next/link';
+import { apiFetch } from '@/lib/api/client';
+import { useAuth } from '@/context/auth-context';
+import { useChild } from '@/context/child-context';
+import { Button } from '@/components/ui/button';
+import { EmptyState } from '@/components/ui/empty-state';
 
 export default function ParentDashboard() {
-  const { user, activeSchoolId } = useAuth();
+  const { activeSchoolId } = useAuth();
+  const { setActiveChild } = useChild();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  async function load() {
+    if (!activeSchoolId) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const dashboardData = await apiFetch('/parent/dashboard');
+      setData(dashboardData);
+    } catch (err) {
+      setData(null);
+      setError(err instanceof Error ? err.message : 'Could not load the family dashboard.');
+    } finally {
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
-    async function fetchDashboard() {
-      if (!activeSchoolId) return;
-      try {
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/parent/dashboard`, {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`,
-            'x-school-id': activeSchoolId,
-          },
-        });
-        const dashboardData = await response.json();
-        setData(dashboardData);
-      } catch (error) {
-        console.error('Failed to fetch dashboard:', error);
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchDashboard();
+    load();
   }, [activeSchoolId]);
 
-  if (loading) return <div className="py-12 text-center text-xs font-semibold text-warm-500">Loading dashboard...</div>;
-  if (!data) return <div className="py-12 text-center text-xs font-semibold text-danger-500">Failed to load dashboard data.</div>;
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center gap-2 py-20 text-xs font-semibold text-warm-500">
+        <RefreshCw size={16} className="animate-spin" /> Loading family dashboard…
+      </div>
+    );
+  }
 
-  const { activeStudentId, summary, students, announcements, notifications } = data;
-  const activeStudent = students.find((s: any) => s.id === activeStudentId);
+  if (error) {
+    return (
+      <div className="mx-auto max-w-2xl space-y-4 py-6">
+        <div role="alert" className="flex items-start gap-3 rounded-xl border border-danger-200 bg-danger-50 px-4 py-3 text-sm font-medium text-danger-800">
+          <AlertCircle size={18} className="mt-0.5 shrink-0" />
+          <span>{error}</span>
+        </div>
+        <Button variant="outline" size="sm" onClick={load} leftIcon={<RefreshCw size={15} />}>
+          Try Again
+        </Button>
+      </div>
+    );
+  }
+
+  const students: any[] = Array.isArray(data?.students) ? data.students : [];
+  const announcements: any[] = Array.isArray(data?.announcements) ? data.announcements : [];
+  const notifications: any[] = Array.isArray(data?.notifications) ? data.notifications : [];
+  const summary = data?.summary || {};
+  const attendance = summary.attendance || {};
+  const timetable: any[] = Array.isArray(summary.timetable) ? summary.timetable : [];
+  const recentResults: any[] = Array.isArray(summary.recentResults) ? summary.recentResults : [];
+  const upcomingAssessments: any[] = Array.isArray(summary.upcomingAssessments) ? summary.upcomingAssessments : [];
+  const activeStudentId = data?.activeStudentId ?? students[0]?.id ?? null;
+
+  if (students.length === 0) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-xl font-bold text-charcoal-900 sm:text-2xl">Family Dashboard</h1>
+          <p className="mt-0.5 text-xs font-medium text-warm-500 sm:text-sm">
+            Attendance, results and fee information for your children.
+          </p>
+        </div>
+        <EmptyState
+          title="No children linked to this account"
+          description="Your school administrator has not linked any student records to your guardian account yet. Contact the school office to complete the link."
+          icon={<Users className="h-8 w-8" />}
+          actionButton={
+            <Link href="/dashboard/messages">
+              <Button variant="outline" size="sm">Message the School</Button>
+            </Link>
+          }
+        />
+      </div>
+    );
+  }
+
+  const attendanceTotal = Object.values(attendance as Record<string, unknown>).reduce<number>(
+    (total, value) => total + (Number(value) || 0),
+    0,
+  );
+  const attendanceRate = attendanceTotal > 0
+    ? ((Number((attendance as any).PRESENT) || 0) / attendanceTotal) * 100
+    : 0;
 
   return (
     <div className="space-y-6">
-      {/* Welcome Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-card p-4 sm:p-6 rounded-2xl border border-warm-100 shadow-xs gap-4">
+      <div className="flex flex-col justify-between gap-4 rounded-2xl border border-warm-200 bg-card p-4 shadow-xs sm:flex-row sm:items-center sm:p-6">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-charcoal-900">Welcome, {data.guardian?.firstName}!</h1>
-          <p className="text-xs sm:text-sm text-warm-500 mt-0.5">Here's an overview of your children's activities today.</p>
+          <h1 className="text-xl font-bold text-charcoal-900 sm:text-2xl">
+            Welcome{data?.guardian?.firstName ? `, ${data.guardian.firstName}` : ''}
+          </h1>
+          <p className="mt-0.5 text-xs font-medium text-warm-500 sm:text-sm">
+            An overview of your children&apos;s activities today.
+          </p>
         </div>
-        <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+        <div className="flex flex-wrap gap-2">
           {students.map((student: any) => (
-            <button
+            <Link
               key={student.id}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all text-xs font-bold ${
+              href="/parent/results"
+              onClick={() => setActiveChild(student)}
+              className={`flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs font-bold transition-all ${
                 student.id === activeStudentId
-                  ? 'bg-forest-700 border-forest-700 text-white shadow-xs'
-                  : 'bg-card border-warm-200 text-warm-600 hover:border-forest-700'
+                  ? 'border-forest-700 bg-forest-700 text-white shadow-xs'
+                  : 'border-warm-200 bg-card text-warm-600 hover:border-forest-700'
               }`}
             >
-              <div className="w-5 h-5 rounded-full bg-warm-200 overflow-hidden shrink-0">
-                {student.photo ? (
-                  <img src={student.photo} alt={student.firstName} className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-[10px] font-bold text-warm-400">
-                    {student.firstName[0]}
-                  </div>
-                )}
-              </div>
-              <span className="truncate">{student.firstName}</span>
-            </button>
+              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-warm-200 text-[10px] font-bold text-warm-600">
+                {student.firstName?.[0] || '?'}
+              </span>
+              <span className="max-w-[110px] truncate">{student.firstName}</span>
+            </Link>
           ))}
         </div>
       </div>
 
-      {/* Metrics Row */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
         <MetricCard
           title="Attendance"
-          value={`${((Number(summary.attendance?.PRESENT) || 0) / (Object.values(summary.attendance || {}).map(v => Number(v) || 0).reduce((a, b) => a + b, 0) || 1) * 100).toFixed(1)}%`}
+          value={`${attendanceRate.toFixed(1)}%`}
           icon={<UserCheck className="text-success-600" size={20} />}
-          trend="Monthly Average"
+          trend="Recorded average"
           color="green"
         />
         <MetricCard
-          title="Academic Progress"
-          value={summary.recentResults?.[0]?.grade || 'N/A'}
+          title="Latest Grade"
+          value={recentResults[0]?.grade || '—'}
           icon={<TrendingUp className="text-forest-700" size={20} />}
-          trend="Latest Result"
+          trend={recentResults[0]?.subject?.name || 'No published result yet'}
           color="blue"
         />
         <MetricCard
-          title="Upcoming Fees"
-          value={`$${summary.outstandingFees}`}
+          title="Outstanding Fees"
+          value={`GH₵ ${Number(summary.outstandingFees || 0).toLocaleString()}`}
           icon={<Wallet className="text-warning-600" size={20} />}
-          trend="Next Due Date: Oct 15"
+          trend="Current balance"
           color="amber"
-          warning={summary.outstandingFees > 0}
+          warning={Number(summary.outstandingFees || 0) > 0}
         />
         <MetricCard
           title="Notifications"
-          value={notifications.length.toString()}
+          value={String(notifications.length)}
           icon={<Bell className="text-terracotta-600" size={20} />}
-          trend="Unread Alerts"
+          trend="Recent alerts"
           color="purple"
         />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Main Content Column */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Today's Timetable */}
-          <section className="bg-card rounded-2xl border border-warm-100 shadow-sm overflow-hidden">
-            <div className="p-6 border-b border-warm-100 flex justify-between items-center">
-              <h2 className="text-lg font-bold text-charcoal-900 flex items-center gap-2">
-                <Clock size={20} className="text-forest-700" />
-                Today's Timetable
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="space-y-6 lg:col-span-2">
+          <section className="overflow-hidden rounded-2xl border border-warm-200 bg-card shadow-sm">
+            <div className="flex items-center justify-between border-b border-warm-100 p-5 sm:p-6">
+              <h2 className="flex items-center gap-2 text-lg font-bold text-charcoal-900">
+                <Clock size={20} className="text-forest-700" /> Today&apos;s Timetable
               </h2>
-              <Link href={`/parent/timetable?studentId=${activeStudentId}`} className="text-sm font-bold text-forest-700 hover:underline">
-                View Weekly
-              </Link>
+              {activeStudentId && (
+                <Link href="/parent/timetable" className="text-xs font-bold text-forest-700 hover:underline">
+                  View Weekly
+                </Link>
+              )}
             </div>
-            <div className="p-6">
-              {summary.timetable.length > 0 ? (
+            <div className="p-5 sm:p-6">
+              {timetable.length === 0 ? (
+                <p className="py-10 text-center text-sm font-medium text-warm-500">No classes scheduled for today.</p>
+              ) : (
                 <div className="space-y-3">
-                  {summary.timetable.map((entry: any) => (
-                    <div key={entry.id} className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4 p-3.5 sm:p-4 rounded-xl bg-ivory-50 border border-warm-100">
-                      <div className="flex sm:block items-center gap-2 sm:w-20 sm:text-center sm:border-r border-warm-200 sm:pr-4 shrink-0">
-                        <p className="text-xs font-semibold text-charcoal-900">{entry.startTime} - {entry.endTime}</p>
+                  {timetable.map((entry: any) => (
+                    <div key={entry.id} className="flex flex-col items-start gap-2 rounded-xl border border-warm-100 bg-ivory-50 p-3.5 sm:flex-row sm:items-center sm:gap-4 sm:p-4">
+                      <p className="shrink-0 text-xs font-semibold text-charcoal-900 sm:w-24">
+                        {entry.startTime} - {entry.endTime}
+                      </p>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-xs font-bold text-charcoal-900 sm:text-sm">{entry.subject?.name || 'Subject'}</p>
+                        <p className="truncate text-[11px] font-medium text-warm-500">
+                          {entry.room?.name ? `Room ${entry.room.name}` : 'Room TBA'}
+                          {entry.teacher ? ` · ${entry.teacher.firstName} ${entry.teacher.lastName}` : ''}
+                        </p>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-bold text-xs sm:text-sm text-charcoal-900 truncate">{entry.subject.name}</p>
-                        <p className="text-[11px] text-warm-500 font-medium truncate">Room {entry.room?.name || 'TBA'} • {entry.teacher?.firstName} {entry.teacher?.lastName}</p>
-                      </div>
-                      <div className="bg-card px-2.5 py-0.5 rounded-lg border border-warm-200 shadow-xs shrink-0">
-                        <span className="text-[10px] font-bold text-forest-700 uppercase tracking-wider">Period {entry.period?.periodNumber}</span>
-                      </div>
+                      {entry.period?.periodNumber && (
+                        <span className="shrink-0 rounded-lg border border-warm-200 bg-card px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-forest-700">
+                          Period {entry.period.periodNumber}
+                        </span>
+                      )}
                     </div>
                   ))}
-                </div>
-              ) : (
-                <div className="text-center py-12">
-                  <p className="text-warm-500 font-medium">No classes scheduled for today.</p>
                 </div>
               )}
             </div>
           </section>
 
-          {/* Academic Overview */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Recent Results */}
-            <section className="bg-card rounded-2xl border border-warm-100 shadow-sm">
-              <div className="p-6 border-b border-warm-100">
-                <h2 className="text-lg font-bold text-charcoal-900 flex items-center gap-2">
-                  <BookOpen size={20} className="text-success-600" />
-                  Recent Results
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+            <section className="rounded-2xl border border-warm-200 bg-card shadow-sm">
+              <div className="border-b border-warm-100 p-5 sm:p-6">
+                <h2 className="flex items-center gap-2 text-lg font-bold text-charcoal-900">
+                  <BookOpen size={20} className="text-success-600" /> Recent Results
                 </h2>
               </div>
-              <div className="p-6 space-y-4">
-                {summary.recentResults.length > 0 ? (
-                  summary.recentResults.map((result: any) => (
-                    <div key={result.id} className="flex justify-between items-center">
-                      <div>
-                        <p className="text-sm font-bold text-charcoal-900">{result.subject.name}</p>
-                        <p className="text-[11px] text-warm-500 font-medium uppercase">{new Date(result.publishedAt).toLocaleDateString()}</p>
+              <div className="space-y-4 p-5 sm:p-6">
+                {recentResults.length === 0 ? (
+                  <p className="py-4 text-center text-sm text-warm-500">No published results yet.</p>
+                ) : (
+                  recentResults.slice(0, 4).map((result: any) => (
+                    <div key={result.id} className="flex items-center justify-between">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-bold text-charcoal-900">{result.subject?.name || 'Subject'}</p>
+                        <p className="text-[11px] font-medium uppercase text-warm-500">
+                          {result.publishedAt ? new Date(result.publishedAt).toLocaleDateString() : '—'}
+                        </p>
                       </div>
-                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold ${
-                        result.grade === 'A' ? 'bg-success-100 text-success-700' : 'bg-sage-100 text-forest-800'
-                      }`}>
-                        {result.grade}
-                      </div>
+                      <span className="ml-2 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-sage-100 text-sm font-bold text-forest-800">
+                        {result.grade || '—'}
+                      </span>
                     </div>
                   ))
-                ) : (
-                  <p className="text-sm text-warm-500 text-center py-4">No published results yet.</p>
                 )}
-                <Link href={`/parent/results?studentId=${activeStudentId}`} className="block text-center text-sm font-bold text-warm-600 hover:text-forest-700 pt-2">
-                  View All Results
-                </Link>
+                {activeStudentId && (
+                  <Link href="/parent/results" className="block pt-2 text-center text-xs font-bold text-warm-600 hover:text-forest-700">
+                    View All Results
+                  </Link>
+                )}
               </div>
             </section>
 
-            {/* Upcoming Assessments */}
-            <section className="bg-card rounded-2xl border border-warm-100 shadow-sm">
-              <div className="p-6 border-b border-warm-100">
-                <h2 className="text-lg font-bold text-charcoal-900 flex items-center gap-2">
-                  <Calendar size={20} className="text-warning-600" />
-                  Upcoming Assessments
+            <section className="rounded-2xl border border-warm-200 bg-card shadow-sm">
+              <div className="border-b border-warm-100 p-5 sm:p-6">
+                <h2 className="flex items-center gap-2 text-lg font-bold text-charcoal-900">
+                  <Calendar size={20} className="text-warning-600" /> Upcoming Assessments
                 </h2>
               </div>
-              <div className="p-6 space-y-4">
-                {summary.upcomingAssessments.length > 0 ? (
-                  summary.upcomingAssessments.map((assessment: any) => (
-                    <div key={assessment.id} className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-warning-50 flex flex-col items-center justify-center shrink-0 border border-warning-100">
-                        <span className="text-[11px] font-bold text-warning-600 uppercase">{new Date(assessment.startDate).toLocaleString('default', { month: 'short' })}</span>
-                        <span className="text-xs font-bold text-warning-700 leading-none">{new Date(assessment.startDate).getDate()}</span>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-bold text-charcoal-900 truncate">{assessment.name}</p>
-                        <p className="text-[11px] text-warm-500 font-medium truncate uppercase">{assessment.subject?.name || 'Subject'}</p>
-                      </div>
-                    </div>
-                  ))
+              <div className="space-y-4 p-5 sm:p-6">
+                {upcomingAssessments.length === 0 ? (
+                  <p className="py-4 text-center text-sm text-warm-500">No upcoming assessments.</p>
                 ) : (
-                  <p className="text-sm text-warm-500 text-center py-4">No upcoming assessments.</p>
+                  upcomingAssessments.slice(0, 4).map((assessment: any) => {
+                    const start = assessment.startDate ? new Date(assessment.startDate) : null;
+                    return (
+                      <div key={assessment.id} className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 shrink-0 flex-col items-center justify-center rounded-xl border border-warning-100 bg-warning-50">
+                          <span className="text-[11px] font-bold uppercase text-warning-600">
+                            {start ? start.toLocaleString('default', { month: 'short' }) : '—'}
+                          </span>
+                          <span className="text-xs font-bold leading-none text-warning-700">
+                            {start ? start.getDate() : '—'}
+                          </span>
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-bold text-charcoal-900">{assessment.name}</p>
+                          <p className="truncate text-[11px] font-medium uppercase text-warm-500">
+                            {assessment.subject?.name || 'Subject'}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })
                 )}
-                <Link href={`/parent/assessments?studentId=${activeStudentId}`} className="block text-center text-sm font-bold text-warm-600 hover:text-forest-700 pt-2">
-                  View Full Schedule
-                </Link>
               </div>
             </section>
           </div>
         </div>
 
-        {/* Sidebar Column */}
         <div className="space-y-6">
-          {/* Announcements */}
-          <section className="bg-card rounded-2xl border border-warm-100 shadow-sm">
-            <div className="p-6 border-b border-warm-100 flex justify-between items-center">
-              <h2 className="text-lg font-bold text-charcoal-900 flex items-center gap-2">
-                <Bell size={20} className="text-forest-700" />
-                School Notices
+          <section className="rounded-2xl border border-warm-200 bg-card shadow-sm">
+            <div className="border-b border-warm-100 p-5 sm:p-6">
+              <h2 className="flex items-center gap-2 text-lg font-bold text-charcoal-900">
+                <Bell size={20} className="text-forest-700" /> School Notices
               </h2>
             </div>
-            <div className="p-6 space-y-4">
-              {announcements.length > 0 ? (
+            <div className="space-y-4 p-5 sm:p-6">
+              {announcements.length === 0 ? (
+                <p className="py-4 text-center text-sm text-warm-500">No recent announcements.</p>
+              ) : (
                 announcements.map((announcement: any) => (
-                  <div key={announcement.id} className="group cursor-pointer">
-                    <p className="text-xs font-bold text-forest-700 mb-1">{new Date(announcement.createdAt).toLocaleDateString()}</p>
-                    <h3 className="text-sm font-bold text-charcoal-900 group-hover:text-forest-700 transition-colors line-clamp-2">{announcement.title}</h3>
-                    <p className="text-xs text-warm-500 mt-1 line-clamp-2">{announcement.content.replace(/<[^>]*>?/gm, '')}</p>
+                  <div key={announcement.id}>
+                    <p className="mb-1 text-[11px] font-bold text-forest-700">
+                      {announcement.createdAt ? new Date(announcement.createdAt).toLocaleDateString() : ''}
+                    </p>
+                    <h3 className="line-clamp-2 text-sm font-bold text-charcoal-900">{announcement.title}</h3>
+                    <p className="mt-1 line-clamp-2 text-xs text-warm-500">
+                      {String(announcement.content || '').replace(/<[^>]*>?/gm, '')}
+                    </p>
                   </div>
                 ))
-              ) : (
-                <p className="text-sm text-warm-500 text-center py-4">No recent announcements.</p>
               )}
-              <Link href="/parent/announcements" className="block w-full text-center py-2.5 rounded-xl border border-warm-100 bg-ivory-50 text-xs font-bold text-warm-600 hover:bg-warm-100 transition-all">
-                View All Announcements
-              </Link>
             </div>
           </section>
 
-          {/* Quick Support */}
           <section className="rounded-xl bg-forest-800 p-6 text-white">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 bg-card/20 rounded-lg">
+            <div className="mb-4 flex items-center gap-3">
+              <div className="rounded-lg bg-white/15 p-2">
                 <MessageSquare size={20} />
               </div>
-              <h2 className="font-bold">Contact Support</h2>
+              <h2 className="font-bold">Contact the School</h2>
             </div>
-            <p className="text-xs text-sage-100 mb-4 leading-relaxed">
-              Have questions about your child's progress or school fees? Our staff is here to help.
+            <p className="mb-4 text-xs leading-relaxed text-sage-100">
+              Have questions about your child&apos;s progress or school fees? Send a message to the school office.
             </p>
-            <button className="w-full py-2.5 bg-card text-forest-800 rounded-xl text-xs font-bold hover:bg-sage-50 transition-all">
+            <Link
+              href="/dashboard/messages"
+              className="block w-full rounded-xl bg-card py-2.5 text-center text-xs font-bold text-forest-800 transition-colors hover:bg-sage-50"
+            >
               Message School
-            </button>
+            </Link>
           </section>
         </div>
       </div>
@@ -279,22 +347,14 @@ function MetricCard({ title, value, icon, trend, color, warning }: any) {
   };
 
   return (
-    <div className={`p-5 rounded-2xl border shadow-sm ${colors[color] || 'bg-card'} ${warning ? 'border-danger-300 ring-2 ring-danger-50' : ''}`}>
-      <div className="flex justify-between items-start mb-4">
-        <div className="p-2 bg-card rounded-xl shadow-sm border border-inherit">
-          {icon}
-        </div>
-        {warning && <AlertCircle size={16} className="text-danger-500 animate-pulse" />}
+    <div className={`rounded-2xl border p-5 shadow-sm ${colors[color] || 'bg-card'} ${warning ? 'border-danger-300 ring-2 ring-danger-50' : ''}`}>
+      <div className="mb-4 flex items-start justify-between">
+        <div className="rounded-xl border border-inherit bg-card p-2 shadow-sm">{icon}</div>
+        {warning && <AlertCircle size={16} className="text-danger-500" />}
       </div>
-      <div>
-        <p className="text-xs font-bold text-warm-500 uppercase tracking-wider mb-1">{title}</p>
-        <div className="flex items-baseline gap-2">
-          <h3 className="text-2xl font-semibold text-charcoal-900">{value}</h3>
-        </div>
-        <p className="text-[11px] font-bold text-warm-400 uppercase mt-2 flex items-center gap-1">
-          {trend}
-        </p>
-      </div>
+      <p className="mb-1 text-xs font-bold uppercase tracking-wider text-warm-500">{title}</p>
+      <h3 className="text-2xl font-semibold text-charcoal-900">{value}</h3>
+      <p className="mt-2 text-[11px] font-bold uppercase text-warm-400">{trend}</p>
     </div>
   );
 }

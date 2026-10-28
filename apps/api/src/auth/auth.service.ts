@@ -70,6 +70,17 @@ export class AuthService {
     const passwordMatches = await argon2.verify(targetHash, pass).catch(() => false);
 
     if (!user || !passwordMatches) {
+      // Local diagnostics: the most common cause of "login keeps failing" is a
+      // typo in the email address, which produces no security event at all.
+      // Never log credentials or email addresses in production.
+      if (process.env.NODE_ENV !== "production") {
+        this.logger.warn(
+          `Login rejected for "${normalizedEmail || "(empty email)"}": ${
+            user ? "wrong password" : "no account with this email"
+          }`,
+        );
+      }
+
       if (user) {
         await this.securityEventService.logEvent({
           userId: user.id,
@@ -530,7 +541,11 @@ export class AuthService {
     return invite;
   }
 
-  async acceptInvitation(token: string, password: string) {
+  async acceptInvitation(
+    token: string,
+    password: string,
+    profile?: { firstName?: string; lastName?: string },
+  ) {
     const invite = await this.getInvitationDetails(token);
 
     // Enforce strong password rules
@@ -554,8 +569,8 @@ export class AuthService {
           data: {
             email: invite.email,
             passwordHash,
-            firstName: "",
-            lastName: "",
+            firstName: profile?.firstName?.trim() || invite.email.split('@')[0],
+            lastName: profile?.lastName?.trim() || '',
             accountState: AccountState.ACTIVE,
             emailVerified: new Date(),
           },
@@ -565,6 +580,8 @@ export class AuthService {
           where: { id: user.id },
           data: {
             passwordHash,
+            firstName: user.firstName || profile?.firstName?.trim() || undefined,
+            lastName: user.lastName || profile?.lastName?.trim() || undefined,
             accountState: AccountState.ACTIVE,
             emailVerified: user.emailVerified || new Date(),
             isActive: true,
@@ -608,12 +625,16 @@ export class AuthService {
         data: { status: InvitationStatus.ACCEPTED },
       });
 
-      await this.securityEventService.logEvent({
-        userId: user.id,
-        eventType: "LOGIN_SUCCESS" as any,
-        severity: SecuritySeverity.LOW,
-        metadata: { action: "INVITE_ACCEPTED", schoolId: invite.schoolId },
-      });
+      await this.securityEventService.logEvent(
+        {
+          userId: user.id,
+          schoolId: invite.schoolId,
+          eventType: 'LOGIN_SUCCESS',
+          severity: SecuritySeverity.LOW,
+          metadata: { action: 'INVITE_ACCEPTED', schoolId: invite.schoolId },
+        },
+        tx,
+      );
 
       return { success: true };
     });

@@ -1,9 +1,15 @@
 "use client";
 
-import React, { forwardRef, ReactNode, useEffect, useId, useImperativeHandle, useRef, useState } from "react";
+import React, { forwardRef, ReactNode, useEffect, useId, useImperativeHandle, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Check, ChevronDown, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+// useLayoutEffect on the client, useEffect during server rendering (where it
+// never runs), so the panel can be measured before the browser paints without
+// triggering the "useLayoutEffect does nothing on the server" warning.
+const useIsomorphicLayoutEffect =
+  typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
 export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label?: string;
@@ -170,7 +176,9 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
     const typeaheadTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [open, setOpen] = useState(false);
     const [mounted, setMounted] = useState(false);
-    const [isMobile, setIsMobile] = useState(false);
+    const [isMobile, setIsMobile] = useState(
+      () => typeof window !== "undefined" && window.innerWidth < 640,
+    );
     const [activeIndex, setActiveIndex] = useState(-1);
     const [panelStyle, setPanelStyle] = useState<React.CSSProperties>({});
     const [internalValue, setInternalValue] = useState(String(defaultValue ?? ""));
@@ -206,7 +214,10 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
       optionRefs.current[activeIndex]?.scrollIntoView({ block: "nearest" });
     }, [open, activeIndex]);
 
-    useEffect(() => {
+    // Position before paint: on a phone the panel must already be the bottom
+    // sheet on its first frame, otherwise it renders unpositioned underneath the
+    // backdrop and the first tap looks like it did nothing.
+    useIsomorphicLayoutEffect(() => {
       if (!open) return;
 
       const positionPanel = () => {

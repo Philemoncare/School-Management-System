@@ -48,9 +48,40 @@ export class CreateGradingScaleDto {
   @IsOptional()
   policyId?: string = undefined;
 
+  @IsBoolean()
+  @IsOptional()
+  status?: boolean = undefined;
+
   @IsArray()
   @Type(() => CreateGradeBandDto)
   gradeBands: CreateGradeBandDto[] = [];
+}
+
+export class UpdateGradingScaleDto {
+  @IsString()
+  @IsOptional()
+  name?: string;
+
+  @IsString()
+  @IsOptional()
+  code?: string;
+
+  @IsString()
+  @IsOptional()
+  description?: string;
+
+  @IsUUID()
+  @IsOptional()
+  policyId?: string;
+
+  @IsBoolean()
+  @IsOptional()
+  status?: boolean;
+
+  @IsArray()
+  @IsOptional()
+  @Type(() => CreateGradeBandDto)
+  gradeBands?: CreateGradeBandDto[];
 }
 
 export class CreateGradingPolicyDto {

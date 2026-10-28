@@ -2,7 +2,11 @@
 
 import { Select } from '@/components/ui/input';
 import React, { useEffect, useMemo, useState } from 'react';
-import { apiFetch } from '@/lib/api/client';
+import { apiFetch, ApiError } from '@/lib/api/client';
+import { useAuth } from '@/context/auth-context';
+import { collectUserRoles } from '@/lib/auth/roles';
+import { Button } from '@/components/ui/button';
+import { EmptyState } from '@/components/ui/empty-state';
 import {
   AlertCircle,
   Bell,
@@ -71,7 +75,16 @@ type Notification = {
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 export default function StaffSelfServiceDashboard() {
+  const { user, activeSchoolId } = useAuth();
+  const roles = collectUserRoles(user, activeSchoolId);
+  const canManageStaff =
+    roles.includes('SCHOOL_ADMIN') ||
+    roles.includes('ADMIN') ||
+    roles.includes('PRINCIPAL') ||
+    roles.includes('HR_OFFICER');
+
   const [profile, setProfile] = useState<StaffProfile | null>(null);
+  const [profileMissing, setProfileMissing] = useState(false);
   const [balances, setBalances] = useState<LeaveBalance[]>([]);
   const [requests, setRequests] = useState<LeaveRequest[]>([]);
   const [schedule, setSchedule] = useState<Schedule | null>(null);
@@ -79,33 +92,77 @@ export default function StaffSelfServiceDashboard() {
   const [leaveTypes, setLeaveTypes] = useState<Array<{ id: string; name: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [panelsUnavailable, setPanelsUnavailable] = useState(false);
   const [showLeaveForm, setShowLeaveForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState('');
   const [form, setForm] = useState({ leaveTypeId: '', startDate: '', endDate: '', reason: '' });
 
+  async function load() {
+    setLoading(true);
+    setError('');
+    setProfileMissing(false);
+    setPanelsUnavailable(false);
+
+    // The employee record is required; the remaining panels are optional and
+    // must not take the whole self-service page down when one of them is not
+    // available to this account (for example a role without HR module access).
+    const [staffResult, balancesResult, requestsResult, scheduleResult, notificationResult, typeResult] =
+      await Promise.allSettled([
+        apiFetch('/staff/me'),
+        apiFetch('/hr/me/leave-balances'),
+        apiFetch('/hr/me/leave'),
+        apiFetch('/hr/me/schedule'),
+        apiFetch('/notifications'),
+        apiFetch('/hr/leave/types'),
+      ]);
+
+    if (staffResult.status === 'fulfilled') {
+      setProfile(staffResult.value);
+    } else {
+      setProfile(null);
+      const reason = staffResult.reason;
+      if (reason instanceof ApiError && reason.status === 404) {
+        setProfileMissing(true);
+      } else {
+        setError(
+          reason instanceof Error
+            ? reason.message
+            : 'Unable to load your staff dashboard right now.',
+        );
+      }
+    }
+
+    let partial = false;
+    const unwrap = <T,>(result: PromiseSettledResult<unknown>, fallback: T): T => {
+      if (result.status === 'fulfilled') return result.value as T;
+      partial = true;
+      return fallback;
+    };
+
+    const balancesData = unwrap<LeaveBalance[]>(balancesResult, []);
+    const requestData = unwrap<LeaveRequest[]>(requestsResult, []);
+    const scheduleData = unwrap<Schedule[]>(scheduleResult, []);
+    const notificationData = unwrap<Notification[]>(notificationResult, []);
+    const typeData = unwrap<Array<{ id: string; name: string }>>(typeResult, []);
+
+    setBalances(Array.isArray(balancesData) ? balancesData : []);
+    setRequests(Array.isArray(requestData) ? requestData : []);
+    setSchedule(Array.isArray(scheduleData) ? scheduleData[0] || null : null);
+    setNotifications(Array.isArray(notificationData) ? notificationData : []);
+    setLeaveTypes(Array.isArray(typeData) ? typeData : []);
+    if (Array.isArray(typeData) && typeData.length > 0) {
+      setForm((current) =>
+        current.leaveTypeId ? current : { ...current, leaveTypeId: typeData[0].id },
+      );
+    }
+    setPanelsUnavailable(partial);
+    setLoading(false);
+  }
+
   useEffect(() => {
-    Promise.all([
-      apiFetch('/staff/me'),
-      apiFetch('/hr/me/leave-balances'),
-      apiFetch('/hr/me/leave'),
-      apiFetch('/hr/me/schedule'),
-      apiFetch('/notifications'),
-      apiFetch('/hr/leave/types'),
-    ])
-      .then(([staff, balanceData, requestData, scheduleData, notificationData, typeData]) => {
-        setProfile(staff);
-        setBalances(balanceData);
-        setRequests(requestData);
-        setSchedule(scheduleData[0] || null);
-        setNotifications(notificationData);
-        setLeaveTypes(typeData);
-        if (typeData.length > 0) {
-          setForm((current) => ({ ...current, leaveTypeId: typeData[0].id }));
-        }
-      })
-      .catch((err) => setError(err.message || 'Unable to load your staff dashboard.'))
-      .finally(() => setLoading(false));
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const unreadCount = useMemo(() => notifications.filter((item) => !item.readAt).length, [notifications]);
@@ -143,20 +200,46 @@ export default function StaffSelfServiceDashboard() {
     }
   }
 
-  if (loading) return <div className="p-12 sm:p-20 text-center"><Loader2 className="animate-spin mx-auto text-forest-700" size={40} /></div>;
-
-  if (error) {
+  if (loading) {
     return (
-      <div className="p-8">
-        <div className="flex items-start gap-3 rounded-xl border border-danger-200 bg-danger-50 p-5 text-danger-700">
-          <AlertCircle size={20} className="shrink-0 mt-0.5" />
-          <p className="text-sm font-semibold">{error}</p>
-        </div>
+      <div className="flex items-center justify-center gap-2 py-20 text-xs font-semibold text-warm-500">
+        <Loader2 className="animate-spin text-forest-700" size={18} /> Loading your employee workspace…
       </div>
     );
   }
 
-  if (!profile) return null;
+  if (error) {
+    return (
+      <div className="mx-auto max-w-xl space-y-4 py-8">
+        <div className="flex items-start gap-3 rounded-xl border border-danger-200 bg-danger-50 p-5 text-danger-700">
+          <AlertCircle size={20} className="mt-0.5 shrink-0" />
+          <p className="text-sm font-semibold">{error}</p>
+        </div>
+        <Button variant="outline" size="sm" onClick={load}>Try Again</Button>
+      </div>
+    );
+  }
+
+  if (profileMissing || !profile) {
+    return (
+      <EmptyState
+        title="No employee record linked"
+        description="This self-service workspace is for employees. Your account is not linked to a staff or teacher record in this school, so leave balances, work schedules, and the employee profile are unavailable."
+        icon={<Briefcase className="h-8 w-8" />}
+        actionButton={
+          canManageStaff ? (
+            <Link href="/dashboard/hr/staff">
+              <Button variant="primary" size="sm">Open Staff Directory</Button>
+            </Link>
+          ) : (
+            <Link href="/dashboard">
+              <Button variant="outline" size="sm">Back to Dashboard</Button>
+            </Link>
+          )
+        }
+      />
+    );
+  }
 
   return (
     <div className="space-y-6 sm:space-y-8">
@@ -173,6 +256,16 @@ export default function StaffSelfServiceDashboard() {
           <Link href="/settings" className="p-2.5 sm:p-3 bg-card/10 border border-white/10 rounded-xl hover:bg-card/20 transition-all text-white" aria-label="Settings"><Settings size={18} /></Link>
         </div>
       </div>
+
+      {panelsUnavailable && (
+        <div
+          role="status"
+          className="flex items-start gap-3 rounded-xl border border-warning-100 bg-warning-50 px-4 py-3 text-xs font-semibold text-warning-700"
+        >
+          <AlertCircle size={16} className="mt-0.5 shrink-0" />
+          Some employee panels could not be loaded for your role. Your profile and employment status below are still current.
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8">
         <div className="lg:col-span-2 space-y-6 sm:space-y-8">

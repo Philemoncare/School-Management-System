@@ -1,80 +1,95 @@
-import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ConflictException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 
 @Injectable()
 export class FrontOfficeService {
-  // Production-grade transactional state repository for front office data types not in current prisma schema
-  private static visitors: Map<string, any[]> = new Map();
-  private static visits: Map<string, any[]> = new Map();
-  private static appointments: Map<string, any[]> = new Map();
-  private static enquiries: Map<string, any[]> = new Map();
-  private static studentCheckouts: Map<string, any[]> = new Map();
-  private static pickupAuthorizations: Map<string, any[]> = new Map();
-  private static lateArrivals: Map<string, any[]> = new Map();
-  private static deliveries: Map<string, any[]> = new Map();
-  private static lostFoundItems: Map<string, any[]> = new Map();
-  private static callLogs: Map<string, any[]> = new Map();
-  private static documentCollections: Map<string, any[]> = new Map();
-
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
   ) {}
 
-  private getSchoolList(map: Map<string, any[]>, schoolId: string): any[] {
-    if (!map.has(schoolId)) {
-      map.set(schoolId, []);
-    }
-    return map.get(schoolId);
-  }
-
   async getDashboard(schoolId: string) {
-    const visits = this.getSchoolList(FrontOfficeService.visits, schoolId);
-    const appointments = this.getSchoolList(FrontOfficeService.appointments, schoolId);
-    const enquiries = this.getSchoolList(FrontOfficeService.enquiries, schoolId);
-    const checkouts = this.getSchoolList(FrontOfficeService.studentCheckouts, schoolId);
-    const deliveries = this.getSchoolList(FrontOfficeService.deliveries, schoolId);
-    const lates = this.getSchoolList(FrontOfficeService.lateArrivals, schoolId);
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(startOfDay);
+    endOfDay.setDate(endOfDay.getDate() + 1);
 
-    const onCampusCount = visits.filter(v => v.status === 'CHECKED_IN').length;
-    const todayVisitorCount = visits.length;
-    const pendingAppointments = appointments.filter(a => a.status === 'CONFIRMED' || a.status === 'REQUESTED').length;
-    const pendingEnquiries = enquiries.filter(e => e.status === 'NEW' || e.status === 'IN_PROGRESS').length;
-    const pendingCheckouts = checkouts.filter(c => c.status === 'REQUESTED' || c.status === 'UNDER_VERIFICATION').length;
+    const [
+      visitorsOnCampus,
+      todayVisits,
+      pendingAppointments,
+      pendingEnquiries,
+      pendingCheckouts,
+      lateArrivals,
+      expectedDeliveries,
+    ] = await Promise.all([
+      this.prisma.visitorVisit.count({
+        where: { schoolId, status: 'CHECKED_IN' },
+      }),
+      this.prisma.visitorVisit.count({
+        where: { schoolId, checkInAt: { gte: startOfDay, lt: endOfDay } },
+      }),
+      this.prisma.frontDeskAppointment.count({
+        where: { schoolId, status: { in: ['REQUESTED', 'CONFIRMED'] } },
+      }),
+      this.prisma.frontDeskEnquiry.count({
+        where: { schoolId, status: { in: ['NEW', 'IN_PROGRESS'] } },
+      }),
+      this.prisma.studentCheckout.count({
+        where: {
+          schoolId,
+          status: { in: ['REQUESTED', 'UNDER_VERIFICATION'] },
+        },
+      }),
+      this.prisma.lateArrival.count({
+        where: { schoolId, arrivalTime: { gte: startOfDay, lt: endOfDay } },
+      }),
+      this.prisma.delivery.count({
+        where: { schoolId, status: { in: ['EXPECTED', 'RECEIVED'] } },
+      }),
+    ]);
 
     return {
-      visitorsOnCampus: onCampusCount,
-      todayVisitorCount,
+      visitorsOnCampus,
+      todayVisitorCount: todayVisits,
       pendingAppointments,
       pendingEnquiries,
       studentPickupRequests: pendingCheckouts,
-      lateArrivalsCount: lates.length,
-      expectedDeliveries: deliveries.filter(d => d.status === 'EXPECTED' || d.status === 'RECEIVED').length,
+      lateArrivalsCount: lateArrivals,
+      expectedDeliveries,
     };
   }
 
-  // --- VISITOR OPERATIONS ---
+  // --- VISITORS ---
   async registerVisitor(schoolId: string, dto: any, userId: string) {
-    const list = this.getSchoolList(FrontOfficeService.visitors, schoolId);
-    const visitor = {
-      id: `vis-person-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-      schoolId,
-      fullName: dto.fullName,
-      phone: dto.phone,
-      email: dto.email,
-      organization: dto.organization || 'Personal',
-      visitorType: dto.visitorType || 'General',
-      identificationType: dto.identificationType || 'None',
-      createdAt: new Date(),
-    };
-    list.push(visitor);
+    const fullName = dto.fullName?.trim();
+    if (!fullName) throw new BadRequestException('Visitor name is required.');
+
+    const visitor = await this.prisma.visitor.create({
+      data: {
+        schoolId,
+        fullName,
+        phone: dto.phone?.trim() || null,
+        email: dto.email?.trim() || null,
+        organization: dto.organization?.trim() || null,
+        visitorType: dto.visitorType?.trim() || 'General',
+        identificationType: dto.identificationType?.trim() || null,
+        identificationNumber: dto.identificationNumber?.trim() || null,
+        notes: dto.notes?.trim() || null,
+      },
+    });
 
     await this.audit.log({
       userId,
       schoolId,
       action: 'VISITOR_CREATED',
-      module: 'HR',
+      module: 'FRONT_OFFICE',
       resourceId: visitor.id,
     });
 
@@ -82,40 +97,56 @@ export class FrontOfficeService {
   }
 
   async getVisitors(schoolId: string) {
-    return this.getSchoolList(FrontOfficeService.visitors, schoolId);
+    return this.prisma.visitor.findMany({
+      where: { schoolId },
+      include: {
+        _count: { select: { visits: true } },
+        visits: {
+          orderBy: { checkInAt: 'desc' },
+          take: 1,
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
   }
 
   async checkInVisitor(schoolId: string, dto: any, userId: string) {
-    const visitors = this.getSchoolList(FrontOfficeService.visitors, schoolId);
-    const visitor = visitors.find(v => v.id === dto.visitorId);
+    const visitorId = dto.visitorId;
+    if (!visitorId) throw new BadRequestException('Select a visitor to check in.');
+
+    const visitor = await this.prisma.visitor.findFirst({
+      where: { id: visitorId, schoolId },
+    });
     if (!visitor) throw new NotFoundException('Visitor record not found.');
 
-    const visits = this.getSchoolList(FrontOfficeService.visits, schoolId);
+    const active = await this.prisma.visitorVisit.findFirst({
+      where: { schoolId, visitorId, status: 'CHECKED_IN' },
+      select: { id: true },
+    });
+    if (active) {
+      throw new ConflictException('This visitor is already checked in on campus.');
+    }
 
-    // Prevent duplicate active visit
-    const active = visits.find(v => v.visitorId === dto.visitorId && v.status === 'CHECKED_IN');
-    if (active) throw new BadRequestException('Visitor is already checked in on campus.');
-
-    const visit = {
-      id: `visit-${Date.now()}`,
-      schoolId,
-      visitorId: dto.visitorId,
-      visitorName: visitor.fullName,
-      purpose: dto.purpose,
-      hostStaffId: dto.hostStaffId || 'Front Office',
-      badgeNumber: dto.badgeNumber || `PASS-${Math.floor(1000 + Math.random() * 9000)}`,
-      actualCheckInAt: new Date(),
-      status: 'CHECKED_IN',
-      notes: dto.notes,
-      checkedInBy: userId,
-    };
-    visits.push(visit);
+    const visit = await this.prisma.visitorVisit.create({
+      data: {
+        schoolId,
+        visitorId,
+        purpose: dto.purpose?.trim() || null,
+        hostName: dto.hostName?.trim() || null,
+        hostStaffId: dto.hostStaffId || null,
+        badgeNumber: dto.badgeNumber?.trim() || `PASS-${Date.now().toString().slice(-4)}`,
+        status: 'CHECKED_IN',
+        notes: dto.notes?.trim() || null,
+        checkedInBy: userId,
+      },
+      include: { visitor: true },
+    });
 
     await this.audit.log({
       userId,
       schoolId,
       action: 'VISITOR_CHECKED_IN',
-      module: 'HR',
+      module: 'FRONT_OFFICE',
       resourceId: visit.id,
     });
 
@@ -123,129 +154,224 @@ export class FrontOfficeService {
   }
 
   async checkOutVisitor(schoolId: string, visitId: string, userId: string) {
-    const visits = this.getSchoolList(FrontOfficeService.visits, schoolId);
-    const visit = visits.find(v => v.id === visitId);
-    if (!visit) throw new NotFoundException('Visit instance not found.');
-    if (visit.status !== 'CHECKED_IN') throw new BadRequestException('Visit is not in an active checked-in state.');
+    const visit = await this.prisma.visitorVisit.findFirst({
+      where: { id: visitId, schoolId },
+    });
+    if (!visit) throw new NotFoundException('Visit record not found.');
+    if (visit.status !== 'CHECKED_IN') {
+      throw new BadRequestException('This visit is not currently checked in.');
+    }
 
-    visit.status = 'CHECKED_OUT';
-    visit.actualCheckOutAt = new Date();
-    visit.checkedOutBy = userId;
+    const updated = await this.prisma.visitorVisit.update({
+      where: { id: visitId },
+      data: {
+        status: 'CHECKED_OUT',
+        checkOutAt: new Date(),
+        checkedOutBy: userId,
+      },
+      include: { visitor: true },
+    });
 
     await this.audit.log({
       userId,
       schoolId,
       action: 'VISITOR_CHECKED_OUT',
-      module: 'HR',
-      resourceId: visit.id,
+      module: 'FRONT_OFFICE',
+      resourceId: updated.id,
     });
 
-    return visit;
+    return updated;
   }
 
   async getCurrentOnCampus(schoolId: string) {
-    const visits = this.getSchoolList(FrontOfficeService.visits, schoolId);
-    return visits.filter(v => v.status === 'CHECKED_IN');
+    return this.prisma.visitorVisit.findMany({
+      where: { schoolId, status: 'CHECKED_IN' },
+      include: { visitor: true },
+      orderBy: { checkInAt: 'desc' },
+    });
   }
 
   // --- APPOINTMENTS ---
   async createAppointment(schoolId: string, dto: any, userId: string) {
-    const appointments = this.getSchoolList(FrontOfficeService.appointments, schoolId);
-    const appointment = {
-      id: `apt-${Date.now()}`,
-      schoolId,
-      visitorName: dto.visitorName,
-      phone: dto.phone,
-      hostName: dto.hostName || 'Administration',
-      purpose: dto.purpose,
-      dateTime: new Date(dto.dateTime),
-      status: 'CONFIRMED',
-      location: dto.location || 'Reception Lounge',
-      notes: dto.notes,
-      createdAt: new Date(),
-    };
-    appointments.push(appointment);
+    const visitorName = dto.visitorName?.trim();
+    if (!visitorName) throw new BadRequestException('Visitor name is required.');
+
+    const scheduledAt = dto.dateTime ? new Date(dto.dateTime) : null;
+    if (!scheduledAt || Number.isNaN(scheduledAt.getTime())) {
+      throw new BadRequestException('Enter a valid appointment date and time.');
+    }
+
+    const appointment = await this.prisma.frontDeskAppointment.create({
+      data: {
+        schoolId,
+        visitorName,
+        phone: dto.phone?.trim() || null,
+        email: dto.email?.trim() || null,
+        hostName: dto.hostName?.trim() || 'Administration',
+        purpose: dto.purpose?.trim() || null,
+        scheduledAt,
+        status: 'CONFIRMED',
+        location: dto.location?.trim() || 'Reception',
+        notes: dto.notes?.trim() || null,
+        createdBy: userId,
+      },
+    });
 
     await this.audit.log({
       userId,
       schoolId,
       action: 'APPOINTMENT_CREATED',
-      module: 'HR',
+      module: 'FRONT_OFFICE',
       resourceId: appointment.id,
     });
 
     return appointment;
   }
 
-  async getAppointments(schoolId: string) {
-    return this.getSchoolList(FrontOfficeService.appointments, schoolId);
+  async getAppointments(schoolId: string, filters: any = {}) {
+    const { status, from, to } = filters;
+    return this.prisma.frontDeskAppointment.findMany({
+      where: {
+        schoolId,
+        ...(status ? { status } : {}),
+        ...(from || to
+          ? {
+              scheduledAt: {
+                ...(from ? { gte: new Date(from) } : {}),
+                ...(to ? { lte: new Date(to) } : {}),
+              },
+            }
+          : {}),
+      },
+      orderBy: { scheduledAt: 'desc' },
+    });
   }
 
-  // --- ENQUIRIES & HANDOFF ---
-  async createEnquiry(schoolId: string, dto: any, userId: string) {
-    const enquiries = this.getSchoolList(FrontOfficeService.enquiries, schoolId);
-    const count = enquiries.length + 1;
-    const referenceNumber = `ENQ-2027-${String(count).padStart(6, '0')}`;
+  async updateAppointmentStatus(
+    schoolId: string,
+    id: string,
+    status: string,
+    userId: string,
+  ) {
+    const allowed = ['REQUESTED', 'CONFIRMED', 'COMPLETED', 'CANCELLED', 'NO_SHOW'];
+    if (!allowed.includes(status)) {
+      throw new BadRequestException('Unknown appointment status.');
+    }
+    const appointment = await this.prisma.frontDeskAppointment.findFirst({
+      where: { id, schoolId },
+    });
+    if (!appointment) throw new NotFoundException('Appointment not found.');
 
-    const enquiry = {
-      id: `enq-${Date.now()}`,
+    const updated = await this.prisma.frontDeskAppointment.update({
+      where: { id },
+      data: { status },
+    });
+
+    await this.audit.log({
+      userId,
       schoolId,
-      referenceNumber,
-      visitorName: dto.visitorName,
-      phone: dto.phone,
-      email: dto.email,
-      category: dto.category || 'General',
-      subject: dto.subject,
-      description: dto.description,
-      status: 'NEW',
-      createdAt: new Date(),
-    };
-    enquiries.push(enquiry);
+      action: 'APPOINTMENT_STATUS_UPDATED',
+      module: 'FRONT_OFFICE',
+      resourceId: id,
+      metadata: { status },
+    });
+
+    return updated;
+  }
+
+  // --- ENQUIRIES ---
+  async createEnquiry(schoolId: string, dto: any, userId: string) {
+    const visitorName = dto.visitorName?.trim();
+    const subject = dto.subject?.trim();
+    if (!visitorName || !subject) {
+      throw new BadRequestException('Visitor name and subject are required.');
+    }
+
+    const count = await this.prisma.frontDeskEnquiry.count({ where: { schoolId } });
+    const referenceNumber = `ENQ-${new Date().getFullYear()}-${String(count + 1).padStart(6, '0')}`;
+
+    const enquiry = await this.prisma.frontDeskEnquiry.create({
+      data: {
+        schoolId,
+        referenceNumber,
+        visitorName,
+        phone: dto.phone?.trim() || null,
+        email: dto.email?.trim() || null,
+        category: dto.category?.trim() || 'General',
+        subject,
+        description: dto.description?.trim() || null,
+        status: 'NEW',
+        createdBy: userId,
+      },
+    });
 
     await this.audit.log({
       userId,
       schoolId,
       action: 'ENQUIRY_CREATED',
-      module: 'HR',
+      module: 'FRONT_OFFICE',
       resourceId: enquiry.id,
     });
 
     return enquiry;
   }
 
-  async getEnquiries(schoolId: string) {
-    return this.getSchoolList(FrontOfficeService.enquiries, schoolId);
+  async getEnquiries(schoolId: string, filters: any = {}) {
+    return this.prisma.frontDeskEnquiry.findMany({
+      where: { schoolId, ...(filters.status ? { status: filters.status } : {}) },
+      orderBy: { createdAt: 'desc' },
+    });
   }
 
-  async resolveEnquiry(schoolId: string, id: string, resolution: string, userId: string) {
-    const enquiries = this.getSchoolList(FrontOfficeService.enquiries, schoolId);
-    const enquiry = enquiries.find(e => e.id === id);
+  async resolveEnquiry(
+    schoolId: string,
+    id: string,
+    resolution: string,
+    userId: string,
+  ) {
+    if (!resolution?.trim()) {
+      throw new BadRequestException('Enter a resolution note before closing the enquiry.');
+    }
+    const enquiry = await this.prisma.frontDeskEnquiry.findFirst({
+      where: { id, schoolId },
+    });
     if (!enquiry) throw new NotFoundException('Enquiry not found.');
+    if (enquiry.status === 'RESOLVED') {
+      throw new BadRequestException('This enquiry is already resolved.');
+    }
 
-    enquiry.status = 'RESOLVED';
-    enquiry.resolution = resolution;
-    enquiry.resolvedAt = new Date();
+    const updated = await this.prisma.frontDeskEnquiry.update({
+      where: { id },
+      data: {
+        status: 'RESOLVED',
+        resolution: resolution.trim(),
+        resolvedAt: new Date(),
+        resolvedBy: userId,
+      },
+    });
 
     await this.audit.log({
       userId,
       schoolId,
       action: 'ENQUIRY_RESOLVED',
-      module: 'HR',
-      resourceId: enquiry.id,
+      module: 'FRONT_OFFICE',
+      resourceId: id,
     });
 
-    return enquiry;
+    return updated;
   }
 
   // --- STUDENT LOOKUP & GUARDIAN VERIFICATION ---
   async lookupStudent(schoolId: string, query: string) {
+    const needle = query?.trim();
+    if (!needle) return [];
     return this.prisma.student.findMany({
       where: {
         schoolId,
         OR: [
-          { firstName: { contains: query, mode: 'insensitive' } },
-          { lastName: { contains: query, mode: 'insensitive' } },
-          { studentNumber: { contains: query, mode: 'insensitive' } },
+          { firstName: { contains: needle, mode: 'insensitive' } },
+          { lastName: { contains: needle, mode: 'insensitive' } },
+          { studentNumber: { contains: needle, mode: 'insensitive' } },
         ],
       },
       include: {
@@ -253,9 +379,7 @@ export class FrontOfficeService {
           where: { status: 'ACTIVE' },
           include: { class: true, section: true },
         },
-        guardians: {
-          include: { guardian: true },
-        },
+        guardians: { include: { guardian: true } },
       },
       take: 10,
     });
@@ -263,24 +387,43 @@ export class FrontOfficeService {
 
   // --- STUDENT EARLY DEPARTURE / CHECK-OUT ---
   async requestStudentCheckout(schoolId: string, dto: any, userId: string) {
+    if (!dto.studentId) throw new BadRequestException('Select a student.');
     const student = await this.prisma.student.findFirst({
       where: { id: dto.studentId, schoolId },
     });
     if (!student) throw new NotFoundException('Student profile not found.');
 
-    const list = this.getSchoolList(FrontOfficeService.studentCheckouts, schoolId);
-    const checkout = {
-      id: `co-${Date.now()}`,
-      schoolId,
-      studentId: dto.studentId,
-      studentName: `${student.firstName} ${student.lastName}`,
-      guardianName: dto.guardianName,
-      reason: dto.reason,
-      status: 'APPROVED',
-      checkedOutAt: new Date(),
-      processedBy: userId,
-    };
-    list.push(checkout);
+    if (!dto.guardianName?.trim()) {
+      throw new BadRequestException('Record who collected the student.');
+    }
+    if (!dto.reason?.trim()) {
+      throw new BadRequestException('Enter the reason for early departure.');
+    }
+
+    const existing = await this.prisma.studentCheckout.findFirst({
+      where: {
+        schoolId,
+        studentId: dto.studentId,
+        checkedOutAt: { gte: new Date(new Date().setHours(0, 0, 0, 0)) },
+      },
+      select: { id: true },
+    });
+    if (existing) {
+      throw new ConflictException('This student has already been checked out today.');
+    }
+
+    const checkout = await this.prisma.studentCheckout.create({
+      data: {
+        schoolId,
+        studentId: dto.studentId,
+        guardianName: dto.guardianName.trim(),
+        relationship: dto.relationship?.trim() || null,
+        reason: dto.reason.trim(),
+        status: 'COMPLETED',
+        notes: dto.notes?.trim() || null,
+        processedBy: userId,
+      },
+    });
 
     await this.audit.log({
       userId,
@@ -294,56 +437,113 @@ export class FrontOfficeService {
   }
 
   async getStudentCheckouts(schoolId: string) {
-    return this.getSchoolList(FrontOfficeService.studentCheckouts, schoolId);
+    const rows = await this.prisma.studentCheckout.findMany({
+      where: { schoolId },
+      orderBy: { checkedOutAt: 'desc' },
+    });
+    return this.attachStudents(schoolId, rows);
   }
 
   // --- LATE ARRIVALS ---
   async recordLateArrival(schoolId: string, dto: any, userId: string) {
+    if (!dto.studentId) throw new BadRequestException('Select a student.');
     const student = await this.prisma.student.findFirst({
       where: { id: dto.studentId, schoolId },
     });
     if (!student) throw new NotFoundException('Student not found.');
 
-    const list = this.getSchoolList(FrontOfficeService.lateArrivals, schoolId);
-    const late = {
-      id: `late-${Date.now()}`,
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+    const existing = await this.prisma.lateArrival.findFirst({
+      where: {
+        schoolId,
+        studentId: dto.studentId,
+        arrivalTime: { gte: startOfDay },
+      },
+      select: { id: true },
+    });
+    if (existing) {
+      throw new ConflictException('A late arrival is already recorded for this student today.');
+    }
+
+    const late = await this.prisma.lateArrival.create({
+      data: {
+        schoolId,
+        studentId: dto.studentId,
+        arrivalTime: dto.arrivalTime ? new Date(dto.arrivalTime) : new Date(),
+        reason: dto.reason?.trim() || 'Delayed',
+        notes: dto.notes?.trim() || null,
+        recordedBy: userId,
+      },
+    });
+
+    await this.audit.log({
+      userId,
       schoolId,
-      studentId: dto.studentId,
-      studentName: `${student.firstName} ${student.lastName}`,
-      arrivalTime: new Date(),
-      reason: dto.reason || 'Delayed',
-      recordedBy: userId,
-    };
-    list.push(late);
+      action: 'LATE_ARRIVAL_RECORDED',
+      module: 'FRONT_OFFICE',
+      resourceId: late.id,
+    });
 
     return late;
   }
 
   async getLateArrivals(schoolId: string) {
-    return this.getSchoolList(FrontOfficeService.lateArrivals, schoolId);
+    const rows = await this.prisma.lateArrival.findMany({
+      where: { schoolId },
+      orderBy: { arrivalTime: 'desc' },
+    });
+    return this.attachStudents(schoolId, rows);
+  }
+
+  async updateLateArrival(schoolId: string, id: string, dto: any, userId: string) {
+    const late = await this.prisma.lateArrival.findFirst({ where: { id, schoolId } });
+    if (!late) throw new NotFoundException('Late arrival record not found.');
+
+    const updated = await this.prisma.lateArrival.update({
+      where: { id },
+      data: {
+        ...(dto.reason !== undefined ? { reason: dto.reason?.trim() || 'Delayed' } : {}),
+        ...(dto.notes !== undefined ? { notes: dto.notes?.trim() || null } : {}),
+      },
+    });
+
+    await this.audit.log({
+      userId,
+      schoolId,
+      action: 'LATE_ARRIVAL_UPDATED',
+      module: 'FRONT_OFFICE',
+      resourceId: id,
+    });
+
+    return updated;
   }
 
   // --- DELIVERIES ---
   async recordDelivery(schoolId: string, dto: any, userId: string) {
-    const list = this.getSchoolList(FrontOfficeService.deliveries, schoolId);
-    const delivery = {
-      id: `del-${Date.now()}`,
-      schoolId,
-      courierCompany: dto.courierCompany,
-      recipientName: dto.recipientName,
-      referenceNumber: dto.referenceNumber || 'N/A',
-      receivedAt: new Date(),
-      status: 'RECEIVED',
-      notes: dto.notes,
-      receivedBy: userId,
-    };
-    list.push(delivery);
+    const recipientName = dto.recipientName?.trim();
+    if (!recipientName) {
+      throw new BadRequestException('Record who the delivery is for.');
+    }
+
+    const delivery = await this.prisma.delivery.create({
+      data: {
+        schoolId,
+        courierCompany: dto.courierCompany?.trim() || null,
+        recipientName,
+        referenceNumber: dto.referenceNumber?.trim() || null,
+        description: dto.description?.trim() || null,
+        status: 'RECEIVED',
+        notes: dto.notes?.trim() || null,
+        receivedBy: userId,
+      },
+    });
 
     await this.audit.log({
       userId,
       schoolId,
       action: 'DELIVERY_RECEIVED',
-      module: 'HR',
+      module: 'FRONT_OFFICE',
       resourceId: delivery.id,
     });
 
@@ -351,49 +551,152 @@ export class FrontOfficeService {
   }
 
   async getDeliveries(schoolId: string) {
-    return this.getSchoolList(FrontOfficeService.deliveries, schoolId);
+    return this.prisma.delivery.findMany({
+      where: { schoolId },
+      orderBy: { receivedAt: 'desc' },
+    });
+  }
+
+  async markDeliveryCollected(schoolId: string, id: string, dto: any, userId: string) {
+    const delivery = await this.prisma.delivery.findFirst({ where: { id, schoolId } });
+    if (!delivery) throw new NotFoundException('Delivery not found.');
+    if (delivery.status === 'COLLECTED') {
+      throw new BadRequestException('This delivery has already been collected.');
+    }
+
+    const updated = await this.prisma.delivery.update({
+      where: { id },
+      data: {
+        status: 'COLLECTED',
+        collectedAt: new Date(),
+        collectedBy: dto.collectedBy?.trim() || userId,
+      },
+    });
+
+    await this.audit.log({
+      userId,
+      schoolId,
+      action: 'DELIVERY_COLLECTED',
+      module: 'FRONT_OFFICE',
+      resourceId: id,
+    });
+
+    return updated;
   }
 
   // --- LOST & FOUND ---
   async recordLostFoundItem(schoolId: string, dto: any, userId: string) {
-    const list = this.getSchoolList(FrontOfficeService.lostFoundItems, schoolId);
-    const item = {
-      id: `lf-${Date.now()}`,
+    const itemName = dto.itemName?.trim();
+    if (!itemName) throw new BadRequestException('Item name is required.');
+
+    const item = await this.prisma.lostFoundItem.create({
+      data: {
+        schoolId,
+        itemName,
+        category: dto.category?.trim() || 'General',
+        foundLocation: dto.foundLocation?.trim() || null,
+        description: dto.description?.trim() || null,
+        status: 'STORED',
+        recordedBy: userId,
+      },
+    });
+
+    await this.audit.log({
+      userId,
       schoolId,
-      itemName: dto.itemName,
-      category: dto.category || 'General',
-      foundLocation: dto.foundLocation,
-      description: dto.description,
-      status: 'STORED',
-      foundAt: new Date(),
-      recordedBy: userId,
-    };
-    list.push(item);
+      action: 'LOST_FOUND_RECORDED',
+      module: 'FRONT_OFFICE',
+      resourceId: item.id,
+    });
 
     return item;
   }
 
   async getLostFoundItems(schoolId: string) {
-    return this.getSchoolList(FrontOfficeService.lostFoundItems, schoolId);
+    return this.prisma.lostFoundItem.findMany({
+      where: { schoolId },
+      orderBy: { foundAt: 'desc' },
+    });
   }
 
-  async claimLostFoundItem(schoolId: string, id: string, claimantName: string, userId: string) {
-    const list = this.getSchoolList(FrontOfficeService.lostFoundItems, schoolId);
-    const item = list.find(i => i.id === id);
+  async claimLostFoundItem(
+    schoolId: string,
+    id: string,
+    claimantName: string,
+    userId: string,
+  ) {
+    if (!claimantName?.trim()) {
+      throw new BadRequestException('Record who is collecting the item.');
+    }
+    const item = await this.prisma.lostFoundItem.findFirst({ where: { id, schoolId } });
     if (!item) throw new NotFoundException('Item not found.');
+    if (item.status === 'CLAIMED') {
+      throw new BadRequestException('This item has already been claimed.');
+    }
 
-    item.status = 'CLAIMED';
-    item.claimantName = claimantName;
-    item.claimedAt = new Date();
+    const updated = await this.prisma.lostFoundItem.update({
+      where: { id },
+      data: {
+        status: 'CLAIMED',
+        claimantName: claimantName.trim(),
+        claimedAt: new Date(),
+      },
+    });
 
     await this.audit.log({
       userId,
       schoolId,
       action: 'LOST_FOUND_CLAIMED',
-      module: 'HR',
-      resourceId: item.id,
+      module: 'FRONT_OFFICE',
+      resourceId: id,
     });
 
-    return item;
+    return updated;
+  }
+
+  /**
+   * Checkouts and late arrivals store the student id; the reception desk needs
+   * names and class. This resolves them in one query instead of trusting a
+   * denormalised copy captured at write time.
+   */
+  private async attachStudents<T extends { studentId: string }>(
+    schoolId: string,
+    rows: T[],
+  ) {
+    if (rows.length === 0) return [];
+    const students = await this.prisma.student.findMany({
+      where: { schoolId, id: { in: rows.map((row) => row.studentId) } },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        studentNumber: true,
+        enrollments: {
+          where: { status: 'ACTIVE' },
+          select: {
+            class: { select: { name: true } },
+            section: { select: { name: true } },
+          },
+          take: 1,
+        },
+      },
+    });
+    const byId = new Map(students.map((student) => [student.id, student]));
+    return rows.map((row) => {
+      const student = byId.get(row.studentId);
+      return {
+        ...row,
+        student: student
+          ? {
+              id: student.id,
+              firstName: student.firstName,
+              lastName: student.lastName,
+              studentNumber: student.studentNumber,
+              className: student.enrollments[0]?.class?.name ?? null,
+              sectionName: student.enrollments[0]?.section?.name ?? null,
+            }
+          : null,
+      };
+    });
   }
 }

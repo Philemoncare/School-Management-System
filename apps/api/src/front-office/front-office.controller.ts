@@ -48,8 +48,18 @@ export class FrontOfficeController {
   }
 
   @Get('appointments')
-  getAppointments(@ActiveSchool() schoolId: string) {
-    return this.frontOfficeService.getAppointments(schoolId);
+  getAppointments(@ActiveSchool() schoolId: string, @Query() filters: any) {
+    return this.frontOfficeService.getAppointments(schoolId, filters);
+  }
+
+  @Patch('appointments/:id/status')
+  updateAppointmentStatus(
+    @ActiveSchool() schoolId: string,
+    @Param('id') id: string,
+    @Body('status') status: string,
+    @CurrentUser() user: any,
+  ) {
+    return this.frontOfficeService.updateAppointmentStatus(schoolId, id, status, user.id);
   }
 
   // --- ENQUIRIES ---
@@ -59,8 +69,8 @@ export class FrontOfficeController {
   }
 
   @Get('enquiries')
-  getEnquiries(@ActiveSchool() schoolId: string) {
-    return this.frontOfficeService.getEnquiries(schoolId);
+  getEnquiries(@ActiveSchool() schoolId: string, @Query() filters: any) {
+    return this.frontOfficeService.getEnquiries(schoolId, filters);
   }
 
   @Patch('enquiries/:id/resolve')
@@ -95,6 +105,16 @@ export class FrontOfficeController {
     return this.frontOfficeService.getLateArrivals(schoolId);
   }
 
+  @Patch('students/late-arrivals/:id')
+  updateLateArrival(
+    @ActiveSchool() schoolId: string,
+    @Param('id') id: string,
+    @Body() dto: any,
+    @CurrentUser() user: any,
+  ) {
+    return this.frontOfficeService.updateLateArrival(schoolId, id, dto, user.id);
+  }
+
   // --- DELIVERIES ---
   @Post('deliveries')
   recordDelivery(@ActiveSchool() schoolId: string, @Body() dto: any, @CurrentUser() user: any) {
@@ -104,6 +124,16 @@ export class FrontOfficeController {
   @Get('deliveries')
   getDeliveries(@ActiveSchool() schoolId: string) {
     return this.frontOfficeService.getDeliveries(schoolId);
+  }
+
+  @Patch('deliveries/:id/collect')
+  markDeliveryCollected(
+    @ActiveSchool() schoolId: string,
+    @Param('id') id: string,
+    @Body() dto: any,
+    @CurrentUser() user: any,
+  ) {
+    return this.frontOfficeService.markDeliveryCollected(schoolId, id, dto, user.id);
   }
 
   // --- LOST & FOUND ---

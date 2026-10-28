@@ -1,15 +1,33 @@
-import { IsString, IsNotEmpty, IsOptional, IsInt, IsNumber, IsUUID, IsEnum, IsArray, IsDate, Min } from "class-validator";
+import {
+  IsString,
+  IsNotEmpty,
+  IsOptional,
+  IsInt,
+  IsNumber,
+  IsUUID,
+  IsEnum,
+  IsDate,
+  Min,
+} from "class-validator";
 import { Type } from "class-transformer";
-import { RouteDirection, VehicleStatus, DriverStatus, AttendanceType, TransportAttendanceStatus } from "@prisma/client";
+import {
+  RouteDirection,
+  RouteStatus,
+  VehicleStatus,
+  DriverStatus,
+  AttendanceType,
+  TransportAttendanceStatus,
+  TransportAssignmentStatus,
+} from "@prisma/client";
 
 // Route status values
-export type RouteStatus = 'ACTIVE' | 'INACTIVE' | 'ARCHIVED' | 'MAINTENANCE';
+export type RouteStatusValue = 'ACTIVE' | 'INACTIVE' | 'ARCHIVED' | 'MAINTENANCE';
 
 // Trip status values
-export type TripStatus = 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED' | 'DELAYED' | 'PENDING';
+export type TripStatusValue = 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED' | 'DELAYED' | 'PENDING';
 
 // Maintenance status values
-export type MaintenanceStatus = 'ACTIVE' | 'INACTIVE' | 'REPAIR' | 'MAINTENANCE';
+export type MaintenanceStatusValue = 'ACTIVE' | 'INACTIVE' | 'REPAIR' | 'MAINTENANCE';
 
 // Emergency type values
 export type EmergencyType = 'MEDICAL' | 'ACCIDENT' | 'FIRE' | 'WEATHER' | 'SECURITY' | 'OTHER';
@@ -76,6 +94,54 @@ export class CreateVehicleDto {
   notes?: string = undefined;
 }
 
+export class UpdateVehicleDto {
+  @IsString()
+  @IsOptional()
+  registrationNumber?: string = undefined;
+
+  @IsString()
+  @IsOptional()
+  make?: string = undefined;
+
+  @IsString()
+  @IsOptional()
+  model?: string = undefined;
+
+  @IsInt()
+  @IsOptional()
+  year?: number = undefined;
+
+  @IsString()
+  @IsOptional()
+  type?: string = undefined;
+
+  @IsInt()
+  @Min(1)
+  @IsOptional()
+  seatingCapacity?: number = undefined;
+
+  @IsEnum(VehicleStatus)
+  @IsOptional()
+  status?: VehicleStatus = undefined;
+
+  @IsNumber()
+  @IsOptional()
+  currentMileage?: number = undefined;
+
+  @IsString()
+  @IsOptional()
+  insuranceNumber?: string = undefined;
+
+  @IsDate()
+  @IsOptional()
+  @Type(() => Date)
+  insuranceExpiry?: Date = undefined;
+
+  @IsString()
+  @IsOptional()
+  notes?: string = undefined;
+}
+
 // Driver DTOs
 export class CreateDriverDto {
   @IsUUID()
@@ -104,6 +170,29 @@ export class CreateDriverDto {
   notes?: string = undefined;
 }
 
+export class UpdateDriverDto {
+  @IsString()
+  @IsOptional()
+  licenseNumber?: string = undefined;
+
+  @IsString()
+  @IsOptional()
+  licenseClass?: string = undefined;
+
+  @IsDate()
+  @IsOptional()
+  @Type(() => Date)
+  licenseExpiry?: Date = undefined;
+
+  @IsEnum(DriverStatus)
+  @IsOptional()
+  status?: DriverStatus = undefined;
+
+  @IsString()
+  @IsOptional()
+  notes?: string = undefined;
+}
+
 // Route DTOs
 export class CreateRouteDto {
   @IsString()
@@ -121,6 +210,36 @@ export class CreateRouteDto {
   @IsEnum(RouteDirection)
   @IsOptional()
   direction?: RouteDirection = undefined;
+
+  @IsInt()
+  @IsOptional()
+  estimatedDuration?: number = undefined;
+
+  @IsNumber()
+  @IsOptional()
+  estimatedDistance?: number = undefined;
+}
+
+export class UpdateRouteDto {
+  @IsString()
+  @IsOptional()
+  name?: string = undefined;
+
+  @IsString()
+  @IsOptional()
+  code?: string = undefined;
+
+  @IsString()
+  @IsOptional()
+  description?: string = undefined;
+
+  @IsEnum(RouteDirection)
+  @IsOptional()
+  direction?: RouteDirection = undefined;
+
+  @IsEnum(RouteStatus)
+  @IsOptional()
+  status?: RouteStatus = undefined;
 
   @IsInt()
   @IsOptional()
@@ -191,6 +310,17 @@ export class CreateAssignmentDto {
   feeAmount?: number = undefined;
 }
 
+export class UpdateAssignmentDto {
+  @IsEnum(TransportAssignmentStatus)
+  @IsOptional()
+  status?: TransportAssignmentStatus;
+
+  @IsDate()
+  @IsOptional()
+  @Type(() => Date)
+  endDate?: Date;
+}
+
 // Trip DTOs
 export class ScheduleTripDto {
   @IsUUID()
@@ -240,4 +370,91 @@ export class MarkAttendanceDto {
   @IsNumber()
   @IsOptional()
   longitude?: number = undefined;
+}
+
+// Maintenance DTOs
+export class CreateMaintenanceDto {
+  @IsUUID()
+  @IsNotEmpty()
+  vehicleId: string = '';
+
+  @IsString()
+  @IsNotEmpty()
+  type: string = '';
+
+  @IsString()
+  @IsOptional()
+  description?: string = undefined;
+
+  @IsDate()
+  @IsNotEmpty()
+  @Type(() => Date)
+  scheduledDate: Date = new Date();
+
+  @IsNumber()
+  @IsOptional()
+  cost?: number = undefined;
+
+  @IsString()
+  @IsOptional()
+  provider?: string = undefined;
+
+  @IsNumber()
+  @IsOptional()
+  mileage?: number = undefined;
+
+  @IsString()
+  @IsOptional()
+  notes?: string = undefined;
+}
+
+export class UpdateMaintenanceDto {
+  @IsString()
+  @IsOptional()
+  status?: string;
+
+  @IsDate()
+  @IsOptional()
+  @Type(() => Date)
+  completedDate?: Date;
+
+  @IsNumber()
+  @IsOptional()
+  cost?: number;
+
+  @IsString()
+  @IsOptional()
+  notes?: string;
+}
+
+// Fuel DTOs
+export class CreateFuelRecordDto {
+  @IsUUID()
+  @IsNotEmpty()
+  vehicleId: string = '';
+
+  @IsDate()
+  @IsNotEmpty()
+  @Type(() => Date)
+  date: Date = new Date();
+
+  @IsString()
+  @IsNotEmpty()
+  fuelType: string = '';
+
+  @IsNumber()
+  @Min(0.01)
+  quantity: number = 0;
+
+  @IsNumber()
+  @Min(0)
+  unitPrice: number = 0;
+
+  @IsNumber()
+  @IsOptional()
+  mileage?: number = undefined;
+
+  @IsString()
+  @IsOptional()
+  supplier?: string = undefined;
 }

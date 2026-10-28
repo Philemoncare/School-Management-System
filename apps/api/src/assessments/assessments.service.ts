@@ -14,13 +14,14 @@ export class AssessmentsService {
 
   // Assessment Types
   async createType(schoolId: string, dto: CreateAssessmentTypeDto, actorId: string) {
+    const code = dto.code.trim().toUpperCase();
     const existing = await this.prisma.assessmentType.findFirst({
-      where: { schoolId, code: dto.code },
+      where: { schoolId, code },
     });
     if (existing) throw new ConflictException('Assessment type code already exists');
 
     const type = await this.prisma.assessmentType.create({
-      data: { ...dto, schoolId },
+      data: { ...dto, name: dto.name.trim(), code, schoolId },
     });
 
     await this.audit.log({
@@ -39,6 +40,50 @@ export class AssessmentsService {
       where: { OR: [{ schoolId }, { schoolId: null }] },
       orderBy: { name: 'asc' },
     });
+  }
+
+  async updateType(
+    schoolId: string,
+    id: string,
+    dto: UpdateAssessmentTypeDto,
+    actorId: string,
+  ) {
+    const type = await this.prisma.assessmentType.findFirst({
+      where: { id, schoolId },
+    });
+    if (!type) throw new NotFoundException('Assessment type not found in this school');
+
+    const code = dto.code ? dto.code.trim().toUpperCase() : undefined;
+    if (code && code !== type.code) {
+      const duplicate = await this.prisma.assessmentType.findFirst({
+        where: { schoolId, code, NOT: { id } },
+        select: { id: true },
+      });
+      if (duplicate) throw new ConflictException('Assessment type code already exists');
+    }
+
+    const updated = await this.prisma.assessmentType.update({
+      where: { id },
+      data: {
+        ...(dto.name ? { name: dto.name.trim() } : {}),
+        ...(code ? { code } : {}),
+        ...(dto.description !== undefined
+          ? { description: dto.description?.trim() || null }
+          : {}),
+        ...(dto.isActive !== undefined ? { isActive: dto.isActive } : {}),
+      },
+    });
+
+    await this.audit.log({
+      userId: actorId,
+      schoolId,
+      action: 'ASSESSMENT_TYPE_UPDATED',
+      module: 'ASSESSMENTS',
+      resourceId: id,
+      metadata: { code: updated.code },
+    });
+
+    return updated;
   }
 
   // Assessments

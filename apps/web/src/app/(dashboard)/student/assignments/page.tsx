@@ -1,4 +1,5 @@
 'use client';
+import { showFeedback } from '@/components/layout/global-feedback';
 
 import React, { useEffect, useState } from 'react';
 import { apiFetch } from '@/lib/api/client';
@@ -34,13 +35,13 @@ export default function StudentAssignments() {
           fileUrl: fileUrl || 'https://storage.schoolplatform.example/submissions/doc.pdf'
         }),
       });
-      alert('Assignment submission recorded successfully!');
+      showFeedback('SUCCESS', 'Assignment submission recorded successfully!');
       setSubmittingId(null);
       setSubmissionContent('');
       setFileUrl('');
       fetchAssignments();
     } catch (error: any) {
-      alert(error.message || 'Submission failed');
+      showFeedback('ERROR', error.message || 'Submission failed');
     }
   }
 

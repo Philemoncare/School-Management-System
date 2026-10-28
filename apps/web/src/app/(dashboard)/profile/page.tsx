@@ -1,4 +1,5 @@
 "use client";
+import { showFeedback } from '@/components/layout/global-feedback';
 
 import { Select } from '@/components/ui/input';
 import React, { useState, useEffect } from "react";
@@ -149,7 +150,7 @@ export default function GlobalProfilePage() {
         method: "POST",
         body: JSON.stringify({ reason }),
       });
-      alert("Deactivation request submitted successfully to administrator.");
+      showFeedback('SUCCESS', 'Deactivation request submitted successfully to administrator.');
     } catch (err: any) {
       setError(err.message || "Failed to submit request");
     }

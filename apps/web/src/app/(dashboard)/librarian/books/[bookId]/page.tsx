@@ -1,4 +1,5 @@
 'use client';
+import { showFeedback } from '@/components/layout/global-feedback';
 
 import { Select } from '@/components/ui/input';
 import React, { useEffect, useState } from 'react';
@@ -77,9 +78,9 @@ export default function BookDetailPage() {
         body: JSON.stringify({ ...copyData, bookId })
       });
       loadData();
-      alert('Physical copy added successfully');
+      showFeedback('SUCCESS', 'Physical copy added successfully');
     } catch (err) {
-      alert('Failed to add copy');
+      showFeedback('ERROR', 'Failed to add copy');
     } finally {
       setAddingCopy(false);
     }

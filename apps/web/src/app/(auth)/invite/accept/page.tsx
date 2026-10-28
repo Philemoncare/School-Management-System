@@ -19,6 +19,8 @@ function AcceptInviteContent() {
 
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -52,6 +54,10 @@ function AcceptInviteContent() {
     e.preventDefault();
     setFormError('');
 
+    if (!firstName.trim() || !lastName.trim()) {
+      setFormError('Enter your first and last name.');
+      return;
+    }
     if (password.length < 12) {
       setFormError('Password must be at least 12 characters long.');
       return;
@@ -69,7 +75,7 @@ function AcceptInviteContent() {
     try {
       await apiFetch('/auth/invite/accept', {
         method: 'POST',
-        body: JSON.stringify({ token, password })
+        body: JSON.stringify({ token, password, firstName, lastName })
       });
       setSuccess(true);
     } catch (err: any) {
@@ -150,6 +156,23 @@ function AcceptInviteContent() {
             disabled
             className="w-full px-4 py-3 bg-warm-100 border border-warm-200 rounded-2xl text-warm-600 font-mono font-bold text-xs"
             value={invitation?.email || ''}
+          />
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Input
+            label="First name *"
+            required
+            placeholder="e.g. Ama"
+            value={firstName}
+            onChange={e => setFirstName(e.target.value)}
+          />
+          <Input
+            label="Last name *"
+            required
+            placeholder="e.g. Mensah"
+            value={lastName}
+            onChange={e => setLastName(e.target.value)}
           />
         </div>
 

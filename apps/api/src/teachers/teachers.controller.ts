@@ -24,7 +24,7 @@ export class TeachersController {
     return this.teachersService.create(schoolId, dto, user.id);
   }
 
-  @Roles('SCHOOL_ADMIN', 'PRINCIPAL', 'RECEPTIONIST')
+  @Roles('SCHOOL_ADMIN', 'PRINCIPAL', 'RECEPTIONIST', 'TIMETABLE_OFFICER', 'ACADEMIC_COORDINATOR')
   @Get()
   findAll(
     @ActiveSchool() schoolId: string,

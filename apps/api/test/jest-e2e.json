@@ -5,5 +5,9 @@
   "testRegex": ".e2e-spec.ts$",
   "transform": {
     "^.+\\.(t|j)s$": "ts-jest"
-  }
+  },
+  "moduleNameMapper": {
+    "^@nestjs/bullmq$": "<rootDir>/mocks/nestjs-bullmq.ts"
+  },
+  "testTimeout": 60000
 }

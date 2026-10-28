@@ -26,12 +26,35 @@ export class NotificationsService {
     });
   }
 
-  async findAll(userId: string) {
-    return this.prisma.notification.findMany({
-      where: { userId },
-      orderBy: { createdAt: 'desc' },
-      take: 20,
-    });
+  private shape(notification: {
+    id: string;
+    title: string;
+    content: string;
+    notificationType: string;
+    readAt: Date | null;
+    createdAt: Date;
+    [key: string]: any;
+  }) {
+    return {
+      ...notification,
+      // The UI treats `type` and `read` as the canonical fields.
+      type: notification.notificationType,
+      read: Boolean(notification.readAt),
+    };
+  }
+
+  async findAll(userId: string, limit?: number) {
+    const take = Math.min(Math.max(Number(limit) || 20, 1), 200);
+    const [items, unreadCount] = await Promise.all([
+      this.prisma.notification.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
+        take,
+      }),
+      this.prisma.notification.count({ where: { userId, readAt: null } }),
+    ]);
+
+    return { items: items.map((item) => this.shape(item)), unreadCount };
   }
 
   async markAsRead(id: string, userId: string) {
@@ -45,5 +68,14 @@ export class NotificationsService {
     }
 
     return { success: true };
+  }
+
+  async markAllAsRead(userId: string) {
+    const result = await this.prisma.notification.updateMany({
+      where: { userId, readAt: null },
+      data: { readAt: new Date() },
+    });
+
+    return { success: true, updated: result.count };
   }
 }

@@ -2,24 +2,21 @@
 
 import React, { useEffect, useState } from 'react';
 import { apiFetch } from '@/lib/api/client';
+import { showFeedback } from '@/components/layout/global-feedback';
 import {
-  FileText,
   Search,
-  Filter,
-  CheckCircle,
   Download,
   Printer,
   Loader2,
-  ArrowUpRight,
   ShieldCheck,
   CreditCard
 } from 'lucide-react';
-import Link from 'next/link';
 
 export default function AccountantReceiptsPage() {
   const [receipts, setReceipts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [error, setError] = useState('');
 
   useEffect(() => {
     loadReceipts();
@@ -27,14 +24,43 @@ export default function AccountantReceiptsPage() {
 
   async function loadReceipts() {
     setLoading(true);
+    setError('');
     try {
-      const data = await apiFetch(`/finance/receipts?search=${search}`);
-      setReceipts(data);
-    } catch (err) {
-      console.error(err);
+      const data = await apiFetch(`/finance/receipts?search=${encodeURIComponent(search.trim())}`);
+      setReceipts(Array.isArray(data) ? data : []);
+    } catch (err: any) {
+      setReceipts([]);
+      setError(err?.message || 'Could not load receipts.');
     } finally {
       setLoading(false);
     }
+  }
+
+  function downloadCsv() {
+    if (receipts.length === 0) {
+      showFeedback('ERROR', 'There are no receipts to export.');
+      return;
+    }
+    const escape = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""')}"`;
+    const header = ['Receipt number', 'Student', 'Student number', 'Method', 'Amount', 'Currency', 'Payment date'];
+    const rows = receipts.map((receipt) => [
+      receipt.receiptNumber,
+      `${receipt.student?.firstName ?? ''} ${receipt.student?.lastName ?? ''}`.trim(),
+      receipt.student?.studentNumber,
+      receipt.paymentMethod,
+      receipt.amount,
+      receipt.currency,
+      receipt.paymentDate ? new Date(receipt.paymentDate).toISOString() : '',
+    ]);
+    const csv = [header, ...rows].map((row) => row.map(escape).join(',')).join('\r\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `receipts-${new Date().toISOString().slice(0, 10)}.csv`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+    showFeedback('SUCCESS', `${receipts.length} receipt${receipts.length === 1 ? '' : 's'} exported.`);
   }
 
   return (
@@ -47,7 +73,7 @@ export default function AccountantReceiptsPage() {
           <p className="text-warm-500 font-bold mt-1 uppercase tracking-wide text-[11px]">Registry of official financial acknowledgments and proof of payment</p>
         </div>
         <div className="flex items-center gap-3">
-           <button className="bg-card border border-warm-200 text-warm-700 px-6 py-2.5 rounded-2xl font-semibold text-[11px] uppercase tracking-wide hover:bg-ivory-50 transition-all shadow-sm flex items-center gap-2">
+           <button onClick={downloadCsv} className="bg-card border border-warm-200 text-warm-700 px-6 py-2.5 rounded-2xl font-semibold text-[11px] uppercase tracking-wide hover:bg-ivory-50 transition-all shadow-sm flex items-center gap-2">
              <Download size={16} /> Batch Export
            </button>
         </div>
@@ -65,8 +91,14 @@ export default function AccountantReceiptsPage() {
                 onChange={(e) => setSearch(e.target.value)}
               />
            </div>
-           <button className="p-3 bg-card border border-warm-200 rounded-2xl text-warm-500 shadow-sm"><Filter size={18}/></button>
+           <button onClick={() => setSearch('')} title="Clear search" aria-label="Clear search" className="p-3 bg-card border border-warm-200 rounded-2xl text-warm-500 shadow-sm hover:text-forest-700"><Search size={18}/></button>
         </div>
+
+        {error && (
+          <div role="alert" className="border-b border-danger-200 bg-danger-50 px-6 py-3 text-xs font-semibold text-danger-700">
+            {error}
+          </div>
+        )}
 
         <div className="relative min-h-[400px]">
            {loading && (
@@ -112,9 +144,15 @@ export default function AccountantReceiptsPage() {
                        <p className="text-xs font-semibold text-charcoal-900">{new Date(rcp.paymentDate).toLocaleDateString()}</p>
                     </td>
                     <td className="px-8 py-6 text-right">
-                       <div className="flex items-center justify-end gap-2">
-                          <button className="p-2 text-warm-400 hover:text-forest-700 transition-colors"><Printer size={18}/></button>
-                          <button className="p-2 text-warm-400 hover:text-forest-700 transition-colors"><Download size={18}/></button>
+                       <div className="flex items-center justify-end">
+                          <button
+                            onClick={() => window.print()}
+                            title={`Print receipt ${rcp.receiptNumber}`}
+                            aria-label={`Print receipt ${rcp.receiptNumber}`}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-warm-200 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-forest-700 hover:bg-ivory-50"
+                          >
+                            <Printer size={14}/> Print
+                          </button>
                        </div>
                     </td>
                  </tr>

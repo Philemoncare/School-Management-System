@@ -1,4 +1,5 @@
 'use client';
+import { showFeedback } from '@/components/layout/global-feedback';
 
 import { Select } from '@/components/ui/input';
 import React, { useEffect, useState } from 'react';
@@ -33,8 +34,8 @@ export default function BatchReportCardGeneration() {
 
   useEffect(() => {
     Promise.all([
-      apiFetch('/academics/classes'),
-      apiFetch('/academics/academic-years')
+      apiFetch('/classes'),
+      apiFetch('/academic-years')
     ]).then(([classesData, yearsData]) => {
       setClasses(classesData);
       setYears(yearsData);
@@ -56,7 +57,7 @@ export default function BatchReportCardGeneration() {
       setSuccess(res);
     } catch (err) {
       console.error(err);
-      alert('Generation failed. Ensure results are published for this class/term.');
+      showFeedback('ERROR', 'Generation failed. Ensure results are published for this class/term.');
     } finally {
       setSubmitting(false);
     }

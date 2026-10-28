@@ -1,4 +1,5 @@
 'use client';
+import { showFeedback } from '@/components/layout/global-feedback';
 
 import { Select } from '@/components/ui/input';
 import React, { useState, useEffect } from 'react';
@@ -35,7 +36,7 @@ export default function NumberingSettings() {
         method: 'PUT',
         body: JSON.stringify(rules[entity])
       });
-      alert(`${entity} numbering rule updated!`);
+      showFeedback('SUCCESS', `${entity} numbering rule updated!`);
     } catch (err) {
       console.error(err);
     } finally {

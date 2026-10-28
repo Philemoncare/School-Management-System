@@ -23,7 +23,7 @@ export class TermsController {
     return this.termsService.create(schoolId, dto, user.id);
   }
 
-  @Roles('SCHOOL_ADMIN', 'PRINCIPAL', 'TEACHER')
+  @Roles('SCHOOL_ADMIN', 'PRINCIPAL', 'TEACHER', 'TIMETABLE_OFFICER', 'ACADEMIC_COORDINATOR')
   @Get('by-year/:academicYearId')
   findByYear(
     @ActiveSchool() schoolId: string,

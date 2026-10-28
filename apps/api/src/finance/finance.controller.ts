@@ -48,6 +48,17 @@ export class FinanceController {
   }
 
   @Roles('ACCOUNTANT', 'SCHOOL_ADMIN')
+  @Patch('fee-categories/:id')
+  updateCategory(
+    @ActiveSchool() schoolId: string,
+    @Param('id') id: string,
+    @Body() dto: any,
+    @CurrentUser() user: any,
+  ) {
+    return this.feeService.updateCategory(schoolId, id, dto, user.id);
+  }
+
+  @Roles('ACCOUNTANT', 'SCHOOL_ADMIN')
   @Get('fee-structures')
   getStructures(@ActiveSchool() schoolId: string, @Query() filters: any) {
     return this.feeService.findStructures(schoolId, filters);
@@ -57,6 +68,17 @@ export class FinanceController {
   @Post('fee-structures')
   createStructure(@ActiveSchool() schoolId: string, @Body() dto: any, @CurrentUser() user: any) {
     return this.feeService.createStructure(schoolId, dto, user.id);
+  }
+
+  @Roles('ACCOUNTANT', 'SCHOOL_ADMIN')
+  @Patch('fee-structures/:id')
+  updateStructure(
+    @ActiveSchool() schoolId: string,
+    @Param('id') id: string,
+    @Body() dto: any,
+    @CurrentUser() user: any,
+  ) {
+    return this.feeService.updateStructure(schoolId, id, dto, user.id);
   }
 
   // Invoices & Billing
@@ -122,6 +144,15 @@ export class FinanceController {
   @Get('ledger')
   getLedger(@ActiveSchool() schoolId: string, @Query() filters: any) {
     return this.ledgerService.getLedger(schoolId, filters);
+  }
+
+  @Roles('ACCOUNTANT', 'SCHOOL_ADMIN', 'PRINCIPAL')
+  @Get('students/:studentId/statement')
+  getStudentStatement(
+    @ActiveSchool() schoolId: string,
+    @Param('studentId') studentId: string,
+  ) {
+    return this.financeService.getStudentStatement(schoolId, studentId);
   }
 
   @Roles('ACCOUNTANT', 'SCHOOL_ADMIN')

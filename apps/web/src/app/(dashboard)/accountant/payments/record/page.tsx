@@ -1,4 +1,5 @@
 'use client';
+import { showFeedback } from '@/components/layout/global-feedback';
 
 import { Select } from '@/components/ui/input';
 import React, { useEffect, useState } from 'react';
@@ -81,10 +82,10 @@ export default function RecordPaymentPage() {
         })
       });
 
-      alert('Payment recorded successfully');
+      showFeedback('SUCCESS', 'Payment recorded successfully');
       router.push('/accountant/payments');
     } catch (err) {
-      alert('Failed to record payment');
+      showFeedback('ERROR', 'Failed to record payment');
     } finally {
       setSaving(false);
     }

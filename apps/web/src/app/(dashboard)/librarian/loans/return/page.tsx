@@ -1,4 +1,5 @@
 'use client';
+import { showFeedback } from '@/components/layout/global-feedback';
 
 import { Select } from '@/components/ui/input';
 import React, { useEffect, useState } from 'react';
@@ -61,10 +62,10 @@ export default function ReturnBookPage() {
         method: 'POST',
         body: JSON.stringify(formData)
       });
-      alert('Book returned successfully');
+      showFeedback('SUCCESS', 'Book returned successfully');
       router.push('/librarian/dashboard');
     } catch (err) {
-      alert('Failed to return book');
+      showFeedback('ERROR', 'Failed to return book');
     } finally {
       setSaving(false);
     }

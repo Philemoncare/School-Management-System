@@ -15,6 +15,11 @@ export class MessagesController {
     return this.messagesService.findUserConversations(user.id);
   }
 
+  @Get('recipients')
+  getRecipients(@ActiveSchool() schoolId: string, @CurrentUser() user: any) {
+    return this.messagesService.findRecipients(schoolId, user.id);
+  }
+
   @Get('conversations/:id')
   getMessages(@Param('id') id: string, @CurrentUser() user: any) {
     return this.messagesService.findMessages(id, user.id);

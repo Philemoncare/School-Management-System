@@ -226,6 +226,17 @@ export class AdmissionsService {
 
   // Decisions & Offers
   async makeDecision(schoolId: string, applicationId: string, dto: CreateDecisionDto, actorId: string) {
+    const application = await this.prisma.admissionApplication.findFirst({
+      where: { id: applicationId, schoolId },
+      select: { id: true, status: true },
+    });
+    if (!application) {
+      throw new NotFoundException('Application not found.');
+    }
+    if (['ENROLLED', 'WITHDRAWN', 'EXPIRED'].includes(String(application.status))) {
+      throw new BadRequestException('This application can no longer receive a decision.');
+    }
+
     return this.prisma.$transaction(async (tx) => {
       const decision = await tx.admissionDecision.create({
         data: {

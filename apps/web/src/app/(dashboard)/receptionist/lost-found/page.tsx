@@ -1,130 +1,361 @@
-"use client";
+'use client';
 
-import React, { useEffect, useState } from "react";
-import { apiFetch } from "@/lib/api/client";
-import { useAuth } from "@/context/auth-context";
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+import { apiFetch } from '@/lib/api/client';
+import { Button } from '@/components/ui/button';
+import { Input, Select } from '@/components/ui/input';
+import { Modal } from '@/components/ui/modal';
+import { EmptyState } from '@/components/ui/empty-state';
+import { showFeedback } from '@/components/layout/global-feedback';
+import { LostFoundForm } from '@/components/front-office/forms';
 import {
   AlertCircle,
-  Plus,
-  Search,
-  CheckCircle,
-  Clock,
-  MapPin,
-  Tag,
+  ArrowLeft,
   Loader2,
-  Camera
-} from "lucide-react";
-import { toast } from "sonner";
+  PackageSearch,
+  Plus,
+  RefreshCw,
+  Search,
+  Undo2,
+} from 'lucide-react';
 
-export default function LostFoundManagement() {
-  const { activeSchoolId } = useAuth();
-  const [items, setItems] = useState<any[]>([]);
+interface LostFoundItem {
+  id: string;
+  itemName: string;
+  category: string;
+  foundLocation?: string | null;
+  description?: string | null;
+  status: 'STORED' | 'CLAIMED';
+  foundAt: string;
+  claimantName?: string | null;
+  claimedAt?: string | null;
+}
+
+export default function LostFoundPage() {
+  const [items, setItems] = useState<LostFoundItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('ALL');
+  const [createOpen, setCreateOpen] = useState(false);
+  const [claiming, setClaiming] = useState<LostFoundItem | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const data = await apiFetch('/front-office/lost-found');
+      setItems(Array.isArray(data) ? data : []);
+    } catch (err: any) {
+      setItems([]);
+      setError(err?.message || 'Could not load lost and found items.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    async function fetchItems() {
-      if (!activeSchoolId) return;
-      try {
-        const data = await apiFetch("/front-office/lost-found");
-        setItems(data);
-      } catch (error) {
-        console.error("Failed to load lost-found items", error);
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchItems();
-  }, [activeSchoolId]);
+    load();
+  }, [load]);
 
-  if (loading) return <div className="p-8 text-center">Loading Inventory Log...</div>;
+  const visible = useMemo(() => {
+    const needle = search.trim().toLowerCase();
+    return items.filter((item) => {
+      if (statusFilter !== 'ALL' && item.status !== statusFilter) return false;
+      if (!needle) return true;
+      return (
+        item.itemName.toLowerCase().includes(needle) ||
+        item.category.toLowerCase().includes(needle) ||
+        (item.foundLocation ?? '').toLowerCase().includes(needle) ||
+        (item.claimantName ?? '').toLowerCase().includes(needle)
+      );
+    });
+  }, [items, search, statusFilter]);
+
+  const stored = items.filter((item) => item.status === 'STORED').length;
+  const filtersActive = Boolean(search) || statusFilter !== 'ALL';
 
   return (
-    <div className="space-y-8">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="space-y-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-charcoal-900">Lost & Found Inventory</h1>
-          <p className="text-warm-500 text-sm">Manage recovered items and facilitate claimant handoffs.</p>
+          <Link
+            href="/receptionist/dashboard"
+            className="mb-2 inline-flex items-center gap-1.5 text-xs font-semibold text-warm-600 hover:text-charcoal-900"
+          >
+            <ArrowLeft size={14} /> Front desk
+          </Link>
+          <h1 className="flex items-center gap-3 text-2xl font-bold tracking-tight text-charcoal-900 sm:text-3xl">
+            <PackageSearch className="text-forest-700" size={26} /> Lost &amp; found
+          </h1>
+          <p className="mt-0.5 text-xs font-medium text-warm-500 sm:text-sm">
+            {stored} item{stored === 1 ? '' : 's'} in storage awaiting a claim.
+          </p>
         </div>
-        <button className="bg-forest-700 text-white px-5 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-forest-800 transition-all shadow-lg shadow-sage-100">
-          <Plus size={18} />
-          Log Found Item
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={load}
+            disabled={loading}
+            leftIcon={<RefreshCw size={14} className={loading ? 'animate-spin' : undefined} />}
+          >
+            Refresh
+          </Button>
+          <Button size="sm" onClick={() => setCreateOpen(true)} leftIcon={<Plus size={16} />}>
+            Log found item
+          </Button>
+        </div>
       </div>
 
-      <div className="bg-card rounded-3xl border border-warm-100 shadow-sm overflow-hidden">
-        <div className="p-6 border-b border-warm-100 bg-ivory-50/50 flex flex-col md:flex-row justify-between gap-4">
-           <div className="flex gap-4">
-              <button className="text-sm font-bold text-forest-700 border-b-2 border-forest-700 pb-1">Unclaimed</button>
-              <button className="text-sm font-bold text-warm-400 hover:text-warm-600 pb-1 transition-colors">Claimed</button>
-           </div>
-           <div className="relative">
-             <input
-               type="text"
-               placeholder="Search items..."
-               className="pl-9 pr-4 py-2 bg-card border border-warm-200 rounded-xl text-xs font-medium focus:outline-none focus:border-forest-500"
-             />
-             <Search className="absolute left-3 top-2.5 text-warm-400" size={14} />
-           </div>
-        </div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <Input
+          type="search"
+          aria-label="Search lost and found items"
+          placeholder="Search item, category or location…"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          leftIcon={<Search size={16} />}
+        />
+        <Select
+          aria-label="Filter by status"
+          value={statusFilter}
+          options={[
+            { value: 'ALL', label: 'All statuses' },
+            { value: 'STORED', label: 'In storage' },
+            { value: 'CLAIMED', label: 'Claimed' },
+          ]}
+          onChange={(event) => setStatusFilter(event.target.value)}
+        />
+      </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-card text-[11px] font-bold text-warm-400 uppercase tracking-wider border-b border-warm-100">
-                <th className="p-6">Found Item</th>
-                <th className="p-6">Location</th>
-                <th className="p-6">Date Found</th>
-                <th className="p-6">Status</th>
-                <th className="p-6 text-right">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-ivory-50">
-              {items.map((item) => (
-                <tr key={item.id} className="hover:bg-ivory-50/50 transition-colors">
-                  <td className="p-6">
-                     <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 bg-warm-100 rounded-xl flex items-center justify-center text-warm-400 border border-warm-200">
-                           <Tag size={20} />
-                        </div>
-                        <div>
-                           <p className="text-sm font-bold text-charcoal-900">{item.itemName}</p>
-                           <p className="text-[11px] text-warm-400 font-semibold uppercase">{item.category}</p>
-                        </div>
-                     </div>
-                  </td>
-                  <td className="p-6">
-                    <p className="text-xs font-bold text-warm-700 flex items-center gap-1.5 uppercase">
-                      <MapPin size={12} className="text-warm-400" /> {item.foundLocation}
-                    </p>
-                  </td>
-                  <td className="p-6">
-                    <p className="text-xs font-medium text-warm-500">{new Date(item.foundAt).toLocaleDateString()}</p>
-                  </td>
-                  <td className="p-6">
-                     <span className={`px-2 py-0.5 rounded text-[11px] font-semibold uppercase ${
-                       item.status === 'STORED' ? 'bg-sage-50 text-forest-800' : 'bg-success-50 text-success-700'
-                     }`}>
-                       {item.status}
-                     </span>
-                  </td>
-                  <td className="p-6 text-right">
-                     <button className="text-[11px] font-semibold text-forest-700 uppercase tracking-wide hover:underline">Process Claim</button>
-                  </td>
-                </tr>
-              ))}
-              {items.length === 0 && (
+      {error && (
+        <div
+          role="alert"
+          className="flex flex-col gap-3 rounded-xl border border-danger-200 bg-danger-50 p-4 text-sm font-semibold text-danger-700 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <span>{error}</span>
+          <Button variant="outline" size="sm" onClick={load}>
+            Try again
+          </Button>
+        </div>
+      )}
+
+      {loading && items.length === 0 ? (
+        <div className="flex items-center justify-center gap-2 py-16 text-sm font-medium text-warm-500">
+          <Loader2 className="h-4 w-4 animate-spin" /> Loading lost and found items…
+        </div>
+      ) : items.length === 0 && !error ? (
+        <EmptyState
+          icon={<AlertCircle className="h-8 w-8" />}
+          title="No lost and found items"
+          description="Log items handed in at reception so owners can be reunited with them."
+          actionButton={
+            <Button onClick={() => setCreateOpen(true)} leftIcon={<Plus size={16} />}>
+              Log found item
+            </Button>
+          }
+        />
+      ) : visible.length === 0 && !error ? (
+        <EmptyState
+          icon={<Search className="h-8 w-8" />}
+          title="No items match this view"
+          description="Change the status filter or search text."
+          actionButton={
+            filtersActive ? (
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setSearch('');
+                  setStatusFilter('ALL');
+                }}
+              >
+                Clear filters
+              </Button>
+            ) : undefined
+          }
+        />
+      ) : (
+        <section className="overflow-hidden rounded-xl border border-warm-200 bg-card shadow-xs">
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-warm-200">
+              <caption className="sr-only">Lost and found items</caption>
+              <thead className="bg-ivory-50">
                 <tr>
-                  <td colSpan={5} className="p-20 text-center">
-                    <AlertCircle className="mx-auto text-warm-200 mb-2" size={48} />
-                    <p className="text-warm-400 font-medium">No items in lost & found inventory.</p>
-                  </td>
+                  {['Item', 'Found at', 'Found', 'Status', 'Actions'].map((heading) => (
+                    <th
+                      key={heading}
+                      scope="col"
+                      className={`whitespace-nowrap px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-warm-500 sm:px-6 ${
+                        heading === 'Actions' ? 'text-right' : 'text-left'
+                      }`}
+                    >
+                      {heading}
+                    </th>
+                  ))}
                 </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+              </thead>
+              <tbody className="divide-y divide-warm-100">
+                {visible.map((item) => (
+                  <tr key={item.id} className="transition-colors hover:bg-sage-50/30">
+                    <td className="px-4 py-3.5 sm:px-6">
+                      <p className="text-sm font-semibold text-charcoal-900">{item.itemName}</p>
+                      <p className="mt-0.5 text-[11px] font-medium text-warm-500">
+                        {item.category}
+                        {item.description ? ` · ${item.description}` : ''}
+                      </p>
+                    </td>
+                    <td className="px-4 py-3.5 text-xs text-warm-600 sm:px-6">
+                      {item.foundLocation || '—'}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3.5 text-xs font-medium text-warm-600 sm:px-6">
+                      {new Date(item.foundAt).toLocaleDateString()}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3.5 sm:px-6">
+                      <span
+                        className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase ${
+                          item.status === 'CLAIMED'
+                            ? 'bg-success-100 text-success-800'
+                            : 'bg-warning-100 text-warning-800'
+                        }`}
+                      >
+                        {item.status === 'CLAIMED' ? 'Claimed' : 'In storage'}
+                      </span>
+                      {item.status === 'CLAIMED' && (
+                        <p className="mt-1 text-[10px] font-medium text-warm-400">
+                          by {item.claimantName || 'unknown'}
+                          {item.claimedAt
+                            ? ` · ${new Date(item.claimedAt).toLocaleDateString()}`
+                            : ''}
+                        </p>
+                      )}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3.5 text-right sm:px-6">
+                      {item.status === 'CLAIMED' ? (
+                        <span className="text-xs text-warm-400">—</span>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          size="xs"
+                          onClick={() => setClaiming(item)}
+                          leftIcon={<Undo2 size={12} />}
+                        >
+                          Process claim
+                        </Button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="border-t border-warm-100 bg-ivory-50/40 px-5 py-3 text-[11px] font-medium text-warm-500 sm:px-6">
+            Showing {visible.length} of {items.length} item{items.length === 1 ? '' : 's'}.
+          </div>
+        </section>
+      )}
+
+      {createOpen && (
+        <Modal isOpen onClose={() => setCreateOpen(false)} title="Log found item" size="lg">
+          <LostFoundForm
+            onCancel={() => setCreateOpen(false)}
+            onSaved={() => {
+              setCreateOpen(false);
+              showFeedback('SUCCESS', 'Found item logged.');
+              load();
+            }}
+          />
+        </Modal>
+      )}
+
+      {claiming && (
+        <ClaimItemModal
+          item={claiming}
+          onClose={() => setClaiming(null)}
+          onSaved={() => {
+            setClaiming(null);
+            showFeedback('SUCCESS', 'Item marked as claimed.');
+            load();
+          }}
+        />
+      )}
     </div>
   );
 }
 
+function ClaimItemModal({
+  item,
+  onClose,
+  onSaved,
+}: {
+  item: LostFoundItem;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [claimantName, setClaimantName] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    if (saving) return;
+    if (!claimantName.trim()) {
+      setError('Record who is collecting the item.');
+      return;
+    }
+    setSaving(true);
+    setError('');
+    try {
+      await apiFetch(`/front-office/lost-found/${item.id}/claim`, {
+        method: 'PATCH',
+        body: JSON.stringify({ claimantName: claimantName.trim() }),
+      });
+      onSaved();
+    } catch (err: any) {
+      setError(err?.message || 'Could not process the claim.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal
+      isOpen
+      onClose={onClose}
+      title="Process claim"
+      footerActions={
+        <>
+          <Button variant="outline" onClick={onClose} disabled={saving}>
+            Cancel
+          </Button>
+          <Button type="submit" form="claim-item-form" isLoading={saving}>
+            Mark claimed
+          </Button>
+        </>
+      }
+    >
+      <form id="claim-item-form" onSubmit={submit} className="space-y-4">
+        <div className="rounded-lg bg-ivory-50 p-3">
+          <p className="text-sm font-bold text-charcoal-900">{item.itemName}</p>
+          <p className="mt-0.5 text-xs font-medium text-warm-600">
+            {item.category}
+            {item.foundLocation ? ` · found at ${item.foundLocation}` : ''}
+          </p>
+        </div>
+        {error && (
+          <p role="alert" className="rounded-lg bg-danger-50 p-3 text-xs font-semibold text-danger-700">
+            {error}
+          </p>
+        )}
+        <Input
+          label="Claimed by *"
+          required
+          placeholder="Full name of the person collecting"
+          value={claimantName}
+          onChange={(event) => setClaimantName(event.target.value)}
+        />
+      </form>
+    </Modal>
+  );
+}

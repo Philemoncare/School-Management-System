@@ -23,7 +23,7 @@ export class SubjectsController {
     return this.subjectsService.create(schoolId, dto, user.id);
   }
 
-  @Roles('SCHOOL_ADMIN', 'PRINCIPAL', 'TEACHER')
+  @Roles('SCHOOL_ADMIN', 'PRINCIPAL', 'TEACHER', 'TIMETABLE_OFFICER', 'ACADEMIC_COORDINATOR')
   @Get()
   findAll(@ActiveSchool() schoolId: string) {
     return this.subjectsService.findAll(schoolId);

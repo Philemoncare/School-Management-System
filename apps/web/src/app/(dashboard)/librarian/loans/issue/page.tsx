@@ -1,4 +1,5 @@
 'use client';
+import { showFeedback } from '@/components/layout/global-feedback';
 
 import { Select } from '@/components/ui/input';
 import React, { useEffect, useState } from 'react';
@@ -100,10 +101,10 @@ export default function IssueBookPage() {
           dueDate: new Date(dueDate),
         })
       });
-      alert('Book issued successfully');
+      showFeedback('SUCCESS', 'Book issued successfully');
       router.push('/librarian/dashboard');
     } catch (err) {
-      alert('Failed to issue book. Check member loan limits.');
+      showFeedback('ERROR', 'Failed to issue book. Check member loan limits.');
     } finally {
       setSaving(false);
     }

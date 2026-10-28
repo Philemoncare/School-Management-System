@@ -1,4 +1,4 @@
-import { IsEmail, IsNotEmpty, IsString, MinLength, Matches } from 'class-validator';
+import { IsEmail, IsNotEmpty, IsOptional, IsString, MinLength, Matches } from 'class-validator';
 
 export class ForgotPasswordDto {
   @IsEmail({}, { message: 'Please provide a valid email address' })
@@ -40,6 +40,14 @@ export class AcceptInviteDto {
     message: 'Password must contain uppercase, lowercase, numbers and special characters',
   })
   password: string;
+
+  @IsString()
+  @IsOptional()
+  firstName?: string;
+
+  @IsString()
+  @IsOptional()
+  lastName?: string;
 }
 
 export class LoginOtpDto {

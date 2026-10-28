@@ -1,197 +1,301 @@
-"use client";
+'use client';
 
-import React, { useEffect, useState } from "react";
-import { apiFetch } from "@/lib/api/client";
-import { useAuth } from "@/context/auth-context";
+import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
+import { apiFetch } from '@/lib/api/client';
+import { Button } from '@/components/ui/button';
+import { EmptyState } from '@/components/ui/empty-state';
+import { showFeedback } from '@/components/layout/global-feedback';
 import {
-  Users,
-  Calendar,
+  AlertCircle,
+  CalendarCheck,
   ClipboardList,
   Clock,
-  Truck,
-  AlertCircle,
-  PlusCircle,
-  CheckCircle,
-  ArrowRight,
-  UserCheck,
-  Package,
-  Search,
-  LogIn,
+  GraduationCap,
+  LayoutDashboard,
+  Loader2,
   LogOut,
-} from "lucide-react";
-import Link from "next/link";
-import { toast } from "sonner";
+  RefreshCw,
+  Truck,
+  Users,
+} from 'lucide-react';
 
-export default function ReceptionistDashboard() {
-  const { activeSchoolId } = useAuth();
-  const [stats, setStats] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    async function fetchDashboard() {
-      if (!activeSchoolId) return;
-      try {
-        const data = await apiFetch("/front-office/dashboard");
-        setStats(data);
-      } catch (error) {
-        console.error("Failed to load front office stats", error);
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchDashboard();
-  }, [activeSchoolId]);
-
-  if (loading) return <div className="p-8 text-center">Loading Reception Workspace...</div>;
-
-  const quickActions = [
-    { label: "New Visitor", href: "/receptionist/visitors/new", icon: PlusCircle, color: "bg-forest-700" },
-    { label: "Check In", href: "/receptionist/visitors", icon: LogIn, color: "bg-success-600" },
-    { label: "New Appointment", href: "/receptionist/appointments/new", icon: Calendar, color: "bg-warning-600" },
-    { label: "Log Enquiry", href: "/receptionist/enquiries/new", icon: ClipboardList, color: "bg-terracotta-600" },
-    { label: "Verify Guardian", href: "/receptionist/pickup-authorizations", icon: UserCheck, color: "bg-terracotta-600" },
-    { label: "Late Arrival", href: "/receptionist/late-arrivals", icon: Clock, color: "bg-terracotta-600" },
-  ];
-
-  return (
-    <div className="space-y-8">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-semibold text-charcoal-900 tracking-tight">Front Office <span className="text-forest-700">Command Center</span></h1>
-          <p className="text-warm-500 font-medium">Real-time school reception monitoring and operations.</p>
-        </div>
-        <div className="bg-danger-50 border border-danger-100 px-4 py-2.5 rounded-xl flex items-center gap-3">
-          <AlertCircle className="text-danger-600 animate-pulse" size={20} />
-          <div>
-            <p className="text-[11px] font-semibold text-danger-600 uppercase tracking-wide leading-none mb-1">Status</p>
-            <p className="text-sm font-bold text-danger-900 leading-none uppercase">Standard Ops</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Metrics */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <MetricCard label="On Campus Now" value={stats.visitorsOnCampus} icon={UserCheck} color="blue" />
-        <MetricCard label="Today's Visitors" value={stats.todayVisitorCount} icon={Users} color="green" />
-        <MetricCard label="Appointments" value={stats.pendingAppointments} icon={Calendar} color="amber" />
-        <MetricCard label="Open Enquiries" value={stats.pendingEnquiries} icon={ClipboardList} color="purple" />
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Quick Actions Panel */}
-        <div className="lg:col-span-2 space-y-8">
-          <section className="bg-card rounded-3xl border border-warm-100 shadow-sm overflow-hidden p-8">
-             <h2 className="text-xl font-bold text-charcoal-900 mb-6 flex items-center gap-2">
-               <PlusCircle size={24} className="text-forest-700" />
-               Express Operations
-             </h2>
-             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-               {quickActions.map((action) => (
-                 <Link
-                   key={action.label}
-                   href={action.href}
-                   className="flex flex-col items-center justify-center p-6 bg-ivory-50 rounded-2xl border border-warm-100 hover:border-sage-200 hover:bg-sage-50/50 transition-all group"
-                 >
-                   <div className={`${action.color} text-white p-3 rounded-xl mb-3 shadow-md group-hover:scale-110 transition-transform`}>
-                     <action.icon size={24} />
-                   </div>
-                   <span className="text-sm font-bold text-warm-700 text-center">{action.label}</span>
-                 </Link>
-               ))}
-             </div>
-          </section>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-             {/* Pending Deliveries */}
-             <section className="bg-card rounded-3xl border border-warm-100 shadow-sm p-6">
-                <div className="flex justify-between items-center mb-6">
-                  <h3 className="font-bold text-charcoal-900 flex items-center gap-2">
-                    <Package size={20} className="text-terracotta-600" />
-                    Pending Deliveries
-                  </h3>
-                  <span className="text-[11px] font-semibold bg-terracotta-50 text-terracotta-600 px-2 py-1 rounded-full uppercase">{stats.expectedDeliveries} Active</span>
-                </div>
-                <p className="text-xs text-warm-500 font-medium italic text-center py-4">No uncollected deliveries logged.</p>
-                <Link href="/receptionist/deliveries" className="block w-full text-center py-3 bg-ivory-50 text-warm-600 font-bold rounded-xl text-[11px] uppercase tracking-wide hover:bg-warm-100 transition-colors">
-                  View Full Log
-                </Link>
-             </section>
-
-             {/* Late Arrivals */}
-             <section className="bg-card rounded-3xl border border-warm-100 shadow-sm p-6">
-                <div className="flex justify-between items-center mb-6">
-                  <h3 className="font-bold text-charcoal-900 flex items-center gap-2">
-                    <Clock size={20} className="text-forest-700" />
-                    Late Admissions
-                  </h3>
-                  <span className="text-[11px] font-semibold bg-sage-50 text-forest-700 px-2 py-1 rounded-full uppercase">{stats.lateArrivalsCount} Today</span>
-                </div>
-                <p className="text-xs text-warm-500 font-medium italic text-center py-4">All arrivals marked present.</p>
-                <Link href="/receptionist/late-arrivals" className="block w-full text-center py-3 bg-ivory-50 text-warm-600 font-bold rounded-xl text-[11px] uppercase tracking-wide hover:bg-warm-100 transition-colors">
-                   Log Arrival
-                </Link>
-             </section>
-          </div>
-        </div>
-
-        {/* Sidebar Ops */}
-        <div className="space-y-8">
-           <section className="bg-charcoal-900 text-white rounded-3xl p-8 shadow-xs relative overflow-hidden">
-              <div className="relative z-10">
-                <h3 className="text-lg font-bold mb-6 flex items-center gap-2">
-                  <Search size={20} />
-                  Quick Student Verify
-                </h3>
-                <div className="bg-card/10 border border-white/20 p-4 rounded-2xl mb-6">
-                   <input
-                     type="text"
-                     placeholder="Name or Student #"
-                     className="bg-transparent border-none w-full text-white placeholder:text-warm-400 focus:ring-0 text-sm font-bold"
-                   />
-                </div>
-                <p className="text-[11px] text-warm-400 font-bold uppercase tracking-wide">Authorized Records Access Only</p>
-              </div>
-              <Users size={120} className="absolute -bottom-10 -right-10 text-white/5 -rotate-12" />
-           </section>
-
-           <section className="bg-card rounded-3xl border border-warm-100 shadow-sm p-6 overflow-hidden">
-              <h3 className="font-bold text-charcoal-900 mb-6 flex items-center gap-2">
-                <ArrowRight size={20} className="text-forest-700" />
-                Next Appointment
-              </h3>
-              <div className="bg-sage-50/50 p-4 rounded-2xl border border-sage-100/50 mb-4">
-                 <p className="text-[11px] font-semibold text-forest-700 uppercase tracking-wide mb-1">02:30 PM • Main Office</p>
-                 <p className="text-sm font-bold text-charcoal-900">Guardian Meeting</p>
-                 <p className="text-xs text-warm-500 mt-1 font-medium">Mrs. Akua Mensah with Principal</p>
-              </div>
-              <Link href="/receptionist/appointments" className="text-xs font-bold text-forest-700 hover:underline">See full schedule</Link>
-           </section>
-        </div>
-      </div>
-    </div>
-  );
+interface Metrics {
+  visitorsOnCampus: number;
+  todayVisitorCount: number;
+  pendingAppointments: number;
+  pendingEnquiries: number;
+  studentPickupRequests: number;
+  lateArrivalsCount: number;
+  expectedDeliveries: number;
 }
 
-function MetricCard({ label, value, icon: Icon, color }: any) {
-  const colors: any = {
-    blue: "bg-sage-50 border-sage-100 text-forest-700",
-    green: "bg-success-50 border-success-100 text-success-600",
-    amber: "bg-warning-50 border-warning-100 text-warning-600",
-    purple: "bg-terracotta-50 border-terracotta-100 text-terracotta-600",
-  };
+interface OnCampusVisit {
+  id: string;
+  purpose?: string | null;
+  badgeNumber?: string | null;
+  checkInAt: string;
+  visitor: { id: string; fullName: string; organization?: string | null };
+}
+
+const QUICK_LINKS = [
+  {
+    href: '/receptionist/visitors',
+    label: 'Visitors desk',
+    description: 'Register, check in and check out visitors.',
+    icon: Users,
+  },
+  {
+    href: '/receptionist/appointments',
+    label: 'Appointments',
+    description: 'Book visits and update their status.',
+    icon: CalendarCheck,
+  },
+  {
+    href: '/receptionist/enquiries',
+    label: 'Enquiries log',
+    description: 'Capture and resolve front-desk enquiries.',
+    icon: ClipboardList,
+  },
+  {
+    href: '/receptionist/student-checkout',
+    label: 'Student checkout',
+    description: 'Release a student to a verified adult.',
+    icon: GraduationCap,
+  },
+  {
+    href: '/receptionist/late-arrivals',
+    label: 'Late arrivals',
+    description: 'Record students arriving after the bell.',
+    icon: Clock,
+  },
+  {
+    href: '/receptionist/deliveries',
+    label: 'Deliveries log',
+    description: 'Receive parcels and mark them collected.',
+    icon: Truck,
+  },
+  {
+    href: '/receptionist/lost-found',
+    label: 'Lost & found',
+    description: 'Log found items and process claims.',
+    icon: AlertCircle,
+  },
+];
+
+export default function ReceptionistDashboardPage() {
+  const [metrics, setMetrics] = useState<Metrics | null>(null);
+  const [onCampus, setOnCampus] = useState<OnCampusVisit[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [checkingOutId, setCheckingOutId] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const [metricsData, campusData] = await Promise.all([
+        apiFetch('/front-office/dashboard'),
+        apiFetch('/front-office/visitors/current'),
+      ]);
+      setMetrics(metricsData);
+      setOnCampus(Array.isArray(campusData) ? campusData : []);
+    } catch (err: any) {
+      setMetrics(null);
+      setOnCampus([]);
+      setError(err?.message || 'Could not load the front-office dashboard.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  async function checkOut(visit: OnCampusVisit) {
+    if (
+      !window.confirm(`Check out ${visit.visitor.fullName}? This closes the current visit.`)
+    ) {
+      return;
+    }
+    setCheckingOutId(visit.id);
+    try {
+      await apiFetch(`/front-office/visitors/check-out/${visit.id}`, { method: 'PATCH' });
+      showFeedback('SUCCESS', `${visit.visitor.fullName} checked out.`);
+      await load();
+    } catch (err: any) {
+      showFeedback('ERROR', err?.message || 'Could not check the visitor out.');
+    } finally {
+      setCheckingOutId(null);
+    }
+  }
+
+  const cards = metrics
+    ? [
+        { label: 'On campus now', value: metrics.visitorsOnCampus, icon: Users, href: '/receptionist/visitors' },
+        { label: 'Visitors today', value: metrics.todayVisitorCount, icon: LayoutDashboard, href: '/receptionist/visitors' },
+        { label: 'Pending appointments', value: metrics.pendingAppointments, icon: CalendarCheck, href: '/receptionist/appointments' },
+        { label: 'Open enquiries', value: metrics.pendingEnquiries, icon: ClipboardList, href: '/receptionist/enquiries' },
+        { label: 'Pickup requests', value: metrics.studentPickupRequests, icon: GraduationCap, href: '/receptionist/student-checkout' },
+        { label: 'Late arrivals today', value: metrics.lateArrivalsCount, icon: Clock, href: '/receptionist/late-arrivals' },
+        { label: 'Deliveries awaiting collection', value: metrics.expectedDeliveries, icon: Truck, href: '/receptionist/deliveries' },
+      ]
+    : [];
 
   return (
-    <div className={`p-6 rounded-3xl border shadow-sm transition-all hover:shadow-md ${colors[color] || ""}`}>
-       <div className="flex items-center justify-between mb-4">
-         <div className="bg-card p-2.5 rounded-xl shadow-sm border border-inherit">
-           <Icon size={24} />
-         </div>
-       </div>
-       <div>
-         <p className="text-[11px] font-semibold uppercase tracking-wide opacity-70 mb-1">{label}</p>
-         <h3 className="text-3xl font-semibold text-charcoal-900">{value}</h3>
-       </div>
+    <div className="space-y-6 sm:space-y-8">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-charcoal-900 sm:text-3xl">
+            Front desk
+          </h1>
+          <p className="mt-0.5 text-xs font-medium text-warm-500 sm:text-sm">
+            Live visitor, appointment and student movement for today.
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={load}
+          disabled={loading}
+          leftIcon={<RefreshCw size={14} className={loading ? 'animate-spin' : undefined} />}
+        >
+          Refresh
+        </Button>
+      </div>
+
+      {error && (
+        <div
+          role="alert"
+          className="flex flex-col gap-3 rounded-xl border border-danger-200 bg-danger-50 p-4 text-sm font-semibold text-danger-700 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <span>{error}</span>
+          <Button variant="outline" size="sm" onClick={load}>
+            Try again
+          </Button>
+        </div>
+      )}
+
+      {loading && !metrics ? (
+        <div className="flex items-center justify-center gap-2 py-16 text-sm font-medium text-warm-500">
+          <Loader2 className="h-4 w-4 animate-spin" /> Loading front-desk metrics…
+        </div>
+      ) : metrics ? (
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4">
+          {cards.map((card) => (
+            <Link
+              key={card.label}
+              href={card.href}
+              className="group rounded-xl border border-warm-200 bg-card p-4 shadow-xs transition-shadow hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-forest-600/30 sm:p-5"
+            >
+              <span className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-sage-50 text-forest-700">
+                <card.icon size={18} />
+              </span>
+              <p className="mt-3 text-2xl font-bold text-charcoal-900">{card.value ?? 0}</p>
+              <p className="text-[11px] font-semibold text-warm-500">{card.label}</p>
+            </Link>
+          ))}
+        </div>
+      ) : null}
+
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+        <section className="rounded-xl border border-warm-200 bg-card shadow-xs lg:col-span-2">
+          <div className="flex items-center justify-between gap-3 border-b border-warm-100 px-5 py-4">
+            <h2 className="text-sm font-bold text-charcoal-900">Visitors on campus</h2>
+            <Link
+              href="/receptionist/visitors"
+              className="text-xs font-semibold text-forest-700 hover:underline"
+            >
+              Open visitors desk
+            </Link>
+          </div>
+          {onCampus.length === 0 ? (
+            <p className="px-5 py-10 text-center text-xs font-medium text-warm-500">
+              No visitors are checked in right now.
+            </p>
+          ) : (
+            <ul className="divide-y divide-warm-100">
+              {onCampus.map((visit) => (
+                <li
+                  key={visit.id}
+                  className="flex flex-col gap-2 px-5 py-3.5 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div>
+                    <p className="text-sm font-semibold text-charcoal-900">
+                      {visit.visitor.fullName}
+                      {visit.visitor.organization ? (
+                        <span className="ml-1.5 text-xs font-medium text-warm-500">
+                          · {visit.visitor.organization}
+                        </span>
+                      ) : null}
+                    </p>
+                    <p className="text-[11px] font-medium text-warm-500">
+                      {visit.badgeNumber ? `Badge ${visit.badgeNumber} · ` : ''}
+                      {visit.purpose || 'General visit'} · in at{' '}
+                      {new Date(visit.checkInAt).toLocaleTimeString([], {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="xs"
+                    onClick={() => checkOut(visit)}
+                    disabled={checkingOutId === visit.id}
+                    leftIcon={
+                      checkingOutId === visit.id ? (
+                        <Loader2 size={12} className="animate-spin" />
+                      ) : (
+                        <LogOut size={12} />
+                      )
+                    }
+                  >
+                    Check out
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        <section className="rounded-xl border border-warm-200 bg-card p-4 shadow-xs sm:p-5">
+          <h2 className="text-sm font-bold text-charcoal-900">Quick actions</h2>
+          <ul className="mt-3 space-y-1.5">
+            {QUICK_LINKS.map((link) => (
+              <li key={link.href}>
+                <Link
+                  href={link.href}
+                  className="flex items-start gap-2.5 rounded-lg p-2 transition-colors hover:bg-sage-50 focus-visible:bg-sage-50 focus-visible:outline-none"
+                >
+                  <link.icon size={16} className="mt-0.5 shrink-0 text-forest-700" />
+                  <span>
+                    <span className="block text-xs font-bold text-charcoal-900">
+                      {link.label}
+                    </span>
+                    <span className="block text-[11px] font-medium text-warm-500">
+                      {link.description}
+                    </span>
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      </div>
+
+      {!loading && !metrics && !error && (
+        <EmptyState
+          title="Front desk is not configured"
+          description="Metrics could not be loaded for this school. Try refreshing."
+          actionButton={
+            <Button variant="outline" onClick={load}>
+              Refresh
+            </Button>
+          }
+        />
+      )}
     </div>
   );
 }

@@ -1,21 +1,17 @@
-'use client';
+﻿'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { apiFetch } from '@/lib/api/client';
+import { showFeedback } from '@/components/layout/global-feedback';
 import {
   AlertCircle,
   CheckCircle,
   Search,
-  Filter,
   ArrowRight,
   Loader2,
   Calendar,
-  MessageSquare,
-  Mail,
-  Phone,
   Clock,
-  Download,
-  ChevronRight
+  Download
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -23,6 +19,8 @@ export default function OutstandingBalancesPage() {
   const [invoices, setInvoices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [overdueOnly, setOverdueOnly] = useState(false);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     loadOutstanding();
@@ -30,17 +28,62 @@ export default function OutstandingBalancesPage() {
 
   async function loadOutstanding() {
     setLoading(true);
+    setError('');
     try {
       const data = await apiFetch('/finance/outstanding');
-      setInvoices(data);
-    } catch (err) {
-      console.error(err);
+      setInvoices(Array.isArray(data) ? data : []);
+    } catch (err: any) {
+      setInvoices([]);
+      setError(err?.message || 'Could not load outstanding balances.');
     } finally {
       setLoading(false);
     }
   }
 
-  const totalOutstanding = invoices.reduce((acc, inv) => acc + parseFloat(inv.balance), 0);
+  const visible = useMemo(() => {
+    const needle = search.trim().toLowerCase();
+    return invoices.filter((invoice) => {
+      if (overdueOnly && new Date(invoice.dueDate) >= new Date()) return false;
+      if (!needle) return true;
+      return (
+        `${invoice.student?.firstName ?? ''} ${invoice.student?.lastName ?? ''}`
+          .toLowerCase()
+          .includes(needle) ||
+        String(invoice.student?.studentNumber ?? '').toLowerCase().includes(needle) ||
+        String(invoice.invoiceNumber ?? '').toLowerCase().includes(needle)
+      );
+    });
+  }, [invoices, search, overdueOnly]);
+
+  const totalOutstanding = visible.reduce((acc, inv) => acc + parseFloat(inv.balance), 0);
+
+  function exportList() {
+    if (visible.length === 0) {
+      showFeedback('ERROR', 'There are no outstanding balances to export.');
+      return;
+    }
+    const escape = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""')}"`;
+    const header = ['Student', 'Student number', 'Invoice', 'Academic year', 'Term', 'Due date', 'Total', 'Balance'];
+    const rows = visible.map((inv) => [
+      `${inv.student?.firstName ?? ''} ${inv.student?.lastName ?? ''}`.trim(),
+      inv.student?.studentNumber,
+      inv.invoiceNumber,
+      inv.academicYear?.name,
+      inv.term?.name ?? 'Full Year',
+      inv.dueDate ? new Date(inv.dueDate).toISOString().slice(0, 10) : '',
+      inv.totalAmount,
+      inv.balance,
+    ]);
+    const csv = [header, ...rows].map((row) => row.map(escape).join(',')).join('\r\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `outstanding-balances-${new Date().toISOString().slice(0, 10)}.csv`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+    showFeedback('SUCCESS', `${visible.length} outstanding account${visible.length === 1 ? '' : 's'} exported.`);
+  }
 
   return (
     <div className="p-8 space-y-10">
@@ -54,10 +97,10 @@ export default function OutstandingBalancesPage() {
         <div className="flex items-center gap-3">
            <div className="bg-danger-50 border border-danger-100 px-6 py-2.5 rounded-2xl text-right">
               <p className="text-[11px] font-semibold text-danger-400 uppercase tracking-wide leading-none mb-1">Total Outstanding</p>
-              <p className="text-xl font-semibold text-danger-600 leading-none">GH₵ {totalOutstanding.toLocaleString()}</p>
+              <p className="text-xl font-semibold text-danger-600 leading-none">GHâ‚µ {totalOutstanding.toLocaleString()}</p>
            </div>
-           <button className="bg-forest-700 text-white px-8 py-3 rounded-2xl font-semibold text-[11px] uppercase tracking-wide hover:bg-forest-800 shadow-xs shadow-sage-100 transition-all flex items-center gap-2">
-             <MessageSquare size={16} /> Bulk Reminders
+           <button onClick={exportList} className="bg-forest-700 text-white px-8 py-3 rounded-2xl font-semibold text-[11px] uppercase tracking-wide hover:bg-forest-800 shadow-xs shadow-sage-100 transition-all flex items-center gap-2">
+             <Download size={16} /> Export List
            </button>
         </div>
       </div>
@@ -74,10 +117,25 @@ export default function OutstandingBalancesPage() {
                 onChange={(e) => setSearch(e.target.value)}
               />
            </div>
-           <button className="p-3 bg-card border border-warm-200 rounded-2xl text-warm-500 shadow-sm flex items-center gap-2 font-bold text-xs uppercase tracking-wide px-6">
+           <button
+             type="button"
+             onClick={() => setOverdueOnly((current) => !current)}
+             aria-pressed={overdueOnly}
+             className={`p-3 border rounded-2xl shadow-sm flex items-center gap-2 font-bold text-xs uppercase tracking-wide px-6 transition-colors ${
+               overdueOnly
+                 ? 'bg-danger-50 border-danger-200 text-danger-600'
+                 : 'bg-card border-warm-200 text-warm-500 hover:bg-ivory-50'
+             }`}
+           >
               <Clock size={18} className="text-terracotta-500"/> Overdue Only
            </button>
         </div>
+
+        {error && (
+          <div role="alert" className="border-b border-danger-200 bg-danger-50 px-6 py-3 text-xs font-semibold text-danger-700">
+            {error}
+          </div>
+        )}
 
         <div className="relative min-h-[500px]">
            {loading && (
@@ -98,7 +156,7 @@ export default function OutstandingBalancesPage() {
                </tr>
              </thead>
              <tbody className="divide-y divide-warm-100 bg-card">
-               {invoices.map((inv) => {
+               {visible.map((inv) => {
                  const isOverdue = new Date(inv.dueDate) < new Date();
                  const daysOverdue = Math.floor((new Date().getTime() - new Date(inv.dueDate).getTime()) / (1000 * 3600 * 24));
 
@@ -129,10 +187,10 @@ export default function OutstandingBalancesPage() {
                          </div>
                       </td>
                       <td className="px-8 py-6 text-right">
-                         <p className="text-sm font-bold text-warm-500">GH₵ {parseFloat(inv.totalAmount).toLocaleString()}</p>
+                         <p className="text-sm font-bold text-warm-500">GHâ‚µ {parseFloat(inv.totalAmount).toLocaleString()}</p>
                       </td>
                       <td className="px-8 py-6 text-right">
-                         <p className="text-base font-semibold text-danger-600 underline decoration-danger-200 underline-offset-4 font-mono">GH₵ {parseFloat(inv.balance).toLocaleString()}</p>
+                         <p className="text-base font-semibold text-danger-600 underline decoration-danger-200 underline-offset-4 font-mono">GHâ‚µ {parseFloat(inv.balance).toLocaleString()}</p>
                       </td>
                       <td className="px-8 py-6 text-right">
                          <div className="flex items-center justify-end gap-2">
@@ -142,11 +200,11 @@ export default function OutstandingBalancesPage() {
                    </tr>
                  );
                })}
-               {invoices.length === 0 && !loading && (
+               {visible.length === 0 && !loading && (
                  <tr>
                     <td colSpan={6} className="px-8 py-20 text-center">
                        <CheckCircle className="mx-auto text-success-100 mb-4" size={64} />
-                       <p className="text-warm-400 font-bold text-lg uppercase tracking-wide">All accounts are settled!</p>
+                       <p className="text-warm-400 font-bold text-lg uppercase tracking-wide">{invoices.length === 0 ? 'All accounts are settled!' : 'No accounts match this filter'}</p>
                     </td>
                  </tr>
                )}

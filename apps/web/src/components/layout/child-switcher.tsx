@@ -1,16 +1,20 @@
 "use client";
 
 import React, { useState } from "react";
+import Link from "next/link";
 import { useChild } from "@/context/child-context";
 import { useAuth } from "@/context/auth-context";
+import { collectUserRoles } from "@/lib/auth/roles";
 import { ChevronDown, Check, GraduationCap } from "lucide-react";
 
 export function ChildSwitcher() {
-  const { user } = useAuth();
+  const { user, activeSchoolId } = useAuth();
   const { children, activeChild, setActiveChild, loading } = useChild();
   const [isOpen, setIsOpen] = useState(false);
 
-  const isParent = user?.userRoles?.some((ur: any) => (ur.role?.name || ur.role) === "PARENT");
+  const isParent = collectUserRoles(user, activeSchoolId).some(
+    (role) => role === "PARENT" || role === "GUARDIAN",
+  );
 
   if (!isParent || loading || children.length === 0) return null;
 
@@ -84,10 +88,14 @@ export function ChildSwitcher() {
               ))}
             </div>
             <div className="border-t border-warm-200/80 p-2">
-              <button className="flex w-full items-center gap-2 rounded-xl p-2 text-[11px] font-bold text-warm-500 transition-all hover:bg-sage-100 hover:text-forest-800">
+              <Link
+                href="/parent/children"
+                onClick={() => setIsOpen(false)}
+                className="flex w-full items-center gap-2 rounded-xl p-2 text-[11px] font-bold text-warm-500 transition-all hover:bg-sage-100 hover:text-forest-800"
+              >
                 <GraduationCap size={14} />
                 Family overview
-              </button>
+              </Link>
             </div>
           </div>
         </>

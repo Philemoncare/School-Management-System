@@ -1,4 +1,5 @@
 'use client';
+import { showFeedback } from '@/components/layout/global-feedback';
 
 import { useEffect, useState } from 'react';
 import { apiFetch } from '@/lib/api/client';
@@ -65,9 +66,9 @@ export default function AttendanceSheetPage() {
         body: JSON.stringify({ records }),
       });
 
-      alert('Attendance saved successfully');
+      showFeedback('SUCCESS', 'Attendance saved successfully');
     } catch (err) {
-      alert('Failed to save attendance');
+      showFeedback('ERROR', 'Failed to save attendance');
     } finally {
       setSaving(false);
     }

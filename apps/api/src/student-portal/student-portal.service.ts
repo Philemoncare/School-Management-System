@@ -101,6 +101,8 @@ export class StudentPortalService {
     return this.prisma.classSubject.findMany({
       where: { classId: enrollment.classId, sectionId: enrollment.sectionId, schoolId },
       include: {
+        class: true,
+        section: true,
         subject: {
           include: {
             teacherAssignments: {

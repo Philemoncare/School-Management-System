@@ -11,6 +11,7 @@ import {
 import { Throttle } from "@nestjs/throttler";
 import { LocalAuthGuard } from "./guards/local-auth.guard";
 import { JwtAuthGuard } from "./guards/jwt-auth.guard";
+import { OptionalJwtAuthGuard } from "./guards/optional-jwt-auth.guard";
 import { AuthService } from "./auth.service";
 import { SchoolRegistrationService } from "./school-registration.service";
 import { Public } from "./decorators/public.decorator";
@@ -37,6 +38,7 @@ export class AuthController {
 
   @Public()
   @UseGuards(LocalAuthGuard)
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   @Post("login")
   async login(
     @Request() req: any,
@@ -159,16 +161,21 @@ export class AuthController {
   @Public()
   @Post("invite/accept")
   async acceptInvite(@Body() dto: AcceptInviteDto) {
-    return this.authService.acceptInvitation(dto.token, dto.password);
+    return this.authService.acceptInvitation(dto.token, dto.password, {
+      firstName: dto.firstName,
+      lastName: dto.lastName,
+    });
   }
 
   @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { limit: 120, ttl: 60000 } })
   @Get("me")
   async getProfile(@Request() req: any) {
     return this.authService.getMe(req.user.id);
   }
 
-  @UseGuards(JwtAuthGuard)
+  @Public()
+  @UseGuards(OptionalJwtAuthGuard)
   @Post("logout")
   async logout(@Request() req: any, @Res({ passthrough: true }) res: Response) {
     if (req.user?.sessionId) {
@@ -179,6 +186,8 @@ export class AuthController {
       }
     }
 
+    // Always clear the cookie, even when the token was already invalid. Otherwise
+    // the browser keeps sending a dead cookie and cannot leave the app.
     res.clearCookie("auth_token", { path: "/" });
     return { success: true };
   }

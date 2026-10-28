@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { SecurityEventType, SecuritySeverity } from '@prisma/client';
+import { Prisma, SecurityEventType, SecuritySeverity } from '@prisma/client';
 
 @Injectable()
 export class SecurityEventService {
@@ -8,22 +8,30 @@ export class SecurityEventService {
 
   constructor(private prisma: PrismaService) {}
 
-  async logEvent(params: {
-    eventType: SecurityEventType;
-    severity?: SecuritySeverity;
-    userId?: string;
-    schoolId?: string;
-    sessionId?: string;
-    resourceType?: string;
-    resourceId?: string;
-    ipAddress?: string;
-    userAgent?: string;
-    metadata?: any;
-    riskScore?: number;
-  }) {
+  async logEvent(
+    params: {
+      eventType: SecurityEventType;
+      severity?: SecuritySeverity;
+      userId?: string;
+      schoolId?: string;
+      sessionId?: string;
+      resourceType?: string;
+      resourceId?: string;
+      ipAddress?: string;
+      userAgent?: string;
+      metadata?: any;
+      riskScore?: number;
+    },
+    tx?: Prisma.TransactionClient,
+  ) {
     const cleanMetadata = this.redactSensitiveInfo(params.metadata);
 
-    const event = await this.prisma.securityEvent.create({
+    // Use the caller's transaction when one is supplied. Writing through the
+    // root client while a transaction is open targets rows that are not yet
+    // visible and fails with a foreign-key error (e.g. invite acceptance).
+    const client = tx ?? this.prisma;
+
+    const event = await client.securityEvent.create({
       data: {
         eventType: params.eventType,
         severity: params.severity || SecuritySeverity.LOW,

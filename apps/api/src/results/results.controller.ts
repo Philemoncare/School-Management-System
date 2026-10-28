@@ -59,6 +59,68 @@ export class ResultsController {
     return this.resultsService.generateReportCards(schoolId, dto, user.id);
   }
 
+  @Roles('SCHOOL_ADMIN', 'ACADEMIC_COORDINATOR')
+  @Patch('report-cards/publish')
+  publishReportCards(
+    @ActiveSchool() schoolId: string,
+    @Body() body: { classId?: string; academicYearId?: string; termId?: string },
+    @CurrentUser() user: any,
+  ) {
+    return this.resultsService.publishReportCards(schoolId, body || {}, user.id);
+  }
+
+  @Roles('SCHOOL_ADMIN', 'ACADEMIC_COORDINATOR', 'PRINCIPAL')
+  @Get('report-cards')
+  getReportCards(@ActiveSchool() schoolId: string, @Query() filters: any) {
+    return this.resultsService.findReportCards(schoolId, filters);
+  }
+
+  @Roles('SCHOOL_ADMIN', 'ACADEMIC_COORDINATOR', 'PRINCIPAL')
+  @Get('history')
+  getHistory(@ActiveSchool() schoolId: string, @Query() filters: any) {
+    return this.resultsService.getResultsHistory(schoolId, filters);
+  }
+
+  @Roles('SCHOOL_ADMIN', 'ACADEMIC_COORDINATOR', 'PRINCIPAL', 'TEACHER')
+  @Get('subject-results')
+  getSubjectResults(@ActiveSchool() schoolId: string, @Query() filters: any) {
+    return this.resultsService.findSubjectResults(schoolId, filters);
+  }
+
+  // Result corrections
+  @Roles('SCHOOL_ADMIN', 'ACADEMIC_COORDINATOR', 'PRINCIPAL', 'TEACHER')
+  @Get('corrections')
+  getCorrections(@ActiveSchool() schoolId: string, @Query() filters: any) {
+    return this.resultsService.findCorrectionRequests(schoolId, filters);
+  }
+
+  @Roles('SCHOOL_ADMIN', 'ACADEMIC_COORDINATOR', 'PRINCIPAL', 'TEACHER')
+  @Post('corrections')
+  createCorrection(
+    @ActiveSchool() schoolId: string,
+    @Body() dto: { subjectResultId: string; newScore: number; reason: string },
+    @CurrentUser() user: any,
+  ) {
+    return this.resultsService.createCorrectionRequest(schoolId, dto, user.id);
+  }
+
+  @Roles('SCHOOL_ADMIN', 'ACADEMIC_COORDINATOR', 'PRINCIPAL')
+  @Patch('corrections/:id/approve')
+  approveCorrection(@ActiveSchool() schoolId: string, @Param('id') id: string, @CurrentUser() user: any) {
+    return this.resultsService.approveCorrectionRequest(schoolId, id, user.id);
+  }
+
+  @Roles('SCHOOL_ADMIN', 'ACADEMIC_COORDINATOR', 'PRINCIPAL')
+  @Patch('corrections/:id/reject')
+  rejectCorrection(
+    @ActiveSchool() schoolId: string,
+    @Param('id') id: string,
+    @CurrentUser() user: any,
+    @Body() body: { comments?: string },
+  ) {
+    return this.resultsService.rejectCorrectionRequest(schoolId, id, user.id, body?.comments);
+  }
+
   // Portals
   @Get('my-results')
   async getMyResults(@ActiveSchool() schoolId: string, @CurrentUser() user: any, @Query('studentId') studentId?: string) {

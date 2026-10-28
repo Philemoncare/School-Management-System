@@ -13,37 +13,85 @@ export class InventoryController {
   constructor(private readonly inventoryService: InventoryService) {}
 
   @Get('dashboard')
-  @Roles('ADMIN', 'INVENTORY_OFFICER', 'STOREKEEPER')
+  @Roles('SCHOOL_ADMIN', 'INVENTORY_OFFICER', 'STOREKEEPER')
   getDashboard(@ActiveSchool() schoolId: string) {
     return this.inventoryService.getDashboard(schoolId);
   }
 
   @Get('items')
-  @Roles('ADMIN', 'INVENTORY_OFFICER', 'STOREKEEPER')
+  @Roles('SCHOOL_ADMIN', 'INVENTORY_OFFICER', 'STOREKEEPER')
   getItems(@ActiveSchool() schoolId: string, @Query('categoryId') categoryId?: string) {
     return this.inventoryService.getItems(schoolId, categoryId);
   }
 
+  @Get('categories')
+  @Roles('SCHOOL_ADMIN', 'INVENTORY_OFFICER', 'STOREKEEPER')
+  getCategories(@ActiveSchool() schoolId: string) {
+    return this.inventoryService.getCategories(schoolId);
+  }
+
+  @Post('categories')
+  @Roles('SCHOOL_ADMIN', 'INVENTORY_OFFICER')
+  createCategory(@ActiveSchool() schoolId: string, @Body() dto: any) {
+    return this.inventoryService.createCategory(schoolId, dto);
+  }
+
+  @Patch('categories/:id')
+  @Roles('SCHOOL_ADMIN', 'INVENTORY_OFFICER')
+  updateCategory(
+    @ActiveSchool() schoolId: string,
+    @Param('id') id: string,
+    @Body() dto: any,
+  ) {
+    return this.inventoryService.updateCategory(schoolId, id, dto);
+  }
+
   @Post('items')
-  @Roles('ADMIN', 'INVENTORY_OFFICER')
+  @Roles('SCHOOL_ADMIN', 'INVENTORY_OFFICER')
   createItem(@ActiveSchool() schoolId: string, @Body() dto: any) {
     return this.inventoryService.createItem(schoolId, dto);
   }
 
   @Get('items/:id')
-  @Roles('ADMIN', 'INVENTORY_OFFICER', 'STOREKEEPER')
+  @Roles('SCHOOL_ADMIN', 'INVENTORY_OFFICER', 'STOREKEEPER')
   getItem(@Param('id') id: string, @ActiveSchool() schoolId: string) {
     return this.inventoryService.getItem(id, schoolId);
   }
 
+  @Patch('items/:id')
+  @Roles('SCHOOL_ADMIN', 'INVENTORY_OFFICER')
+  updateItem(
+    @ActiveSchool() schoolId: string,
+    @Param('id') id: string,
+    @Body() dto: any,
+  ) {
+    return this.inventoryService.updateItem(schoolId, id, dto);
+  }
+
   @Get('locations')
-  @Roles('ADMIN', 'INVENTORY_OFFICER', 'STOREKEEPER')
+  @Roles('SCHOOL_ADMIN', 'INVENTORY_OFFICER', 'STOREKEEPER')
   getLocations(@ActiveSchool() schoolId: string) {
     return this.inventoryService.getLocations(schoolId);
   }
 
+  @Post('locations')
+  @Roles('SCHOOL_ADMIN', 'INVENTORY_OFFICER')
+  createLocation(@ActiveSchool() schoolId: string, @Body() dto: any) {
+    return this.inventoryService.createLocation(schoolId, dto);
+  }
+
+  @Patch('locations/:id')
+  @Roles('SCHOOL_ADMIN', 'INVENTORY_OFFICER')
+  updateLocation(
+    @ActiveSchool() schoolId: string,
+    @Param('id') id: string,
+    @Body() dto: any,
+  ) {
+    return this.inventoryService.updateLocation(schoolId, id, dto);
+  }
+
   @Post('adjust')
-  @Roles('ADMIN', 'INVENTORY_OFFICER', 'STOREKEEPER')
+  @Roles('SCHOOL_ADMIN', 'INVENTORY_OFFICER', 'STOREKEEPER')
   adjustStock(
     @ActiveSchool() schoolId: string,
     @CurrentUser() user: any,
@@ -53,25 +101,31 @@ export class InventoryController {
   }
 
   @Get('movements')
-  @Roles('ADMIN', 'INVENTORY_OFFICER', 'STOREKEEPER')
+  @Roles('SCHOOL_ADMIN', 'INVENTORY_OFFICER', 'STOREKEEPER')
   getMovements(@ActiveSchool() schoolId: string, @Query('itemId') itemId?: string) {
     return this.inventoryService.getMovements(schoolId, itemId);
   }
 
   @Get('assets')
-  @Roles('ADMIN', 'INVENTORY_OFFICER')
+  @Roles('SCHOOL_ADMIN', 'INVENTORY_OFFICER')
   getAssets(@ActiveSchool() schoolId: string) {
     return this.inventoryService.getAssets(schoolId);
   }
 
+  @Get('assets/:id')
+  @Roles('SCHOOL_ADMIN', 'INVENTORY_OFFICER')
+  getAsset(@Param('id') id: string, @ActiveSchool() schoolId: string) {
+    return this.inventoryService.getAsset(id, schoolId);
+  }
+
   @Post('assets')
-  @Roles('ADMIN', 'INVENTORY_OFFICER')
+  @Roles('SCHOOL_ADMIN', 'INVENTORY_OFFICER')
   createAsset(@ActiveSchool() schoolId: string, @Body() dto: any) {
     return this.inventoryService.createAsset(schoolId, dto);
   }
 
   @Post('assets/:id/assign')
-  @Roles('ADMIN', 'INVENTORY_OFFICER')
+  @Roles('SCHOOL_ADMIN', 'INVENTORY_OFFICER')
   assignAsset(
     @Param('id') id: string,
     @ActiveSchool() schoolId: string,

@@ -25,25 +25,32 @@ export function collectUserRoles(
   user: any,
   schoolId?: string | null,
 ): string[] {
-  let roles: string[] = [];
+  // The JWT `roles` claim is the authoritative role set for the active
+  // session, while `userRoles` carries the richer database rows used for
+  // permission screens. Merge both instead of choosing one: accounts whose
+  // role row belongs to a legacy/global record previously lost their portal
+  // navigation (for example a parent without a GUARDIAN row in this tenant).
+  const roles = new Set<string>();
+
+  if (Array.isArray(user?.roles)) {
+    for (const role of user.roles) {
+      if (typeof role === "string" && role.trim()) roles.add(role);
+    }
+  }
 
   if (Array.isArray(user?.userRoles)) {
-    roles = user.userRoles
-      .filter((userRole: any) => {
-        const roleSchoolId =
-          userRole?.role?.schoolId ?? userRole?.schoolId ?? null;
-        return (
-          !roleSchoolId ||
-          (schoolId != null && roleSchoolId === schoolId)
-        );
-      })
-      .map(
-        (userRole: any) =>
-          userRole?.role?.name || userRole?.role || userRole,
-      )
-      .filter(Boolean);
-  } else if (Array.isArray(user?.roles)) {
-    roles = user.roles;
+    for (const userRole of user.userRoles) {
+      const roleSchoolId =
+        userRole?.role?.schoolId ?? userRole?.schoolId ?? null;
+      const matchesScope =
+        !roleSchoolId ||
+        schoolId == null ||
+        roleSchoolId === schoolId;
+      if (!matchesScope) continue;
+
+      const name = userRole?.role?.name || userRole?.role || userRole;
+      if (typeof name === "string" && name.trim()) roles.add(name);
+    }
   }
 
   return expandRoleAliases(roles);

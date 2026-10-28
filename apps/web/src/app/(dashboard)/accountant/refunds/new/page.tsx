@@ -1,4 +1,5 @@
 'use client';
+import { showFeedback } from '@/components/layout/global-feedback';
 
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -53,10 +54,10 @@ export default function NewRefundPage() {
           reason: formData.reason,
         })
       });
-      alert('Refund processed successfully');
+      showFeedback('SUCCESS', 'Refund processed successfully');
       router.push('/accountant/dashboard');
     } catch (err) {
-      alert('Failed to process refund. Check if amount exceeds refundable balance.');
+      showFeedback('ERROR', 'Failed to process refund. Check if amount exceeds refundable balance.');
     } finally {
       setSaving(false);
     }

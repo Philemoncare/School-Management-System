@@ -9,7 +9,11 @@ import {
   CreateCategoryDto,
   CreateAuthorDto,
   CreatePublisherDto,
-  CreateLocationDto
+  CreateLocationDto,
+  UpdateCategoryDto,
+  UpdateAuthorDto,
+  UpdatePublisherDto,
+  UpdateLocationDto,
 } from './dto/library.dto';
 import { BookCopyStatus, LoanStatus, ReservationStatus, Prisma } from '@prisma/client';
 import { SettingsService } from '../settings/settings.service';
@@ -39,15 +43,40 @@ export class LibraryService {
   async createBook(schoolId: string, dto: CreateBookDto, actorId: string) {
     const { authorIds, ...data } = dto;
 
+    if (data.categoryId) {
+      const category = await this.prisma.bookCategory.findFirst({
+        where: { id: data.categoryId, schoolId },
+        select: { id: true },
+      });
+      if (!category) throw new BadRequestException('Select a book category from this school.');
+    }
+    if (data.publisherId) {
+      const publisher = await this.prisma.publisher.findFirst({
+        where: { id: data.publisherId, schoolId },
+        select: { id: true },
+      });
+      if (!publisher) throw new BadRequestException('Select a publisher from this school.');
+    }
+    const uniqueAuthorIds = Array.from(new Set((authorIds ?? []).filter(Boolean)));
+    if (uniqueAuthorIds.length > 0) {
+      const authors = await this.prisma.author.findMany({
+        where: { id: { in: uniqueAuthorIds }, schoolId },
+        select: { id: true },
+      });
+      if (authors.length !== uniqueAuthorIds.length) {
+        throw new BadRequestException('One or more selected authors do not belong to this school.');
+      }
+    }
+
     const book = await this.prisma.book.create({
       data: {
         ...data,
         schoolId,
-        authors: authorIds ? {
-          create: authorIds.map(id => ({ authorId: id }))
-        } : undefined,
+        authors: uniqueAuthorIds.length
+          ? { create: uniqueAuthorIds.map((id) => ({ authorId: id })) }
+          : undefined,
       },
-      include: { authors: { include: { author: true } } }
+      include: { authors: { include: { author: true } } },
     });
 
     await this.audit.log({
@@ -56,29 +85,42 @@ export class LibraryService {
       action: 'BOOK_CREATED',
       module: 'LIBRARY',
       resourceId: book.id,
+      metadata: { title: book.title },
     });
 
     return book;
   }
 
   async findAllBooks(schoolId: string, filters: any = {}) {
-    const { search, categoryId, ...rest } = filters;
+    const search = typeof filters?.search === 'string' ? filters.search.trim() : '';
+    const categoryId = typeof filters?.categoryId === 'string' && filters.categoryId.trim()
+      ? filters.categoryId.trim()
+      : undefined;
+    const publisherId = typeof filters?.publisherId === 'string' && filters.publisherId.trim()
+      ? filters.publisherId.trim()
+      : undefined;
+
     return this.prisma.book.findMany({
       where: {
         schoolId,
-        categoryId,
-        ...rest,
-        OR: search ? [
-          { title: { contains: search, mode: 'insensitive' } },
-          { isbn: { contains: search, mode: 'insensitive' } },
-          { authors: { some: { author: { name: { contains: search, mode: 'insensitive' } } } } },
-        ] : undefined,
+        ...(categoryId ? { categoryId } : {}),
+        ...(publisherId ? { publisherId } : {}),
+        ...(search
+          ? {
+              OR: [
+                { title: { contains: search, mode: 'insensitive' as const } },
+                { isbn: { contains: search, mode: 'insensitive' as const } },
+                { authors: { some: { author: { name: { contains: search, mode: 'insensitive' as const } } } } },
+              ],
+            }
+          : {}),
       },
       include: {
         category: true,
         authors: { include: { author: true } },
         _count: { select: { copies: true } },
       },
+      orderBy: { title: 'asc' },
     });
   }
 
@@ -476,18 +518,194 @@ export class LibraryService {
   }
 
   async createCategory(schoolId: string, dto: CreateCategoryDto) {
-    return this.prisma.bookCategory.create({ data: { ...dto, schoolId } });
+    const name = dto.name?.trim();
+    const code = dto.code?.trim();
+    if (!name) throw new BadRequestException('Category name is required.');
+    if (!code) throw new BadRequestException('Category code is required.');
+
+    const duplicate = await this.prisma.bookCategory.findFirst({
+      where: {
+        schoolId,
+        OR: [{ code: { equals: code, mode: 'insensitive' } }, { name: { equals: name, mode: 'insensitive' } }],
+      },
+      select: { id: true, code: true, name: true },
+    });
+    if (duplicate) {
+      throw new ConflictException(
+        duplicate.code.toLowerCase() === code.toLowerCase()
+          ? `Category code "${code}" is already in use.`
+          : `A category named "${name}" already exists.`,
+      );
+    }
+
+    return this.prisma.bookCategory.create({
+      data: {
+        schoolId,
+        name,
+        code,
+        ...(dto.description?.trim() ? { description: dto.description.trim() } : {}),
+      },
+    });
+  }
+
+  async updateCategory(schoolId: string, id: string, dto: UpdateCategoryDto) {
+    const existing = await this.prisma.bookCategory.findFirst({ where: { id, schoolId } });
+    if (!existing) throw new NotFoundException('Category not found.');
+
+    const name = dto.name?.trim();
+    const code = dto.code?.trim();
+    if (dto.name !== undefined && !name) throw new BadRequestException('Category name is required.');
+    if (dto.code !== undefined && !code) throw new BadRequestException('Category code is required.');
+
+    if (name || code) {
+      const duplicate = await this.prisma.bookCategory.findFirst({
+        where: {
+          schoolId,
+          id: { not: id },
+          OR: [
+            ...(code ? [{ code: { equals: code, mode: 'insensitive' as const } }] : []),
+            ...(name ? [{ name: { equals: name, mode: 'insensitive' as const } }] : []),
+          ],
+        },
+        select: { id: true },
+      });
+      if (duplicate) {
+        throw new ConflictException('Another category already uses that name or code.');
+      }
+    }
+
+    return this.prisma.bookCategory.update({
+      where: { id },
+      data: {
+        ...(name ? { name } : {}),
+        ...(code ? { code } : {}),
+        ...(dto.description !== undefined
+          ? { description: dto.description?.trim() || null }
+          : {}),
+      },
+    });
   }
 
   async createAuthor(schoolId: string, dto: CreateAuthorDto) {
-    return this.prisma.author.create({ data: { ...dto, schoolId } });
+    const name = dto.name?.trim();
+    if (!name) throw new BadRequestException('Author name is required.');
+    const duplicate = await this.prisma.author.findFirst({
+      where: { schoolId, name: { equals: name, mode: 'insensitive' } },
+      select: { id: true },
+    });
+    if (duplicate) throw new ConflictException(`An author named "${name}" already exists.`);
+
+    return this.prisma.author.create({
+      data: {
+        schoolId,
+        name,
+        ...(dto.biography?.trim() ? { biography: dto.biography.trim() } : {}),
+      },
+    });
+  }
+
+  async updateAuthor(schoolId: string, id: string, dto: UpdateAuthorDto) {
+    const existing = await this.prisma.author.findFirst({ where: { id, schoolId } });
+    if (!existing) throw new NotFoundException('Author not found.');
+
+    const name = dto.name?.trim();
+    if (dto.name !== undefined && !name) throw new BadRequestException('Author name is required.');
+    if (name) {
+      const duplicate = await this.prisma.author.findFirst({
+        where: { schoolId, id: { not: id }, name: { equals: name, mode: 'insensitive' } },
+        select: { id: true },
+      });
+      if (duplicate) throw new ConflictException(`An author named "${name}" already exists.`);
+    }
+
+    return this.prisma.author.update({
+      where: { id },
+      data: {
+        ...(name ? { name } : {}),
+        ...(dto.biography !== undefined ? { biography: dto.biography?.trim() || null } : {}),
+      },
+    });
   }
 
   async createPublisher(schoolId: string, dto: CreatePublisherDto) {
-    return this.prisma.publisher.create({ data: { ...dto, schoolId } });
+    const name = dto.name?.trim();
+    if (!name) throw new BadRequestException('Publisher name is required.');
+    const duplicate = await this.prisma.publisher.findFirst({
+      where: { schoolId, name: { equals: name, mode: 'insensitive' } },
+      select: { id: true },
+    });
+    if (duplicate) throw new ConflictException(`A publisher named "${name}" already exists.`);
+
+    return this.prisma.publisher.create({
+      data: {
+        schoolId,
+        name,
+        ...(dto.website?.trim() ? { website: dto.website.trim() } : {}),
+      },
+    });
+  }
+
+  async updatePublisher(schoolId: string, id: string, dto: UpdatePublisherDto) {
+    const existing = await this.prisma.publisher.findFirst({ where: { id, schoolId } });
+    if (!existing) throw new NotFoundException('Publisher not found.');
+
+    const name = dto.name?.trim();
+    if (dto.name !== undefined && !name) throw new BadRequestException('Publisher name is required.');
+    if (name) {
+      const duplicate = await this.prisma.publisher.findFirst({
+        where: { schoolId, id: { not: id }, name: { equals: name, mode: 'insensitive' } },
+        select: { id: true },
+      });
+      if (duplicate) throw new ConflictException(`A publisher named "${name}" already exists.`);
+    }
+
+    return this.prisma.publisher.update({
+      where: { id },
+      data: {
+        ...(name ? { name } : {}),
+        ...(dto.website !== undefined ? { website: dto.website?.trim() || null } : {}),
+      },
+    });
   }
 
   async createLocation(schoolId: string, dto: CreateLocationDto) {
-    return this.prisma.libraryLocation.create({ data: { ...dto, schoolId } });
+    const name = dto.name?.trim();
+    if (!name) throw new BadRequestException('Location name is required.');
+    const duplicate = await this.prisma.libraryLocation.findFirst({
+      where: { schoolId, name: { equals: name, mode: 'insensitive' } },
+      select: { id: true },
+    });
+    if (duplicate) throw new ConflictException(`A location named "${name}" already exists.`);
+
+    return this.prisma.libraryLocation.create({
+      data: {
+        schoolId,
+        name,
+        ...(dto.description?.trim() ? { description: dto.description.trim() } : {}),
+      },
+    });
+  }
+
+  async updateLocation(schoolId: string, id: string, dto: UpdateLocationDto) {
+    const existing = await this.prisma.libraryLocation.findFirst({ where: { id, schoolId } });
+    if (!existing) throw new NotFoundException('Location not found.');
+
+    const name = dto.name?.trim();
+    if (dto.name !== undefined && !name) throw new BadRequestException('Location name is required.');
+    if (name) {
+      const duplicate = await this.prisma.libraryLocation.findFirst({
+        where: { schoolId, id: { not: id }, name: { equals: name, mode: 'insensitive' } },
+        select: { id: true },
+      });
+      if (duplicate) throw new ConflictException(`A location named "${name}" already exists.`);
+    }
+
+    return this.prisma.libraryLocation.update({
+      where: { id },
+      data: {
+        ...(name ? { name } : {}),
+        ...(dto.description !== undefined ? { description: dto.description?.trim() || null } : {}),
+      },
+    });
   }
 }

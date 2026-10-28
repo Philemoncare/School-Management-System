@@ -23,7 +23,7 @@ export class SectionsController {
     return this.sectionsService.create(schoolId, dto, user.id);
   }
 
-  @Roles('SCHOOL_ADMIN', 'PRINCIPAL', 'TEACHER', 'RECEPTIONIST')
+  @Roles('SCHOOL_ADMIN', 'PRINCIPAL', 'TEACHER', 'RECEPTIONIST', 'TIMETABLE_OFFICER', 'ACADEMIC_COORDINATOR')
   @Get('by-class/:classId')
   findByClass(
     @ActiveSchool() schoolId: string,

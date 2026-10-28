@@ -39,6 +39,17 @@ export class TimetableController {
     return this.timetableService.createRoom(schoolId, dto, user.id);
   }
 
+  @Roles('SCHOOL_ADMIN', 'TIMETABLE_OFFICER')
+  @Patch('rooms/:id')
+  updateRoom(
+    @ActiveSchool() schoolId: string,
+    @Param('id') id: string,
+    @Body() dto: Partial<CreateRoomDto> & { status?: boolean },
+    @CurrentUser() user: any,
+  ) {
+    return this.timetableService.updateRoom(schoolId, id, dto, user.id);
+  }
+
   // Bell Schedules
   @Get('bell-schedules')
   getBellSchedules(@ActiveSchool() schoolId: string) {
@@ -79,6 +90,11 @@ export class TimetableController {
   }
 
   // Substitutions
+  @Get('substitutions')
+  getSubstitutions(@ActiveSchool() schoolId: string) {
+    return this.timetableService.findAllSubstitutions(schoolId);
+  }
+
   @Roles('SCHOOL_ADMIN', 'TIMETABLE_OFFICER', 'ACADEMIC_COORDINATOR')
   @Post('substitutions')
   createSubstitution(@ActiveSchool() schoolId: string, @Body() dto: CreateSubstitutionDto, @CurrentUser() user: any) {

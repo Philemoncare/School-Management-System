@@ -9,7 +9,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
+  const { user, loading, activeSchoolId } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
@@ -31,7 +31,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   if (!user) return null;
 
-  const roles = collectUserRoles(user);
+  const roles = collectUserRoles(user, activeSchoolId);
   const isParent = roles.includes('GUARDIAN') || roles.includes('PARENT');
 
   const layout = (

@@ -62,6 +62,11 @@ export class PermissionsGuard implements CanActivate {
     )) {
       permissions.add(permission);
     }
+    // The JWT carries the roles for the active session. Use them as a fallback
+    // when a user's role assignment is global rather than school-scoped.
+    for (const permission of schoolPermissionsFor(expandedRoles)) {
+      permissions.add(permission);
+    }
     for (const userRole of userRoles) {
       for (const rolePermission of userRole.role.permissions) {
         permissions.add(rolePermission.permission.name);

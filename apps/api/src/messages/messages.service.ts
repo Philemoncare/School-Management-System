@@ -98,8 +98,29 @@ export class MessagesService {
     });
   }
 
-  async findUserConversations(userId: string) {
-    return this.prisma.conversation.findMany({
+  async findRecipients(schoolId: string, userId: string) {
+    const memberships = await this.prisma.schoolMembership.findMany({
+      where: {
+        schoolId,
+        status: 'ACTIVE',
+        NOT: { userId },
+      },
+      include: {
+        user: {
+          select: { id: true, firstName: true, lastName: true, email: true },
+        },
+      },
+    });
+
+    return memberships
+      .map((membership) => membership.user)
+      .filter((member) => Boolean(member?.id))
+      .sort((a, b) =>
+        `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`),
+      );
+  }
+
+  async findUserConversations(userId: string) {    return this.prisma.conversation.findMany({
       where: {
         participants: { some: { userId } },
       },

@@ -42,9 +42,9 @@ export default function AccountantDashboard() {
           <p className="text-warm-500 font-bold mt-1 uppercase tracking-wide text-[11px]">Real-time School Revenue & Collections</p>
         </div>
         <div className="flex items-center gap-3">
-           <button className="bg-forest-700 text-white px-5 py-2.5 rounded-xl font-semibold text-xs uppercase tracking-wide hover:bg-forest-800 transition-all shadow-xs flex items-center justify-center gap-2 w-full sm:w-auto">
+           <Link href="/accountant/billing/new" className="bg-forest-700 text-white px-5 py-2.5 rounded-xl font-semibold text-xs uppercase tracking-wide hover:bg-forest-800 transition-all shadow-xs flex items-center justify-center gap-2 w-full sm:w-auto">
              <FileText size={16} /> Generate Billing
-           </button>
+           </Link>
         </div>
       </div>
 
@@ -74,7 +74,7 @@ export default function AccountantDashboard() {
            </div>
 
            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <SummaryListCard title="Today's Collections" value={`GH₵ ${parseFloat(metrics.paymentsToday || 0).toLocaleString()}`} count={5} icon={<DollarSign size={20}/>} link="/accountant/payments" />
+              <SummaryListCard title="Today's Collections" value={`GH₵ ${parseFloat(metrics.paymentsToday || 0).toLocaleString()}`} icon={<DollarSign size={20}/>} link="/accountant/payments" />
               <SummaryListCard title="Overdue Invoices" value={metrics.overdueCount} icon={<Clock size={20}/>} color="bg-danger-50 text-danger-600" link="/accountant/invoices?status=OVERDUE" />
            </div>
         </div>
