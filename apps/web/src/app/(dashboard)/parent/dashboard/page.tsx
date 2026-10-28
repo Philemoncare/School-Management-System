@@ -42,8 +42,8 @@ export default function ParentDashboard() {
     fetchDashboard();
   }, [activeSchoolId]);
 
-  if (loading) return <div>Loading dashboard...</div>;
-  if (!data) return <div>Failed to load dashboard data.</div>;
+  if (loading) return <div className="py-12 text-center text-xs font-semibold text-warm-500">Loading dashboard...</div>;
+  if (!data) return <div className="py-12 text-center text-xs font-semibold text-danger-500">Failed to load dashboard data.</div>;
 
   const { activeStudentId, summary, students, announcements, notifications } = data;
   const activeStudent = students.find((s: any) => s.id === activeStudentId);
@@ -51,31 +51,31 @@ export default function ParentDashboard() {
   return (
     <div className="space-y-6">
       {/* Welcome Header */}
-      <div className="flex justify-between items-center bg-card p-6 rounded-2xl border border-warm-100 shadow-sm">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-card p-4 sm:p-6 rounded-2xl border border-warm-100 shadow-xs gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-charcoal-900">Welcome, {data.guardian?.firstName}!</h1>
-          <p className="text-warm-500">Here's an overview of your children's activities today.</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-charcoal-900">Welcome, {data.guardian?.firstName}!</h1>
+          <p className="text-xs sm:text-sm text-warm-500 mt-0.5">Here's an overview of your children's activities today.</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2 w-full sm:w-auto">
           {students.map((student: any) => (
             <button
               key={student.id}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl border transition-all ${
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all text-xs font-bold ${
                 student.id === activeStudentId
-                  ? 'bg-forest-700 border-forest-700 text-white shadow-lg shadow-sage-200'
+                  ? 'bg-forest-700 border-forest-700 text-white shadow-xs'
                   : 'bg-card border-warm-200 text-warm-600 hover:border-forest-700'
               }`}
             >
-              <div className="w-6 h-6 rounded-full bg-warm-200 overflow-hidden">
+              <div className="w-5 h-5 rounded-full bg-warm-200 overflow-hidden shrink-0">
                 {student.photo ? (
                   <img src={student.photo} alt={student.firstName} className="w-full h-full object-cover" />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center text-[11px] font-bold text-warm-400">
+                  <div className="w-full h-full flex items-center justify-center text-[10px] font-bold text-warm-400">
                     {student.firstName[0]}
                   </div>
                 )}
               </div>
-              <span className="text-sm font-bold">{student.firstName}</span>
+              <span className="truncate">{student.firstName}</span>
             </button>
           ))}
         </div>
@@ -130,19 +130,18 @@ export default function ParentDashboard() {
             </div>
             <div className="p-6">
               {summary.timetable.length > 0 ? (
-                <div className="space-y-4">
+                <div className="space-y-3">
                   {summary.timetable.map((entry: any) => (
-                    <div key={entry.id} className="flex items-center gap-4 p-4 rounded-xl bg-ivory-50 border border-warm-100">
-                      <div className="w-20 text-center border-r border-warm-200 pr-4">
-                        <p className="text-sm font-bold text-charcoal-900">{entry.startTime}</p>
-                        <p className="text-[11px] text-warm-500 font-medium uppercase">{entry.endTime}</p>
+                    <div key={entry.id} className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4 p-3.5 sm:p-4 rounded-xl bg-ivory-50 border border-warm-100">
+                      <div className="flex sm:block items-center gap-2 sm:w-20 sm:text-center sm:border-r border-warm-200 sm:pr-4 shrink-0">
+                        <p className="text-xs font-semibold text-charcoal-900">{entry.startTime} - {entry.endTime}</p>
                       </div>
-                      <div className="flex-1">
-                        <p className="font-bold text-charcoal-900">{entry.subject.name}</p>
-                        <p className="text-xs text-warm-500 font-medium">Room {entry.room?.name || 'TBA'} • {entry.teacher?.firstName} {entry.teacher?.lastName}</p>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-bold text-xs sm:text-sm text-charcoal-900 truncate">{entry.subject.name}</p>
+                        <p className="text-[11px] text-warm-500 font-medium truncate">Room {entry.room?.name || 'TBA'} • {entry.teacher?.firstName} {entry.teacher?.lastName}</p>
                       </div>
-                      <div className="bg-card px-3 py-1 rounded-lg border border-warm-200 shadow-sm">
-                        <span className="text-[11px] font-bold text-forest-700 uppercase tracking-wider">Period {entry.period?.periodNumber}</span>
+                      <div className="bg-card px-2.5 py-0.5 rounded-lg border border-warm-200 shadow-xs shrink-0">
+                        <span className="text-[10px] font-bold text-forest-700 uppercase tracking-wider">Period {entry.period?.periodNumber}</span>
                       </div>
                     </div>
                   ))}

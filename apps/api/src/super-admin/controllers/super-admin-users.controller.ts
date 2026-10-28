@@ -20,10 +20,14 @@ import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 import {
   PLATFORM_OPERATOR_ROLES,
   PLATFORM_READ_ROLES,
+  PLATFORM_SUPER_ROLES,
+  isPlatformRole,
 } from '../../auth/platform-roles';
 import { Prisma, SessionStatus } from '@prisma/client';
 import * as argon2 from 'argon2';
 import { ResetUserPasswordDto, UpdateUserStatusDto } from '../dto/super-admin.dto';
+import { AssignPlatformRoleDto } from '../dto/super-admin.dto';
+import { ensurePlatformRoles, assignPlatformRole } from '../../auth/platform-role-provisioning';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(...PLATFORM_READ_ROLES)
@@ -246,5 +250,108 @@ export class SuperAdminUsersController {
       ...result,
       message: `Password reset instructions were queued for ${target.email}.`,
     };
+  }
+
+  @Patch(':id/platform-role')
+  @Roles(...PLATFORM_SUPER_ROLES)
+  async assignPlatformRole(
+    @Param('id') id: string,
+    @Body() dto: AssignPlatformRoleDto,
+    @CurrentUser() admin: any,
+  ) {
+    if (id === admin.id) {
+      throw new BadRequestException('You cannot change your own platform role');
+    }
+
+    const validRoles = Object.values({
+      SUPER_ADMIN: 'PLATFORM_SUPER_ADMIN',
+      OPERATIONS_ADMIN: 'PLATFORM_OPERATIONS_ADMIN',
+      SUPPORT_ADMIN: 'PLATFORM_SUPPORT_ADMIN',
+    });
+    if (!validRoles.includes(dto.role)) {
+      throw new BadRequestException(
+        `Invalid platform role. Allowed: ${validRoles.join(', ')}`,
+      );
+    }
+
+    const target = await this.prisma.user.findUnique({
+      where: { id },
+      include: { userRoles: { include: { role: true } } },
+    });
+    if (!target) throw new NotFoundException('User not found');
+
+    const isCurrentlyPlatform = target.userRoles.some(
+      (ur) =>
+        ur.role.schoolId === null &&
+        (ur.role.name === 'PLATFORM_SUPER_ADMIN' ||
+          ur.role.name === 'PLATFORM_OPERATIONS_ADMIN' ||
+          ur.role.name === 'PLATFORM_SUPPORT_ADMIN' ||
+          ur.role.name === 'SUPER_ADMIN'),
+    );
+
+    // Removing the last super admin is not permitted.
+    if (
+      isCurrentlyPlatform &&
+      dto.role !== 'PLATFORM_SUPER_ADMIN' &&
+      target.userRoles.some((ur) => ur.role.name === 'PLATFORM_SUPER_ADMIN')
+    ) {
+      const superAdminCount = await this.prisma.userRole.count({
+        where: {
+          role: { name: 'PLATFORM_SUPER_ADMIN' },
+          schoolId: null,
+        },
+      });
+      if (superAdminCount <= 1) {
+        throw new BadRequestException(
+          'At least one Platform Super Admin account must remain.',
+        );
+      }
+    }
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const platformRoles = await ensurePlatformRoles(tx);
+      const roleId = platformRoles[dto.role as keyof typeof platformRoles].id;
+
+      const existing = await tx.userRole.findFirst({
+        where: { userId: id, roleId, schoolId: null },
+      });
+      if (!existing) {
+        await tx.userRole.create({
+          data: { userId: id, roleId, schoolId: null },
+        });
+      }
+
+      await this.audit.log(
+        {
+          userId: admin.id,
+          action: 'PLATFORM_ROLE_ASSIGNED',
+          module: 'USERS',
+          resourceId: id,
+          metadata: {
+            targetEmail: target.email,
+            platformRole: dto.role,
+            reason: dto.reason || null,
+          },
+        },
+        tx,
+      );
+
+      return tx.user.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          isActive: true,
+          userRoles: {
+            where: { schoolId: null },
+            include: { role: true },
+          },
+        },
+      });
+    });
+
+    return result;
   }
 }

@@ -45,6 +45,7 @@ import { SecurityHeadersMiddleware } from "./common/middleware/security-headers.
 import { SessionInterceptor } from "./security/interceptors/session.interceptor";
 import { NestModule, MiddlewareConsumer } from "@nestjs/common";
 import { JwtAuthGuard } from "./auth/guards/jwt-auth.guard";
+import { redisConnectionConfig } from "./redis/redis-connection";
 
 @Module({
   imports: [
@@ -87,15 +88,7 @@ import { JwtAuthGuard } from "./auth/guards/jwt-auth.guard";
     HealthModule,
     IntegrationsModule,
     BullModule.forRoot({
-      connection: {
-        host: process.env.REDIS_HOST || "127.0.0.1",
-        port: parseInt(process.env.REDIS_PORT || "6379"),
-        maxRetriesPerRequest: null,
-        enableOfflineQueue: true,
-        retryStrategy: (times) => {
-          return Math.min(times * 500, 5000);
-        },
-      },
+      connection: redisConnectionConfig(),
     }),
     ThrottlerModule.forRoot([
       {

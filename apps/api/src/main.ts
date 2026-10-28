@@ -4,29 +4,75 @@ import { AppModule } from './app.module';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { validateEnv } from './env';
 import { AllExceptionsFilter } from './common/filters/http-exception.filter';
-import { Queue } from 'bullmq';
+import { Queue, QueueEvents, Worker } from 'bullmq';
+import {
+  isRedisUnavailableError,
+  logRedisUnavailable,
+} from './redis/redis-connection';
 
-// Prevent unhandled 'error' events on BullMQ Queue instances from crashing Node when Redis is offline
-const originalQueueEmit = Queue.prototype.emit;
-Queue.prototype.emit = function (event: string | symbol, ...args: any[]) {
-  if (event === 'error' && this.listenerCount('error') === 0) {
-    return true;
-  }
-  return originalQueueEmit.call(this, event, ...args);
-};
+const redisLogger = new Logger('Redis');
+
+/**
+ * BullMQ emits `error` on Queue/Worker/QueueEvents instances when the Redis
+ * connection drops. With no listener attached, Node prints the full stack for
+ * every retry (twice, via BullMQ's own fallback) which floods the console.
+ *
+ * We intercept those events and log a single throttled warning instead. Real
+ * job errors are still logged when Redis is healthy.
+ */
+function guardEmitterPrototype(prototype: any, label: string) {
+  if (!prototype || typeof prototype.emit !== 'function') return;
+  if (prototype.__schoolMaRedisGuard) return;
+
+  const originalEmit = prototype.emit;
+
+  prototype.emit = function guardedEmit(
+    this: any,
+    event: string | symbol,
+    ...args: any[]
+  ) {
+    if (event === 'error' && this.listenerCount?.('error') === 0) {
+      const error = args[0];
+      if (isRedisUnavailableError(error)) {
+        logRedisUnavailable(label);
+      } else {
+        redisLogger.error(
+          `${label} emitted an unhandled error: ${error?.message ?? error}`,
+          error?.stack,
+        );
+      }
+      return false;
+    }
+    return originalEmit.apply(this, args);
+  };
+
+  Object.defineProperty(prototype.emit, '__schoolMaRedisGuard', {
+    value: true,
+  });
+  prototype.__schoolMaRedisGuard = true;
+}
+
+guardEmitterPrototype(Queue.prototype, 'Background queue');
+guardEmitterPrototype(Worker.prototype, 'Background worker');
+guardEmitterPrototype(QueueEvents.prototype, 'Queue events listener');
 
 process.on('uncaughtException', (err: any) => {
-  if (err?.code === 'ECONNREFUSED' && (err?.address === '127.0.0.1' || err?.port === 6379 || err?.message?.includes('6379'))) {
+  if (isRedisUnavailableError(err)) {
+    logRedisUnavailable('Uncaught Redis error');
     return;
   }
-  console.error('Uncaught Exception:', err);
+  redisLogger.error(`Uncaught Exception: ${err?.message ?? err}`, err?.stack);
 });
 
 process.on('unhandledRejection', (reason: any) => {
-  if (reason?.code === 'ECONNREFUSED' && (reason?.address === '127.0.0.1' || reason?.port === 6379 || reason?.message?.includes('6379'))) {
+  if (isRedisUnavailableError(reason)) {
+    logRedisUnavailable('Unhandled Redis rejection');
     return;
   }
-  console.error('Unhandled Rejection:', reason);
+  redisLogger.error(
+    `Unhandled Rejection: ${reason?.message ?? reason}`,
+    reason?.stack,
+  );
 });
 
 async function bootstrap() {

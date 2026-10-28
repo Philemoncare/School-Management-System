@@ -42,8 +42,8 @@ export default function StudentDashboard() {
     fetchDashboard();
   }, [activeSchoolId]);
 
-  if (loading) return <div className="p-8 text-center">Loading your learning workspace...</div>;
-  if (!data) return <div className="p-8 text-center text-danger-500">Failed to load dashboard. Please try again.</div>;
+  if (loading) return <div className="py-12 text-center text-xs font-semibold text-warm-500">Loading your learning workspace...</div>;
+  if (!data) return <div className="py-12 text-center text-xs font-semibold text-danger-500">Failed to load dashboard. Please try again.</div>;
 
   const { student, enrollment, timetable, assessments, assignments, announcements, notifications, attendance } = data;
 
@@ -94,17 +94,16 @@ export default function StudentDashboard() {
               {timetable.length > 0 ? (
                 <div className="space-y-4">
                   {timetable.map((entry: any) => (
-                    <div key={entry.id} className="flex items-center gap-4 p-4 rounded-xl bg-ivory-50 border border-warm-100 hover:border-sage-200 transition-colors group">
-                      <div className="w-20 text-center border-r border-warm-200 pr-4">
-                        <p className="text-sm font-semibold text-charcoal-900">{entry.startTime}</p>
-                        <p className="text-[11px] text-warm-500 font-bold uppercase">{entry.endTime}</p>
+                    <div key={entry.id} className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4 p-3.5 sm:p-4 rounded-xl bg-ivory-50 border border-warm-100 hover:border-sage-200 transition-colors group">
+                      <div className="flex sm:block items-center gap-2 sm:w-20 sm:text-center sm:border-r border-warm-200 sm:pr-4 shrink-0">
+                        <p className="text-xs font-semibold text-charcoal-900">{entry.startTime} - {entry.endTime}</p>
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="font-bold text-charcoal-900 truncate">{entry.subject?.name}</p>
-                        <p className="text-xs text-warm-500 font-medium truncate">Room {entry.room?.name || 'TBA'} • {entry.teacher?.firstName} {entry.teacher?.lastName}</p>
+                        <p className="font-bold text-xs sm:text-sm text-charcoal-900 truncate">{entry.subject?.name}</p>
+                        <p className="text-[11px] text-warm-500 font-medium truncate">Room {entry.room?.name || 'TBA'} • {entry.teacher?.firstName} {entry.teacher?.lastName}</p>
                       </div>
-                      <div className="hidden sm:block">
-                         <span className="px-3 py-1 bg-card rounded-lg border border-warm-200 text-[11px] font-bold text-warm-400 group-hover:text-forest-700 group-hover:border-sage-200 transition-colors">PERIOD {entry.period?.periodNumber}</span>
+                      <div className="shrink-0">
+                         <span className="px-2.5 py-0.5 bg-card rounded-lg border border-warm-200 text-[10px] font-bold text-warm-500 group-hover:text-forest-700 group-hover:border-sage-200 transition-colors">PERIOD {entry.period?.periodNumber}</span>
                       </div>
                     </div>
                   ))}

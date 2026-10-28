@@ -33,8 +33,8 @@ export default function AccountantDashboard() {
   const metrics = data?.metrics || {};
 
   return (
-    <div className="p-4 lg:p-8 space-y-8">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="space-y-6 sm:space-y-8">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl lg:text-3xl font-semibold text-charcoal-900 tracking-tight leading-tight">
             Financial <span className="text-forest-700">Command Center</span>
@@ -42,8 +42,8 @@ export default function AccountantDashboard() {
           <p className="text-warm-500 font-bold mt-1 uppercase tracking-wide text-[11px]">Real-time School Revenue & Collections</p>
         </div>
         <div className="flex items-center gap-3">
-           <button className="bg-forest-700 text-white px-6 py-2.5 rounded-2xl font-semibold text-sm uppercase tracking-wide hover:bg-forest-800 transition-all shadow-xs shadow-sage-100 flex items-center gap-2">
-             <FileText size={18} /> Generate Billing
+           <button className="bg-forest-700 text-white px-5 py-2.5 rounded-xl font-semibold text-xs uppercase tracking-wide hover:bg-forest-800 transition-all shadow-xs flex items-center justify-center gap-2 w-full sm:w-auto">
+             <FileText size={16} /> Generate Billing
            </button>
         </div>
       </div>

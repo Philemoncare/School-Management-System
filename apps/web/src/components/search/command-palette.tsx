@@ -107,10 +107,10 @@ export function CommandPalette() {
   const displayItems = query === '' ? commands : results;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-start justify-center pt-24 sm:pt-40 px-4">
+    <div className="fixed inset-0 z-[100] flex items-start justify-center pt-8 sm:pt-20 md:pt-40 px-3 sm:px-4">
       <div className="fixed inset-0 bg-charcoal-900/60 animate-in fade-in duration-200" onClick={() => setIsOpen(false)} />
 
-      <div className="relative flex max-h-[60vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-warm-200 bg-card shadow-panel animate-in zoom-in-95 duration-200">
+      <div className="relative flex max-h-[80vh] sm:max-h-[60vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-warm-200 bg-card shadow-panel animate-in zoom-in-95 duration-200">
         <div className="flex items-center px-6 py-4 border-b border-warm-100">
           <Search className="text-warm-400 mr-4" size={20} />
           <input

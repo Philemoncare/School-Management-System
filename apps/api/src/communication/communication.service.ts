@@ -1,10 +1,11 @@
-import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, BadRequestException, ServiceUnavailableException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { TemplateService } from './template.service';
 import { CommunicationGateway } from './gateways/communication.gateway';
 import { AudienceResolverService, AudienceConfig } from './audience-resolver.service';
 import { InjectQueue } from '@nestjs/bullmq';
 import type { Queue } from 'bullmq';
+import { isRedisUnavailableError } from '../redis/redis-connection';
 import {
   CommunicationChannel,
   NotificationPriority,
@@ -108,19 +109,35 @@ export class CommunicationService {
 
     // 3. Queue jobs for each recipient and channel
     // In a production app, we would use a bulk job processor
-    for (const userId of userIds) {
-      for (const channel of comm.channels) {
-        await this.notificationQueue.add('process-communication', {
-          communicationId,
-          userId,
-          channel,
-          data: {
-            title: comm.title,
-            subject: comm.subject,
-            content: comm.content
-          }
-        });
+    try {
+      for (const userId of userIds) {
+        for (const channel of comm.channels) {
+          await this.notificationQueue.add('process-communication', {
+            communicationId,
+            userId,
+            channel,
+            data: {
+              title: comm.title,
+              subject: comm.subject,
+              content: comm.content
+            }
+          });
+        }
       }
+    } catch (error) {
+      this.logger.warn(
+        `Unable to queue communication ${communicationId}: ${(error as Error).message}`,
+      );
+      await this.prisma.communication.update({
+        where: { id: communicationId },
+        data: { status: CommunicationStatus.FAILED },
+      });
+      if (isRedisUnavailableError(error)) {
+        throw new ServiceUnavailableException(
+          'Notification delivery is temporarily unavailable because the background queue is offline. The communication was not sent.',
+        );
+      }
+      throw error;
     }
 
     await this.prisma.communication.update({
@@ -266,13 +283,33 @@ export class CommunicationService {
       data: { status: 'PENDING', errorMessage: null }
     });
 
-    await this.notificationQueue.add('send-delivery', {
-      deliveryId: delivery.id,
-      channel: delivery.channel,
-      recipientId: delivery.notification.userId,
-      templateVersionId: delivery.notification.templateVersionId,
-      data: {} // In a real app we'd need to re-fetch the original data payload
-    });
+    try {
+      await this.notificationQueue.add('send-delivery', {
+        deliveryId: delivery.id,
+        channel: delivery.channel,
+        recipientId: delivery.notification.userId,
+        templateVersionId: delivery.notification.templateVersionId,
+        data: {} // In a real app we'd need to re-fetch the original data payload
+      });
+    } catch (error) {
+      this.logger.warn(
+        `Unable to queue delivery retry ${deliveryId}: ${(error as Error).message}`,
+      );
+      await this.prisma.notificationDelivery.update({
+        where: { id: deliveryId },
+        data: {
+          status: 'FAILED',
+          errorMessage: 'Background queue unavailable; retry was not queued.',
+          failedAt: new Date(),
+        },
+      });
+      if (isRedisUnavailableError(error)) {
+        throw new ServiceUnavailableException(
+          'Notification delivery is temporarily unavailable because the background queue is offline.',
+        );
+      }
+      throw error;
+    }
 
     return { status: 'retry_queued' };
   }
@@ -365,17 +402,33 @@ export class CommunicationService {
         },
       });
 
-      await this.notificationQueue.add('send-delivery', {
-        deliveryId: delivery.id,
-        channel,
-        recipientId: userId,
-        templateVersionId: version.id,
-        data,
-      }, {
-        priority: this.getQueuePriority(priority),
-        attempts: 3,
-        backoff: { type: 'exponential', delay: 5000 },
-      });
+      try {
+        await this.notificationQueue.add('send-delivery', {
+          deliveryId: delivery.id,
+          channel,
+          recipientId: userId,
+          templateVersionId: version.id,
+          data,
+        }, {
+          priority: this.getQueuePriority(priority),
+          attempts: 3,
+          backoff: { type: 'exponential', delay: 5000 },
+        });
+      } catch (error) {
+        // The in-app notification is already persisted, so the caller still
+        // succeeds; the outbound delivery is recorded as failed for retry.
+        this.logger.warn(
+          `Unable to queue delivery ${delivery.id}: ${(error as Error).message}`,
+        );
+        await this.prisma.notificationDelivery.update({
+          where: { id: delivery.id },
+          data: {
+            status: 'FAILED',
+            errorMessage: 'Background queue unavailable; delivery was not queued.',
+            failedAt: new Date(),
+          },
+        });
+      }
     }
 
     return { notification };

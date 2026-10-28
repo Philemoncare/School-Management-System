@@ -396,10 +396,11 @@ export class SettingsService {
   }
 
   private async clearPlatformCache(key: string) {
-    // In production, use a pattern-based deletion or versioning
+    // Platform defaults are cached under every school/user combination.
+    await this.redis.delByPattern(`setting:*:*:${key}`);
   }
 
   private async clearSchoolCache(schoolId: string, key: string) {
-    // Clear school-level cache
+    await this.redis.delByPattern(`setting:${schoolId}:*:${key}`);
   }
 }

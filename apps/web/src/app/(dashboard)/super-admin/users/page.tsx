@@ -14,9 +14,17 @@ import {
   ShieldCheck,
   Unlock,
   Users,
+  Plus,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Select } from '@/components/ui/input';
+import { Input, Select } from '@/components/ui/input';
+import { Modal } from '@/components/ui/modal';
+
+const PLATFORM_ROLE_OPTIONS = [
+  { value: 'PLATFORM_SUPER_ADMIN', label: 'Platform Super Admin' },
+  { value: 'PLATFORM_OPERATIONS_ADMIN', label: 'Platform Operations Admin' },
+  { value: 'PLATFORM_SUPPORT_ADMIN', label: 'Platform Support Admin' },
+];
 
 export default function SuperAdminUsers() {
   const [data, setData] = useState<any>({ items: [], total: 0, roles: [] });
@@ -30,6 +38,10 @@ export default function SuperAdminUsers() {
   const [busy, setBusy] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const take = 20;
+  const [roleModal, setRoleModal] = useState(false);
+  const [roleTarget, setRoleTarget] = useState<any>(null);
+  const [roleForm, setRoleForm] = useState({ role: '', reason: '' });
+  const [roleSaving, setRoleSaving] = useState(false);
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search), 300);
@@ -90,6 +102,42 @@ export default function SuperAdminUsers() {
     } finally {
       setBusy('');
     }
+  }
+
+  async function openRoleAssignment(user: any) {
+    setRoleTarget(user);
+    setRoleForm({ role: '', reason: '' });
+    setRoleModal(true);
+  }
+
+  async function closeRoleModal() {
+    setRoleModal(false);
+    setRoleTarget(null);
+    setRoleForm({ role: '', reason: '' });
+  }
+
+  async function assignRole() {
+    if (!roleForm.role) return setError('Select a platform role.');
+    setRoleSaving(true);
+    setError('');
+    try {
+      await apiFetch(`/super-admin/users/${roleTarget.id}/platform-role`, {
+        method: 'PATCH',
+        body: JSON.stringify({ role: roleForm.role, reason: roleForm.reason || undefined }),
+      });
+      await loadUsers();
+      closeRoleModal();
+    } catch (err: any) {
+      setError(err.message || 'Unable to assign platform role');
+    } finally {
+      setRoleSaving(false);
+    }
+  }
+
+  function hasPlatformRole(user: any): boolean {
+    return user.userRoles?.some(
+      (ur: any) => ur.role?.schoolId === null && ur.role?.name?.startsWith('PLATFORM_'),
+    );
   }
 
   return (
@@ -216,6 +264,16 @@ export default function SuperAdminUsers() {
                       <button onClick={() => toggleStatus(user)} disabled={busy === `status-${user.id}`} className={`p-2 transition-colors disabled:opacity-40 ${user.isActive ? 'text-warm-400 hover:text-terracotta-600' : 'text-warm-400 hover:text-success-600'}`} title={user.isActive ? 'Disable account' : 'Enable account'}>
                         {busy === `status-${user.id}` ? <Loader2 size={17} className="animate-spin" /> : user.isActive ? <Lock size={17} /> : <Unlock size={17} />}
                       </button>
+                      {!hasPlatformRole(user) && (
+                        <button
+                          onClick={() => openRoleAssignment(user)}
+                          disabled={busy === `status-${user.id}`}
+                          className="p-2 text-forest-400 hover:text-forest-700 transition-colors disabled:opacity-40"
+                          title="Assign platform role"
+                        >
+                          <Plus size={17} />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -236,6 +294,84 @@ export default function SuperAdminUsers() {
           </div>
         </div>
       </div>
+
+      <PlatformRoleModal
+        isOpen={roleModal}
+        onClose={closeRoleModal}
+        target={roleTarget}
+        form={roleForm}
+        setForm={setRoleForm}
+        saving={roleSaving}
+        assignRole={assignRole}
+      />
     </div>
+  );
+}
+
+function PlatformRoleModal({
+  isOpen,
+  onClose,
+  target,
+  form,
+  setForm,
+  saving,
+  assignRole,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  target: any;
+  form: any;
+  setForm: (value: any) => void;
+  saving: boolean;
+  assignRole: () => void;
+}) {
+  if (!isOpen) return null;
+  const platformRoles = target.userRoles?.filter(
+    (ur: any) => ur.role?.schoolId === null,
+  );
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Assign Platform Role" size="md">
+      <div className="space-y-4">
+        <p className="text-sm text-muted-foreground">
+          Assign a platform-level role to <strong>{target.email}</strong>.
+        </p>
+        {platformRoles.length > 0 && (
+          <div className="rounded-lg bg-warning-50 p-3 text-sm text-warning-800">
+            This account already has platform role(s):{' '}
+            {platformRoles.map((ur: any) => ur.role?.name).join(', ')}.
+            Assigning another role adds it alongside existing ones.
+          </div>
+        )}
+        <Select
+          label="Platform role"
+          value={form.role}
+          onChange={(e) => setForm({ ...form, role: e.target.value })}
+        >
+          <option value="">Select a role</option>
+          {PLATFORM_ROLE_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </Select>
+        <Input
+          label="Reason (required for audit)"
+          value={form.reason}
+          onChange={(e) => setForm({ ...form, reason: e.target.value })}
+        />
+        <p className="text-xs text-muted-foreground">
+          Only a Platform Super Admin can assign platform roles. This action is
+          audited.
+        </p>
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button onClick={assignRole} isLoading={saving} disabled={!form.role || !form.reason.trim()}>
+            Assign Role
+          </Button>
+        </div>
+      </div>
+    </Modal>
   );
 }

@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { Sidebar } from "./sidebar";
 import { TopBar } from "./topbar";
 import { Breadcrumbs } from "./breadcrumbs";
+import { MobileNavigation } from "./mobile-nav";
 import { CommandPalette } from "../search/command-palette";
 import { GlobalFeedback } from "./global-feedback";
 import { useAuth } from "@/context/auth-context";
@@ -32,15 +33,23 @@ export function AuthenticatedLayout({
     }
   }, [loading, isAuthenticated, router]);
 
-  // Lock body scroll when mobile menu is active
+  // Lock body scroll and add key listener when mobile menu is active
   useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isMobileMenuOpen) {
+        setIsMobileMenuOpen(false);
+      }
+    };
+
     if (isMobileMenuOpen) {
       document.body.style.overflow = "hidden";
+      window.addEventListener("keydown", handleKeyDown);
     } else {
       document.body.style.overflow = "unset";
     }
     return () => {
       document.body.style.overflow = "unset";
+      window.removeEventListener("keydown", handleKeyDown);
     };
   }, [isMobileMenuOpen]);
 
@@ -96,8 +105,8 @@ export function AuthenticatedLayout({
           id="main-content"
           className="relative flex-1 overflow-y-auto overflow-x-hidden scroll-smooth bg-background"
         >
-          <div className="mx-auto max-w-[1440px] p-4 sm:p-6 lg:p-8">
-            <div className="mb-4 sm:mb-6">
+          <div className="mx-auto max-w-[1440px] p-3 sm:p-6 lg:p-8">
+            <div className="mb-3 sm:mb-6">
               <Breadcrumbs />
             </div>
 
@@ -106,6 +115,8 @@ export function AuthenticatedLayout({
             </div>
           </div>
         </main>
+
+        <MobileNavigation />
       </div>
 
       {/* Mobile Drawer Navigation */}

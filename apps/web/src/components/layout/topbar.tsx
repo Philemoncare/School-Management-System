@@ -7,6 +7,7 @@ import { SchoolSwitcher } from "./school-switcher";
 import { ChildSwitcher } from "./child-switcher";
 import { UserMenu } from "./user-menu";
 import { NotificationCenter } from "../notifications/notification-center";
+import { BrandMark } from "@/components/brand/schoolma-logo";
 
 interface TopBarProps {
   toggleMobileMenu: () => void;
@@ -18,17 +19,21 @@ export function TopBar({ toggleMobileMenu }: TopBarProps) {
   };
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 select-none items-center justify-between gap-3 border-b border-warm-200 bg-ivory-50 px-3.5 sm:px-6">
-      <div className="flex items-center gap-2.5 sm:gap-4 flex-1 min-w-0">
+    <header className="sticky top-0 z-30 flex h-16 select-none items-center justify-between gap-2 border-b border-warm-200 bg-ivory-50 px-3 sm:px-6">
+      <div className="flex items-center gap-2 sm:gap-4 flex-1 min-w-0">
         <button
           onClick={toggleMobileMenu}
           className="md:hidden p-2 text-warm-600 hover:text-forest-900 hover:bg-sage-100 rounded-xl transition-colors min-w-[40px] min-h-[40px] flex items-center justify-center shrink-0"
-          aria-label="Open navigation"
+          aria-label="Open navigation menu"
         >
           <Menu className="w-5 h-5" />
         </button>
 
-        <div className="shrink-0">
+        <Link href="/dashboard" className="md:hidden shrink-0 flex items-center" aria-label="SchooMA Home">
+          <BrandMark size={30} />
+        </Link>
+
+        <div className="shrink-0 min-w-0 max-w-[140px] sm:max-w-none">
           <SchoolSwitcher />
         </div>
 

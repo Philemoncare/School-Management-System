@@ -31,9 +31,9 @@ export default function TeacherDashboard() {
   }, []);
 
   return (
-    <div className="p-4 lg:p-8 space-y-8">
+    <div className="space-y-6 sm:space-y-8">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl lg:text-3xl font-semibold text-charcoal-900 tracking-tight leading-tight">
             Welcome back, <span className="text-forest-700">{user?.firstName}</span>
@@ -41,7 +41,7 @@ export default function TeacherDashboard() {
           <p className="text-warm-500 font-bold mt-1 uppercase tracking-wide text-[11px]">Academic Workspace • Teacher Portal</p>
         </div>
         <div className="flex items-center gap-3">
-          <div className="bg-card border border-warm-200 px-5 py-2.5 rounded-2xl shadow-sm hidden sm:block">
+          <div className="bg-card border border-warm-200 px-4 py-2 rounded-xl shadow-xs hidden sm:block">
             <span className="text-[11px] font-semibold text-warm-400 uppercase tracking-wide block">Current Date</span>
             <span className="text-sm font-semibold text-charcoal-900">{new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}</span>
           </div>
@@ -67,17 +67,16 @@ export default function TeacherDashboard() {
 
             <div className="space-y-4">
                {data?.todaySchedule?.map((slot: any) => (
-                 <div key={slot.id} className="flex items-center gap-6 p-5 rounded-3xl bg-ivory-50 border border-warm-100 hover:bg-card hover:shadow-md transition-all group">
-                    <div className="w-16 text-center">
-                       <p className="text-xs font-semibold text-charcoal-900">{slot.startTime}</p>
-                       <p className="text-[11px] font-bold text-warm-400 uppercase">{slot.endTime}</p>
+                 <div key={slot.id} className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-6 p-4 sm:p-5 rounded-2xl bg-ivory-50 border border-warm-100 hover:bg-card hover:shadow-xs transition-all group">
+                    <div className="flex items-center gap-3 sm:block sm:w-16 sm:text-center shrink-0">
+                       <span className="text-xs font-semibold text-charcoal-900">{slot.startTime} - {slot.endTime}</span>
                     </div>
-                    <div className="w-1.5 h-10 rounded-full bg-forest-500"></div>
-                    <div className="flex-1">
-                       <p className="text-sm font-semibold text-charcoal-900 leading-tight">{slot.subject.name}</p>
-                       <p className="text-[11px] font-bold text-warm-400 uppercase tracking-tight">{slot.class.name} • Section {slot.section?.name || 'A'}</p>
+                    <div className="hidden sm:block w-1.5 h-10 rounded-full bg-forest-500 shrink-0"></div>
+                    <div className="flex-1 min-w-0">
+                       <p className="text-sm font-semibold text-charcoal-900 leading-tight truncate">{slot.subject.name}</p>
+                       <p className="text-[11px] font-bold text-warm-400 uppercase tracking-tight truncate">{slot.class.name} • Section {slot.section?.name || 'A'}</p>
                     </div>
-                    <Link href={`/teacher/attendance?classId=${slot.classId}&sectionId=${slot.sectionId}`} className="px-4 py-2 bg-card border border-warm-200 rounded-xl text-[11px] font-semibold uppercase tracking-wide text-warm-500 group-hover:bg-forest-700 group-hover:text-white group-hover:border-forest-700 transition-all shadow-sm">Mark Attendance</Link>
+                    <Link href={`/teacher/attendance?classId=${slot.classId}&sectionId=${slot.sectionId}`} className="w-full sm:w-auto text-center px-4 py-2 bg-card border border-warm-200 rounded-xl text-[11px] font-semibold uppercase tracking-wide text-warm-500 group-hover:bg-forest-700 group-hover:text-white group-hover:border-forest-700 transition-all shadow-xs">Mark Attendance</Link>
                  </div>
                ))}
                {(!data?.todaySchedule || data.todaySchedule.length === 0) && !loading && (

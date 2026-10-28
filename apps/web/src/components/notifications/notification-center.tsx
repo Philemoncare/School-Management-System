@@ -59,7 +59,7 @@ export function NotificationCenter() {
       {isOpen && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
-          <div className="absolute top-full right-0 mt-2 w-80 sm:w-96 bg-card border border-warm-200 rounded-xl shadow-xs z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="absolute top-full right-0 mt-2 w-80 sm:w-96 max-w-[calc(100vw-24px)] bg-card border border-warm-200 rounded-xl shadow-xs z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
             <div className="px-4 py-3 bg-ivory-50/50 border-b border-warm-100 flex items-center justify-between">
               <p className="text-sm font-bold text-charcoal-900">Notifications</p>
               <button

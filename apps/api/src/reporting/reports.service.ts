@@ -1,8 +1,9 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ServiceUnavailableException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateReportDefinitionDto, ExecuteReportDto, CreateReportScheduleDto, UpdateReportDefinitionDto, CreateReportDatasetDto, CreateReportFieldDto } from './dto/report.dto';
 import { InjectQueue } from '@nestjs/bullmq';
 import type { Queue } from 'bullmq';
+import { isRedisUnavailableError } from '../redis/redis-connection';
 
 @Injectable()
 export class ReportsService {
@@ -104,7 +105,23 @@ export class ReportsService {
     });
 
     // Add to BullMQ for background processing
-    await this.reportQueue.add('process-report', { executionId: execution.id });
+    try {
+      await this.reportQueue.add('process-report', { executionId: execution.id });
+    } catch (error) {
+      await this.prisma.reportExecution.update({
+        where: { id: execution.id },
+        data: {
+          status: 'FAILED',
+          error: 'Background report queue unavailable; execution was not queued.',
+        },
+      });
+      if (isRedisUnavailableError(error)) {
+        throw new ServiceUnavailableException(
+          'Report generation is temporarily unavailable because the background queue is offline. The report was not queued.',
+        );
+      }
+      throw error;
+    }
 
     return execution;
   }

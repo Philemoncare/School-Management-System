@@ -468,3 +468,12 @@ export class CreateSupportAccessDto {
   @Max(240)
   durationMinutes?: number;
 }
+
+export class AssignPlatformRoleDto {
+  @IsString()
+  role: string;
+
+  @IsOptional()
+  @IsString()
+  reason?: string;
+}

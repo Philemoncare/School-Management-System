@@ -142,6 +142,7 @@ ${code}
 This code expires in 5 minutes. Do not share it with anyone.
 
 If you did not create this workspace, you can ignore this email.`,
+      code,
     );
   }
 
@@ -158,6 +159,7 @@ ${code}
 This code expires in 5 minutes. Do not share it with anyone.
 
 If you did not try to sign in, change your password immediately.`,
+      code,
     );
   }
 
@@ -165,6 +167,7 @@ If you did not try to sign in, change your password immediately.`,
     user: OtpRecipient,
     subject: string,
     body: string,
+    debugCode?: string,
   ): Promise<OtpSendResult> {
     const deliveryPromise = this.emailProvider
       .send({ to: user.email, subject, body })
@@ -189,6 +192,19 @@ If you did not try to sign in, change your password immediately.`,
     if (emailDelivery === 'pending') {
       this.logger.warn(
         `OTP email to user ${user.id} is still sending; response returned without waiting.`,
+      );
+    }
+
+    // Development convenience: when SMTP is misconfigured locally, surface the
+    // code in the API console so a developer can still complete sign-in.
+    // This must never run in production.
+    if (
+      emailDelivery !== 'sent' &&
+      debugCode &&
+      process.env.NODE_ENV !== 'production'
+    ) {
+      this.logger.warn(
+        `[DEVELOPMENT ONLY] Email delivery failed for user ${user.id}. OTP code: ${debugCode}`,
       );
     }
 
