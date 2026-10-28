@@ -1,134 +1,266 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { apiFetch } from '@/lib/api/client';
+import { Button } from '@/components/ui/button';
+import { Select } from '@/components/ui/input';
+import { EmptyState } from '@/components/ui/empty-state';
 import {
   Book as BookIcon,
   Search,
   Filter,
   Loader2,
-  Bookmark,
   ChevronRight,
-  User,
-  Hash,
-  Star,
   CheckCircle,
   XCircle,
-  Calendar
+  AlertCircle,
 } from 'lucide-react';
-import Link from 'next/link';
 
 export default function StudentBookSearchPage() {
   const [books, setBooks] = useState<any[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [categoryId, setCategoryId] = useState('');
+  const [language, setLanguage] = useState('');
+  const [languages, setLanguages] = useState<string[]>([]);
 
   useEffect(() => {
-    loadBooks();
+    const timeout = setTimeout(() => setDebouncedSearch(search.trim()), 300);
+    return () => clearTimeout(timeout);
   }, [search]);
 
-  async function loadBooks() {
+  const loadBooks = useCallback(async () => {
     setLoading(true);
+    setError('');
     try {
-      const data = await apiFetch(`/library/books?search=${search}`);
-      setBooks(data);
-    } catch (err) {
-      console.error(err);
+      const params = new URLSearchParams();
+      if (debouncedSearch) params.set('search', debouncedSearch);
+      if (categoryId) params.set('categoryId', categoryId);
+      if (language) params.set('language', language);
+      const data = await apiFetch(`/library/books${params.toString() ? `?${params.toString()}` : ''}`);
+      const list = Array.isArray(data) ? data : [];
+      setBooks(list);
+      setLanguages((current) => {
+        const next = new Set(current);
+        for (const book of list) {
+          if (book.language) next.add(book.language);
+        }
+        return Array.from(next).sort();
+      });
+    } catch (err: any) {
+      setBooks([]);
+      setError(err?.message || 'Could not load the catalogue.');
     } finally {
       setLoading(false);
     }
-  }
+  }, [debouncedSearch, categoryId, language]);
+
+  useEffect(() => {
+    loadBooks();
+  }, [loadBooks]);
+
+  useEffect(() => {
+    apiFetch('/library/categories')
+      .then((data) => setCategories(Array.isArray(data) ? data : []))
+      .catch(() => setCategories([]));
+  }, []);
+
+  const activeFilterCount = [categoryId, language].filter(Boolean).length;
 
   return (
-    <div className="p-8 space-y-10">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-        <div>
-          <h1 className="text-3xl font-semibold text-charcoal-900 tracking-tight flex items-center gap-3">
-             <BookIcon className="text-forest-700" /> Digital Catalog
-          </h1>
-          <p className="text-warm-500 font-bold mt-1 uppercase tracking-wide text-[11px]">Browse and discover available institutional resources</p>
-        </div>
+    <div className="space-y-6 p-4 sm:p-6 lg:p-8">
+      <div>
+        <h1 className="flex items-center gap-3 text-2xl font-semibold tracking-tight text-charcoal-900 sm:text-3xl">
+          <BookIcon className="text-forest-700" /> Library catalogue
+        </h1>
+        <p className="mt-1 text-[11px] font-bold uppercase tracking-wide text-warm-500">
+          Browse and reserve resources from the school library
+        </p>
       </div>
 
-      <div className="bg-card border border-warm-200 rounded-xl shadow-sm overflow-hidden">
-        <div className="p-6 border-b border-warm-100 flex items-center gap-4 bg-ivory-50/50">
-           <div className="flex-1 bg-card border border-warm-200 px-5 py-3 rounded-2xl flex items-center shadow-sm focus-within:ring-2 focus-within:ring-forest-700/10 transition-all">
-              <Search size={18} className="text-warm-400 mr-3" />
+      <div className="overflow-hidden rounded-xl border border-warm-200 bg-card shadow-sm">
+        <div className="space-y-3 border-b border-warm-100 bg-ivory-50/50 p-4 sm:p-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="flex flex-1 items-center rounded-2xl border border-warm-200 bg-card px-5 py-3 shadow-sm transition-all focus-within:ring-2 focus-within:ring-forest-700/10">
+              <Search size={18} className="mr-3 shrink-0 text-warm-400" />
               <input
-                type="text"
-                placeholder="Search by title, author, or keyword..."
-                className="bg-transparent border-none w-full focus:ring-0 text-sm font-bold placeholder:text-warm-400"
+                type="search"
+                aria-label="Search the library"
+                placeholder="Search by title, author or ISBN…"
+                className="w-full border-none bg-transparent text-sm font-bold text-charcoal-900 placeholder:text-warm-400 focus:ring-0"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
-           </div>
-           <button className="p-3 bg-card border border-warm-200 rounded-2xl text-warm-500 shadow-sm"><Filter size={18}/></button>
-        </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setFiltersOpen((open) => !open)}
+              aria-expanded={filtersOpen}
+              aria-controls="student-library-filters"
+              className={`inline-flex items-center justify-center gap-2 rounded-2xl border px-5 py-3 text-[11px] font-semibold uppercase tracking-wide shadow-sm transition-all ${
+                filtersOpen || activeFilterCount
+                  ? 'border-forest-700 bg-forest-700 text-white'
+                  : 'border-warm-200 bg-card text-warm-600 hover:bg-ivory-50'
+              }`}
+            >
+              <Filter size={16} />
+              Filters
+              {activeFilterCount > 0 && (
+                <span className="rounded-full bg-white/20 px-1.5 text-[10px]">{activeFilterCount}</span>
+              )}
+            </button>
+          </div>
 
-        <div className="relative min-h-[500px]">
-           {loading && (
-             <div className="absolute inset-0 bg-card/60 z-10 flex items-center justify-center">
-                <Loader2 className="animate-spin text-forest-700" size={32} />
-             </div>
-           )}
-
-           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 p-8 gap-8">
-              {books.map((book) => (
-                <div key={book.id} className="group flex flex-col bg-card border border-warm-100 rounded-xl p-5 shadow-sm hover:shadow-xs hover:border-sage-100 transition-all">
-                   <div className="aspect-[3/4] bg-ivory-50 rounded-2xl border border-warm-100 flex items-center justify-center overflow-hidden mb-6 relative group-hover:-translate-y-1 transition-transform shadow-inner">
-                      {book.coverImage ? (
-                         <img src={book.coverImage} className="w-full h-full object-cover" />
-                      ) : <BookIcon className="text-warm-200" size={48} />}
-
-                      <div className="absolute top-3 right-3">
-                         <button className="rounded-lg bg-card p-2 text-warm-400 shadow-xs transition-colors hover:text-forest-700">
-                            <Bookmark size={16} />
-                         </button>
-                      </div>
-                   </div>
-
-                   <div className="flex-1">
-                      <div className="flex justify-between items-start gap-2 mb-2">
-                         <h4 className="text-sm font-semibold text-charcoal-900 leading-tight line-clamp-2 group-hover:text-forest-700 transition-colors">{book.title}</h4>
-                      </div>
-                      <p className="text-[11px] font-bold text-warm-400 uppercase truncate mb-4">{book.authors?.map((a: any) => a.author.name).join(', ')}</p>
-
-                      <div className="flex flex-wrap gap-2 mb-6">
-                         <span className="px-2 py-0.5 bg-ivory-50 text-warm-500 rounded text-[11px] font-semibold uppercase tracking-wide">{book.category?.name || 'General'}</span>
-                         <span className="px-2 py-0.5 bg-sage-50 text-forest-700 rounded text-[11px] font-semibold uppercase tracking-wide">{book.language}</span>
-                      </div>
-                   </div>
-
-                   <div className="pt-4 border-t border-ivory-50 flex items-center justify-between">
-                      <div className="flex items-center gap-1.5">
-                         {book._count.copies > 0 ? (
-                            <span className="flex items-center gap-1 text-[11px] font-semibold text-success-600 uppercase tracking-tighter">
-                               <CheckCircle size={12}/> Available
-                            </span>
-                         ) : (
-                            <span className="flex items-center gap-1 text-[11px] font-semibold text-danger-500 uppercase tracking-tighter">
-                               <XCircle size={12}/> Out of Stock
-                            </span>
-                         )}
-                      </div>
-                      <Link href={`/student/library/books/${book.id}`} className="p-2.5 bg-sage-50 text-forest-700 rounded-xl hover:bg-forest-700 hover:text-white transition-all">
-                         <ChevronRight size={16} />
-                      </Link>
-                   </div>
-                </div>
-              ))}
-           </div>
-
-           {books.length === 0 && !loading && (
-              <div className="py-32 text-center">
-                 <Search className="mx-auto text-warm-200 mb-4" size={64} />
-                 <p className="text-warm-400 font-bold text-lg uppercase tracking-wide">No matching books found</p>
-                 <button onClick={() => setSearch('')} className="mt-4 text-forest-700 font-semibold text-xs uppercase tracking-wide">Clear search filters</button>
+          {filtersOpen && (
+            <div id="student-library-filters" className="grid grid-cols-1 gap-3 rounded-2xl border border-warm-200 bg-card p-4 sm:grid-cols-2 lg:grid-cols-3">
+              <Select
+                label="Category"
+                value={categoryId}
+                onChange={(event) => setCategoryId(event.target.value)}
+                options={[
+                  { value: '', label: 'All categories' },
+                  ...categories.map((category) => ({ value: category.id, label: category.name })),
+                ]}
+              />
+              <Select
+                label="Language"
+                value={language}
+                onChange={(event) => setLanguage(event.target.value)}
+                options={[
+                  { value: '', label: 'All languages' },
+                  ...languages.map((item) => ({ value: item, label: item })),
+                ]}
+              />
+              <div className="flex items-end">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={activeFilterCount === 0}
+                  onClick={() => {
+                    setCategoryId('');
+                    setLanguage('');
+                  }}
+                >
+                  Clear filters
+                </Button>
               </div>
-           )}
+            </div>
+          )}
         </div>
+
+        {error && (
+          <div
+            role="alert"
+            className="flex flex-col gap-3 border-b border-danger-100 bg-danger-50 p-4 text-xs font-semibold text-danger-700 sm:flex-row sm:items-center sm:justify-between"
+          >
+            <span className="flex items-center gap-2">
+              <AlertCircle size={16} /> {error}
+            </span>
+            <Button variant="outline" size="sm" onClick={loadBooks}>
+              Try again
+            </Button>
+          </div>
+        )}
+
+        {loading ? (
+          <div className="flex items-center justify-center gap-3 py-24 text-sm font-medium text-warm-500">
+            <Loader2 className="h-5 w-5 animate-spin text-forest-700" /> Loading catalogue…
+          </div>
+        ) : books.length === 0 ? (
+          <div className="p-6 sm:p-10">
+            <EmptyState
+              icon={<BookIcon className="h-8 w-8" />}
+              title={debouncedSearch || activeFilterCount ? 'No books match your search' : 'The catalogue is empty'}
+              description={
+                debouncedSearch || activeFilterCount
+                  ? 'Try a different title, author or filter.'
+                  : 'The librarian has not added any titles yet.'
+              }
+              actionButton={
+                debouncedSearch || activeFilterCount ? (
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setSearch('');
+                      setCategoryId('');
+                      setLanguage('');
+                    }}
+                  >
+                    Clear search
+                  </Button>
+                ) : undefined
+              }
+            />
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-5 p-4 sm:grid-cols-2 sm:p-6 lg:grid-cols-3 xl:grid-cols-4">
+            {books.map((book) => {
+              const copies = book._count?.copies ?? 0;
+              return (
+                <div
+                  key={book.id}
+                  className="group flex flex-col rounded-xl border border-warm-100 bg-card p-5 shadow-sm transition-all hover:border-sage-200 hover:shadow-md"
+                >
+                  <div className="relative mb-5 flex aspect-[3/4] items-center justify-center overflow-hidden rounded-2xl border border-warm-100 bg-ivory-50 shadow-inner transition-transform group-hover:-translate-y-1">
+                    {book.coverImage ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={book.coverImage} alt={book.title} className="h-full w-full object-cover" />
+                    ) : (
+                      <BookIcon className="text-warm-200" size={44} />
+                    )}
+                  </div>
+
+                  <div className="flex-1">
+                    <h2 className="mb-1 line-clamp-2 text-sm font-semibold leading-tight text-charcoal-900 transition-colors group-hover:text-forest-700">
+                      {book.title}
+                    </h2>
+                    <p className="mb-4 truncate text-[11px] font-bold uppercase text-warm-400">
+                      {book.authors?.map((a: any) => a.author.name).join(', ') || 'Unknown author'}
+                    </p>
+
+                    <div className="mb-5 flex flex-wrap gap-2">
+                      <span className="rounded bg-ivory-50 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-warm-500">
+                        {book.category?.name || 'General'}
+                      </span>
+                      {book.language && (
+                        <span className="rounded bg-sage-50 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-forest-700">
+                          {book.language}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between border-t border-ivory-50 pt-4">
+                    <div className="flex items-center gap-1.5">
+                      {copies > 0 ? (
+                        <span className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-tight text-success-600">
+                          <CheckCircle size={12} /> {copies} available
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-tight text-danger-500">
+                          <XCircle size={12} /> No copies
+                        </span>
+                      )}
+                    </div>
+                    <Link
+                      href={`/student/library/books/${book.id}`}
+                      aria-label={`Open ${book.title}`}
+                      className="rounded-xl bg-sage-50 p-2.5 text-forest-700 transition-all hover:bg-forest-700 hover:text-white"
+                    >
+                      <ChevronRight size={16} />
+                    </Link>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );
 }
-
