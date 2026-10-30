@@ -12,6 +12,7 @@ import {
   Settings,
   BookMarked,
   ShieldCheck,
+  Link,
   Building2,
   PieChart,
   GitPullRequest,
@@ -39,7 +40,6 @@ import {
   Monitor,
   ShoppingCart,
   Package,
-  Code,
   Stethoscope,
   Activity,
   Heart,
@@ -53,7 +53,6 @@ import {
   HardHat,
   PiggyBank,
   Book,
-  Tool,
   GraduationCap as GradCap,
 } from 'lucide-react';
 
@@ -112,7 +111,7 @@ export const SUPER_ADMIN_NAV: NavigationSection[] = [
       { label: 'SMS Gateway', href: '/super-admin/settings', icon: Smartphone },
       { label: 'Email Services', href: '/super-admin/settings', icon: Mail },
       { label: 'Payment Integrations', href: '/super-admin/payments', icon: CreditCard },
-      { label: 'API Configuration', href: '/super-admin/settings', icon: Code },
+      { label: 'API Configuration', href: '/super-admin/settings', icon: Link },
       { label: 'Service Monitoring', href: '/super-admin/monitoring', icon: Monitor },
     ]
   },
@@ -121,7 +120,7 @@ export const SUPER_ADMIN_NAV: NavigationSection[] = [
     items: [
       { label: 'Maintenance', href: '/super-admin/maintenance', icon: Gavel },
       { label: 'Application Configuration', href: '/super-admin/settings', icon: Settings },
-      { label: 'Developer Mode', href: '/super-admin/dev-mode', icon: Tool },
+      { label: 'Developer Mode', href: '/super-admin/dev-mode', icon: Activity },
       { label: 'Error Monitoring', href: '/super-admin/monitoring', icon: AlertCircle },
       { label: 'Background Jobs', href: '/super-admin/monitoring', icon: Activity },
       { label: 'Backup & Recovery', href: '/super-admin/backups', icon: Database },

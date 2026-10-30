@@ -4,7 +4,6 @@ import React, { useEffect, useState } from 'react';
 import { apiFetch } from '@/lib/api/client';
 import {
   Activity,
-  Tool,
   School,
   ShieldAlert,
   Database,

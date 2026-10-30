@@ -25,7 +25,7 @@ export default function SmsPurchasePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedPackage, setSelectedPackage] = useState<string | null>(null);
-  [, setPurchasing] = useState<string | null>(null);
+  const [purchasing, setPurchasing] = useState<string | null>(null);
   const [purchaseResult, setPurchaseResult] = useState<any>(null);
 
   useEffect(() => {
@@ -136,7 +136,6 @@ export default function SmsPurchasePage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
         {packages.map((pkg) => {
           const isSelected = selectedPackage === pkg.id;
-          const isPurchasing = false; // simplified - we use a single purchasing state
           return (
             <Card
               key={pkg.id}
