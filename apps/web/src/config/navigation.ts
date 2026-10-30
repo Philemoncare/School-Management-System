@@ -216,6 +216,7 @@ export const SCHOOL_NAV: NavigationSection[] = [
       { label: 'Assets', href: '/assets', icon: Monitor, roles: ['SCHOOL_ADMIN', 'ADMIN', 'INVENTORY_OFFICER'] },
       { label: 'Procurement', href: '/procurement', icon: ShoppingCart, roles: ['SCHOOL_ADMIN', 'ADMIN', 'PROCUREMENT_OFFICER'] },
       { label: 'Health & Clinic', href: '/health', icon: Stethoscope, roles: ['SCHOOL_ADMIN', 'ADMIN', 'NURSE', 'MEDICAL_OFFICER'] },
+      { label: 'Task Management', href: '/dashboard/tasks', icon: ClipboardList, roles: ['SCHOOL_ADMIN', 'ADMIN', 'PRINCIPAL', 'HR_OFFICER'] },
     ]
   },
   {
@@ -230,10 +231,16 @@ export const SCHOOL_NAV: NavigationSection[] = [
   {
     title: 'Administration & Settings',
     items: [
+      { label: 'School Settings Center', href: '/dashboard/settings', icon: Settings, roles: ['SCHOOL_ADMIN', 'ADMIN'] },
       { label: 'Roles & Permissions', href: '/dashboard/users', icon: Gavel, roles: ['SCHOOL_ADMIN', 'ADMIN'] },
-      { label: 'School Settings', href: '/dashboard/settings', icon: Settings, roles: ['SCHOOL_ADMIN', 'ADMIN'] },
       { label: 'Notification Settings', href: '/dashboard/settings/features', icon: Bell, roles: ['SCHOOL_ADMIN', 'ADMIN'] },
       { label: 'School Activity History', href: '/dashboard/activity', icon: FileText, roles: ['SCHOOL_ADMIN', 'ADMIN'] },
+    ]
+  },
+  {
+    title: 'Staff Supervision',
+    items: [
+      { label: 'Task Management', href: '/dashboard/tasks', icon: ClipboardList, roles: ['SCHOOL_ADMIN', 'ADMIN', 'PRINCIPAL', 'HR_OFFICER'] },
     ]
   }
 ];
@@ -243,6 +250,7 @@ export const TEACHER_NAV: NavigationSection[] = [
     title: 'Workspace',
     items: [
       { label: 'Dashboard', href: '/teacher/dashboard', icon: LayoutDashboard },
+      { label: 'My Tasks', href: '/teacher/tasks', icon: ClipboardList },
       { label: 'My Classes', href: '/teacher/classes', icon: BookMarked },
       { label: 'My Students', href: '/teacher/students', icon: GraduationCap },
       { label: 'Timetable', href: '/teacher/timetable', icon: Clock },

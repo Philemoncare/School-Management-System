@@ -141,6 +141,7 @@ model School {
   vehicles                 Vehicle[]
   workflowInstances        WorkflowInstance[]
   maintenanceWindows       MaintenanceWindow[]       @relation("MaintenanceWindowToSchool")
+  teacherTasks             TeacherTask[]
 
   @@map("schools")
 }
@@ -214,6 +215,8 @@ model User {
   userRoles                 UserRole[]
   UserSession               UserSession[]
   recordedVitals            VitalSign[]
+  teacherTasksAssignedBy    TeacherTask[]   @relation("TeacherTaskAssignedBy")
+  teacherTasksAssignedTo    TeacherTask[]   @relation("TeacherTaskAssignedTo")
 
   @@map("users")
 }
@@ -401,6 +404,17 @@ model Teacher {
   status                  StaffStatus               @default(ACTIVE)
   departmentId            String?                   @map("department_id")
   positionId              String?                   @map("position_id")
+  dateOfBirth             DateTime?                 @map("date_of_birth")
+  gender                  String?
+  address                 String?
+  nationalId              String?                   @map("national_id")
+  dateOfJoining           DateTime?                 @map("date_of_joining")
+  yearsOfExperience       Int?
+  emergencyContactName    String?                   @map("emergency_contact_name")
+  emergencyContactPhone   String?                   @map("emergency_contact_phone")
+  bankAccountName         String?                   @map("bank_account_name")
+  bankAccountNumber       String?                   @map("bank_account_number")
+  bankName                String?                   @map("bank_name")
   createdAt               DateTime                  @default(now()) @map("created_at")
   updatedAt               DateTime                  @updatedAt @map("updated_at")
   attendanceSessions      AttendanceSession[]
@@ -505,6 +519,7 @@ model AcademicYear {
   terms                Term[]
   timetableEntries     TimetableEntry[]
   TimetableVersion     TimetableVersion[]
+  teacherTasks         TeacherTask[]
 
   @@unique([schoolId, code])
   @@map("academic_years")
@@ -535,6 +550,7 @@ model Term {
   academicYear       AcademicYear        @relation(fields: [academicYearId], references: [id])
   timetableEntries   TimetableEntry[]
   TimetableVersion   TimetableVersion[]
+  teacherTasks       TeacherTask[]
 
   @@unique([academicYearId, code])
   @@unique([academicYearId, sequence])
@@ -569,6 +585,7 @@ model Class {
   sections              Section[]
   subjectResults        SubjectResult[]
   timetableEntries      TimetableEntry[]
+  teacherTasks          TeacherTask[]
 
   @@unique([schoolId, code])
   @@map("classes")
@@ -596,6 +613,7 @@ model Section {
   subjectResults        SubjectResult[]
   teacherAssignments    TeacherAssignment[]
   timetableEntries      TimetableEntry[]
+  teacherTasks          TeacherTask[]
 
   @@unique([classId, code])
   @@map("sections")
@@ -624,6 +642,7 @@ model Subject {
   school                          School                            @relation(fields: [schoolId], references: [id])
   teacherAssignments              TeacherAssignment[]
   timetableEntries                TimetableEntry[]
+  teacherTasks                    TeacherTask[]
 
   @@unique([schoolId, code])
   @@map("subjects")
@@ -2707,6 +2726,41 @@ model TimetableEntry {
   @@map("timetable_entries")
 }
 
+model TeacherTask {
+  id            String              @id @default(uuid())
+  schoolId      String              @map("school_id")
+  title         String
+  description   String?
+  category      String
+  priority      String              @default("MEDIUM") @map("priority")
+  status        TeacherTaskStatus   @default(ASSIGNED) @map("status")
+  instructions  String?
+  assignedById  String              @map("assigned_by_id")
+  assignedToId  String              @map("assigned_to_id")
+  classId       String?             @map("class_id")
+  sectionId     String?             @map("section_id")
+  subjectId     String?             @map("subject_id")
+  academicYearId String?            @map("academic_year_id")
+  termId        String?             @map("term_id")
+  startDate     DateTime            @map("start_date")
+  dueDate       DateTime            @map("due_date")
+  completedAt   DateTime?           @map("completed_at")
+  completionNote String?            @map("completion_note")
+  attachmentUrl String?             @map("attachment_url")
+  createdAt     DateTime            @default(now()) @map("created_at")
+  updatedAt     DateTime            @updatedAt @map("updated_at")
+  school        School              @relation(fields: [schoolId], references: [id])
+  assignedBy    User                @relation("TeacherTaskAssignedBy", fields: [assignedById], references: [id])
+  assignedTo    User                @relation("TeacherTaskAssignedTo", fields: [assignedToId], references: [id])
+  class         Class?              @relation(fields: [classId], references: [id])
+  section       Section?            @relation(fields: [sectionId], references: [id])
+  subject       Subject?            @relation(fields: [subjectId], references: [id])
+  academicYear  AcademicYear?       @relation(fields: [academicYearId], references: [id])
+  term          Term?               @relation(fields: [termId], references: [id])
+
+  @@map("teacher_tasks")
+}
+
 model TeacherSubstitution {
   id                  String             @id @default(uuid())
   schoolId            String             @map("school_id")
@@ -4693,6 +4747,17 @@ enum BillingRunStatus {
   COMPLETED
   PARTIALLY_COMPLETED
   FAILED
+  CANCELLED
+}
+
+enum TeacherTaskStatus {
+  ASSIGNED
+  ACKNOWLEDGED
+  IN_PROGRESS
+  SUBMITTED_FOR_REVIEW
+  COMPLETED
+  RETURNED_FOR_REVISION
+  OVERDUE
   CANCELLED
 }
 

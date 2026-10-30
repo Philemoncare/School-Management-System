@@ -1,180 +1,283 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { apiFetch } from '@/lib/api/client';
-import { Save, Building2, Mail, Phone, MapPin, Globe, ShieldCheck } from 'lucide-react';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
+import { useAuth } from '@/context/auth-context';
+import { collectUserRoles } from '@/lib/auth/roles';
+import {
+  Settings,
+  Building2,
+  Mail,
+  Phone,
+  MapPin,
+  Globe,
+  ShieldCheck,
+  Clock,
+  Layers,
+  Book,
+  Users,
+  GraduationCap,
+  PiggyBank,
+  CreditCard,
+  Wallet,
+  FileText,
+  AlertCircle,
+  Bell,
+  Smartphone,
+  Activity,
+  Lock,
+  File,
+  ArrowRight,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Alert } from '@/components/ui/alert';
-import { LoadingSpinner } from '@/components/ui/loading-state';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
-export default function BasicInfoSettings() {
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+const SETTINGS_GROUPS = [
+  {
+    id: 'school-info',
+    label: 'School Information',
+    icon: Building2,
+    description: 'School name, logo, branding, address and contact details.',
+    roles: ['SCHOOL_ADMIN', 'ADMIN', 'PRINCIPAL'],
+  },
+  {
+    id: 'academic-config',
+    label: 'Academic Configuration',
+    icon: Clock,
+    description: 'Academic years, terms, classes, sections, subjects and grading.',
+    roles: ['SCHOOL_ADMIN', 'ADMIN', 'PRINCIPAL'],
+  },
+  {
+    id: 'staff-management',
+    label: 'Staff & User Management',
+    icon: Users,
+    description: 'Staff accounts, teacher accounts, roles, permissions and invitations.',
+    roles: ['SCHOOL_ADMIN', 'ADMIN', 'PRINCIPAL', 'HR_OFFICER'],
+  },
+  {
+    id: 'student-config',
+    label: 'Student Management',
+    icon: GraduationCap,
+    description: 'Admission settings, student numbering, enrollment and status options.',
+    roles: ['SCHOOL_ADMIN', 'ADMIN', 'PRINCIPAL', 'RECEPTIONIST'],
+  },
+  {
+    id: 'finance-settings',
+    label: 'Finance Settings',
+    icon: PiggyBank,
+    description: 'Fee structures, payment categories, invoice and receipt configuration.',
+    roles: ['SCHOOL_ADMIN', 'ADMIN', 'ACCOUNTANT'],
+  },
+  {
+    id: 'communication-settings',
+    label: 'Communication Settings',
+    icon: Mail,
+    description: 'SMS and email preferences, notification settings, message templates.',
+    roles: ['SCHOOL_ADMIN', 'ADMIN'],
+  },
+  {
+    id: 'security-access',
+    label: 'Security & Access',
+    icon: Lock,
+    description: 'Role management, permission assignments, login and session settings.',
+    roles: ['SCHOOL_ADMIN', 'ADMIN'],
+  },
+];
+
+const GROUP_PAGES: Record<string, { href: string; label: string; icon: any }> = {
+  'school-info': { href: '/dashboard/settings/profile', label: 'School Profile', icon: Building2 },
+  'academic-config': { href: '/dashboard/settings/academic', label: 'Academic Configuration', icon: Clock },
+  'staff-management': { href: '/dashboard/settings/staff', label: 'Staff & Users', icon: Users },
+  'student-config': { href: '/dashboard/settings/students', label: 'Student Configuration', icon: GraduationCap },
+  'finance-settings': { href: '/dashboard/settings/finance', label: 'Finance Configuration', icon: PiggyBank },
+  'communication-settings': { href: '/dashboard/settings/communication', label: 'Communication', icon: Mail },
+  'security-access': { href: '/dashboard/settings/security', label: 'Security & Access', icon: Lock },
+};
+
+export default function SettingsCenter() {
+  const { user } = useAuth();
+  const activeSchoolId = localStorage.getItem('schoolId');
+  const roles = user ? collectUserRoles(user, activeSchoolId || undefined) : [];
+  const canManageSettings = roles.some(
+    (r) => ['SCHOOL_ADMIN', 'ADMIN', 'PRINCIPAL'].includes(r),
+  );
+
   const [school, setSchool] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     apiFetch(`/schools/me`)
       .then(setSchool)
-      .catch(err => setError(err.message))
+      .catch((err) => setError(err.message || 'Unable to load school profile'))
       .finally(() => setLoading(false));
   }, []);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSaving(true);
-    setError(null);
-    try {
-      await apiFetch(`/schools/me`, {
-        method: 'PATCH',
-        body: JSON.stringify({
-          name: school.name,
-          phone: school.phone,
-          email: school.email,
-          address: school.address,
-        })
-      });
-      // In a real app, I'd use a toast notification here
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setSaving(false);
-    }
-  };
+  if (loading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-ivory-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-forest-700"></div>
+      </div>
+    );
+  }
 
-  if (loading) return <LoadingSpinner label="Retrieving institution details..." />;
+  if (error) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-ivory-50">
+        <div className="rounded-xl border border-danger-200 bg-danger-50 px-6 py-4 text-sm font-semibold text-danger-700">
+          {error}
+        </div>
+      </div>
+    );
+  }
+
+  const visibleGroups = SETTINGS_GROUPS.filter((g) =>
+    g.roles.some((r) => roles.includes(r)),
+  );
 
   return (
-    <div className="max-w-4xl space-y-8 animate-fade-in">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+    <div className="max-w-6xl mx-auto space-y-8 p-4 sm:p-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Institution Profile</h1>
-          <p className="text-muted-foreground font-medium mt-1">Manage your school's public identity and contact information.</p>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-charcoal-900">
+            School Settings Center
+          </h1>
+          <p className="text-warm-500 font-medium mt-1">
+            Manage your school's operational configuration. Changes are saved to your school
+            workspace and take effect immediately.
+          </p>
         </div>
-        <Button
-          onClick={handleSubmit}
-          isLoading={saving}
-          leftIcon={<Save className="w-4 h-4" />}
-          className="shadow-lg shadow-primary/20"
-        >
-          Push Changes
-        </Button>
+        {canManageSettings && (
+          <Button
+            asChild
+            href="/dashboard/settings/profile"
+            leftIcon={<Settings className="w-4 h-4" />}
+          >
+            Go to Profile
+          </Button>
+        )}
       </div>
 
       {error && (
-        <Alert type="error" title="Configuration Error">
+        <div className="rounded-xl border border-danger-200 bg-danger-50 p-4 text-sm font-semibold text-danger-700">
           {error}
-        </Alert>
+        </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-        <div className="md:col-span-2 space-y-6">
+      {school && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Card>
-            <CardHeader>
-              <CardTitle>Core Identity</CardTitle>
-              <CardDescription>Fundamental identifiers for your school node.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                <Input
-                  label="School Name"
-                  placeholder="e.g. Greenwood Academy"
-                  leftIcon={<Building2 className="w-4 h-4" />}
-                  value={school?.name || ''}
-                  onChange={e => setSchool({...school, name: e.target.value})}
-                />
-                <Input
-                  label="Registration Code"
-                  disabled
-                  helperText="Unique platform identifier"
-                  leftIcon={<ShieldCheck className="w-4 h-4" />}
-                  value={school?.code || ''}
-                />
+            <CardContent className="p-5">
+              <div className="flex items-baseline gap-2">
+                <span className="text-3xl sm:text-4xl font-bold text-charcoal-900">
+                  {school.name}
+                </span>
               </div>
+              <p className="mt-2 text-xs font-semibold text-warm-400 uppercase tracking-wider">
+                {school.code}
+              </p>
+              <p className="mt-1 text-sm text-warm-500">
+                {school.email || 'No email on file'}
+              </p>
             </CardContent>
           </Card>
-
           <Card>
-            <CardHeader>
-              <CardTitle>Communication Stream</CardTitle>
-              <CardDescription>Primary contact methods for parents and regulators.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                <Input
-                  label="Public Email"
-                  type="email"
-                  placeholder="admin@school.edu"
-                  leftIcon={<Mail className="w-4 h-4" />}
-                  value={school?.email || ''}
-                  onChange={e => setSchool({...school, email: e.target.value})}
-                />
-                <Input
-                  label="Primary Phone"
-                  placeholder="+1 (555) 000-0000"
-                  leftIcon={<Phone className="w-4 h-4" />}
-                  value={school?.phone || ''}
-                  onChange={setSchool ? (e) => setSchool({...school, phone: e.target.value}) : undefined}
-                />
+            <CardContent className="p-5">
+              <div className="flex items-baseline gap-2">
+                <span className="text-3xl sm:text-4xl font-bold text-charcoal-900">
+                  {school.status || 'ACTIVE'}
+                </span>
               </div>
-              <div className="space-y-2">
-                <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground ml-1">Physical Address</label>
-                <div className="relative">
-                  <MapPin className="absolute left-4 top-3.5 w-4 h-4 text-muted-foreground" />
-                  <textarea
-                    rows={4}
-                    className="w-full rounded-2xl border border-input bg-background pl-11 pr-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 transition-all outline-none shadow-sm"
-                    placeholder="Full physical address of the campus"
-                    value={school?.address || ''}
-                    onChange={e => setSchool({...school, address: e.target.value})}
-                  />
-                </div>
+              <p className="mt-2 text-xs font-semibold text-warm-400 uppercase tracking-wider">
+                School Status
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-5">
+              <div className="flex items-baseline gap-2">
+                <span className="text-3xl sm:text-4xl font-bold text-charcoal-900">
+                  {school.currency || 'USD'}
+                </span>
               </div>
+              <p className="mt-2 text-xs font-semibold text-warm-400 uppercase tracking-wider">
+                Default Currency
+              </p>
             </CardContent>
           </Card>
         </div>
+      )}
 
-        <div className="space-y-6">
-          <Card className="bg-primary text-primary-foreground border-none overflow-hidden shadow-xs">
-            <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
-              <Building2 className="w-32 h-32" />
-            </div>
-            <CardHeader>
-              <CardTitle className="text-white">Tenant Status</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6 relative z-10">
-              <div className="flex flex-col gap-1">
-                <span className="text-[11px] font-bold uppercase tracking-wide opacity-60">Domain Active</span>
-                <span className="text-sm font-bold flex items-center gap-2">
-                  <Globe className="w-4 h-4" />
-                  {school?.slug || 'institution'}.edusphere.io
-                </span>
-              </div>
-              <div className="flex flex-col gap-1">
-                <span className="text-[11px] font-bold uppercase tracking-wide opacity-60">Provisioned Since</span>
-                <span className="text-sm font-bold">January 12, 2024</span>
-              </div>
-              <div className="pt-4">
-                <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-card/10 border border-white/20 text-xs font-bold">
-                  <div className="w-2 h-2 rounded-full bg-sage-400 animate-pulse" />
-                  Operational Enterprise Node
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {visibleGroups.map((group) => {
+          const page = GROUP_PAGES[group.id];
+          return (
+            <Card
+              key={group.id}
+              className="cursor-pointer hover:border-forest-200 hover:shadow-md transition-all group"
+              onClick={() => {
+                if (page) window.location.href = page.href;
+              }}
+            >
+              <CardHeader>
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-sage-50 flex items-center justify-center text-forest-700 group-hover:bg-forest-100 group-hover:text-forest-900 transition-all">
+                    <group.icon className="w-5 h-5" />
+                  </div>
+                  <div className="flex-1">
+                    <CardTitle className="text-sm font-semibold text-charcoal-900">
+                      {group.label}
+                    </CardTitle>
+                    <CardDescription className="text-[11px] text-warm-500 mt-1">
+                      {group.description}
+                    </CardDescription>
+                  </div>
+                  <ArrowRight className="w-4 h-4 text-warm-300 group-hover:text-forest-700 transition-all" />
                 </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardHeader>
+              <CardContent className="pt-4">
+                <Button
+                  asChild
+                  href={page ? page.href : '#'}
+                  variant="outline"
+                  size="sm"
+                  className="w-full justify-start text-xs"
+                >
+                  Open {group.label}
+                </Button>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
 
-          <Card className="border-dashed bg-muted/30">
-            <CardHeader>
-              <CardTitle className="text-sm">Quick Links</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-2">
-              <Button variant="ghost" size="sm" className="justify-start text-xs font-bold">Manage Branding</Button>
-              <Button variant="ghost" size="sm" className="justify-start text-xs font-bold">Update Localization</Button>
-              <Button variant="ghost" size="sm" className="justify-start text-xs font-bold text-destructive hover:bg-destructive/10">Archive Tenant</Button>
-            </CardContent>
-          </Card>
+      <div className="bg-sage-50 border border-sage-100 rounded-xl p-6">
+        <h3 className="text-xs font-bold uppercase tracking-wide text-forest-700 mb-4">
+          About This Settings Center
+        </h3>
+        <p className="text-sm text-warm-600 mb-4">
+          All settings in this center are stored against your school's workspace record
+          ({school?.name}). Changes here affect the relevant modules across your school
+          — academics, staff, students, finance, communication, and security.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs text-warm-500">
+          <div className="flex items-center gap-2">
+            <Activity className="w-3 h-3" />
+            <span>Changes are audited and recorded in school activity history.</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Lock className="w-3 h-3" />
+            <span>Role-based access controls who can modify each setting group.</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Smartphone className="w-3 h-3" />
+            <span>Global SMS provider credentials remain with the Platform Super Admin.</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <FileText className="w-3 h-3" />
+            <span>Settings persist across refreshes and sign-ins.</span>
+          </div>
         </div>
       </div>
     </div>

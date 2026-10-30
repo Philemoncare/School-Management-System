@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { apiFetch } from '@/lib/api/client';
 import {
   Smartphone,
@@ -100,7 +101,7 @@ export default function SmsBalancePage() {
           </CardHeader>
           <CardContent className="pt-6">
             <Badge
-              variant={balance?.status === 'ACTIVE' ? 'default' : 'destructive'}
+              variant={balance?.status === 'ACTIVE' ? 'success' : 'destructive'}
               className="text-xs font-semibold"
             >
               {balance?.status || 'Unknown'}
@@ -151,12 +152,11 @@ export default function SmsBalancePage() {
             SMS credit purchases and usage history.
           </p>
         </div>
-        <Button
-          asChild
-          href="/dashboard/sms/purchase"
-          leftIcon={<CreditCard className="w-4 h-4" />}>
-          Purchase Credits
-        </Button>
+        <Link href="/dashboard/sms/purchase">
+          <Button leftIcon={<CreditCard className="w-4 h-4" />}>
+            Purchase Credits
+          </Button>
+        </Link>
       </div>
 
       <Card>
@@ -187,7 +187,7 @@ export default function SmsBalancePage() {
                         {tx.description}
                       </td>
                       <td className="px-5 py-4 text-xs font-medium text-charcoal-900">
-                        <Badge variant="default" className="text-[10px]">
+                        <Badge variant="neutral" className="text-[10px]">
                           {tx.type}
                         </Badge>
                       </td>

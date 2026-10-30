@@ -152,7 +152,7 @@ export default function DevModePage() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Badge variant={overall === 'HEALTHY' ? 'default' : 'destructive'} className="text-xs font-semibold">
+          <Badge variant={overall === 'HEALTHY' ? 'success' : 'destructive'} className="text-xs font-semibold">
             System: {overall}
           </Badge>
           <Badge variant="secondary" className="text-xs font-semibold">
@@ -228,7 +228,7 @@ export default function DevModePage() {
                     <div className="text-[10px] text-warm-500 font-mono">{s.code}</div>
                   </td>
                   <td className="px-5 py-4 text-center">
-                    <Badge variant={s.status === 'ACTIVE' ? 'default' : 'secondary'} className="text-[10px]">
+                    <Badge variant={s.status === 'ACTIVE' ? 'success' : 'secondary'} className="text-[10px]">
                       {s.status}
                     </Badge>
                   </td>
@@ -251,7 +251,7 @@ export default function DevModePage() {
       {/* Features Section */}
       <section className="mt-8">
         <h2 className="text-lg font-semibold text-charcoal-900 flex items-center gap-2">
-          <Tool size={18} /> Feature Entitlements (Dev Testing)
+          <Activity size={18} /> Feature Entitlements (Dev Testing)
         </h2>
         <div className="mt-4 p-4 bg-card border border-warm-100 rounded-xl">
           <p className="text-[11px] text-warm-500 font-medium mb-4">
@@ -263,7 +263,7 @@ export default function DevModePage() {
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
                     <h3 className="text-sm font-semibold text-charcoal-800">{f.name}</h3>
-                    <Badge variant={f.allSchools ? 'default' : 'secondary'} className="text-[10px]">
+                    <Badge variant={f.allSchools ? 'neutral' : 'secondary'} className="text-[10px]">
                       {f.allSchools ? 'All schools' : `${f.schoolIds?.length ?? 0} targeted`}
                     </Badge>
                   </div>
@@ -310,7 +310,7 @@ export default function DevModePage() {
                     <div className="flex justify-between items-start mb-1">
                       <span className="text-xs font-semibold text-charcoal-800">{check.name}</span>
                       <Badge
-                        variant={check.status === 'PASS' || check.status === 'CONFIGURED' ? 'default' : 'destructive'}
+                        variant={check.status === 'PASS' || check.status === 'CONFIGURED' ? 'success' : 'destructive'}
                         className="text-[10px]"
                       >
                         {check.status}
@@ -398,7 +398,17 @@ export default function DevModePage() {
             Test SMS delivery without deducting credits. No real message is sent.
           </p>
           <Input label="Recipient" value={smsTestTo} onChange={(e) => setSmsTestTo(e.target.value)} placeholder="+1234567890" />
-          <Input label="Message" value={smsTestMessage} onChange={(e) => setSmsTestMessage(e.target.value)} placeholder="This is a test message" rows={3} />
+          <div className="w-full flex flex-col gap-1.5">
+            <label htmlFor="smsMessage" className="ml-0.5 text-[11px] font-semibold text-warm-600 sm:text-xs">Message</label>
+            <textarea
+              id="smsMessage"
+              value={smsTestMessage}
+              onChange={(e) => setSmsTestMessage(e.target.value)}
+              placeholder="This is a test message"
+              rows={3}
+              className="w-full rounded-lg border border-warm-300 bg-card p-3 outline-none focus:border-forest-600 focus:ring-2 focus:ring-forest-600/15 text-sm"
+            />
+          </div>
         </div>
       </Modal>
 
@@ -424,7 +434,7 @@ export default function DevModePage() {
           </p>
           <div className="flex items-center gap-2">
             <span className="text-xs font-semibold text-charcoal-800">Current state:</span>
-            <Badge variant={toggleFeatureEnabled ? 'default' : 'secondary'} className="text-xs">
+            <Badge variant={toggleFeatureEnabled ? 'success' : 'neutral'} className="text-xs">
               {toggleFeatureEnabled ? 'Enabled' : 'Disabled'}
             </Badge>
           </div>

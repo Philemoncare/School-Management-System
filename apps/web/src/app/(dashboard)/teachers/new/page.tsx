@@ -10,7 +10,7 @@ import { Input, Select } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { FormActions, FormError, FormGrid, FormNotice, FormSection } from '@/components/ui/form';
 import { showFeedback } from '@/components/layout/global-feedback';
-import { ArrowLeft, Loader2, Save, Users, Mail, Phone } from 'lucide-react';
+import { ArrowLeft, Loader2, Save, Users, Mail, Phone, GraduationCap, Building2, Clock, Phone as PhoneIcon, Mail as MailIcon, CreditCard, AlertCircle } from 'lucide-react';
 
 interface Department {
   id: string;
@@ -59,6 +59,17 @@ export default function NewTeacherPage() {
     departmentId: '',
     positionId: '',
     status: 'ACTIVE',
+    dateOfBirth: '',
+    gender: '',
+    address: '',
+    nationalId: '',
+    dateOfJoining: '',
+    yearsOfExperience: '',
+    emergencyContactName: '',
+    emergencyContactPhone: '',
+    bankAccountName: '',
+    bankAccountNumber: '',
+    bankName: '',
   });
 
   useEffect(() => {
@@ -125,6 +136,18 @@ export default function NewTeacherPage() {
     if (form.employeeId.trim() && !/^[A-Za-z0-9._-]{2,40}$/.test(form.employeeId.trim())) {
       errors.employeeId = 'Use 2–40 letters, numbers, dots, hyphens or underscores.';
     }
+    if (form.dateOfBirth && isNaN(new Date(form.dateOfBirth).getTime())) {
+      errors.dateOfBirth = 'Please enter a valid date of birth.';
+    }
+    if (form.dateOfJoining && isNaN(new Date(form.dateOfJoining).getTime())) {
+      errors.dateOfJoining = 'Please enter a valid date of joining.';
+    }
+    if (form.yearsOfExperience.trim() && (!/^\d+$/.test(form.yearsOfExperience.trim()) || Number(form.yearsOfExperience) > 60)) {
+      errors.yearsOfExperience = 'Please enter a valid number of years (0–60).';
+    }
+    if (form.emergencyContactPhone.trim() && !/^\+?[\d\s\-()]{7,}$/.test(form.emergencyContactPhone.trim())) {
+      errors.emergencyContactPhone = 'Please enter a valid emergency contact phone number.';
+    }
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
   }
@@ -152,6 +175,17 @@ export default function NewTeacherPage() {
       if (form.specialization.trim()) payload.specialization = form.specialization.trim();
       if (form.departmentId) payload.departmentId = form.departmentId;
       if (form.positionId) payload.positionId = form.positionId;
+      if (form.dateOfBirth) payload.dateOfBirth = form.dateOfBirth;
+      if (form.gender) payload.gender = form.gender;
+      if (form.address.trim()) payload.address = form.address.trim();
+      if (form.nationalId.trim()) payload.nationalId = form.nationalId.trim();
+      if (form.dateOfJoining) payload.dateOfJoining = form.dateOfJoining;
+      if (form.yearsOfExperience.trim()) payload.yearsOfExperience = Number(form.yearsOfExperience);
+      if (form.emergencyContactName.trim()) payload.emergencyContactName = form.emergencyContactName.trim();
+      if (form.emergencyContactPhone.trim()) payload.emergencyContactPhone = form.emergencyContactPhone.trim();
+      if (form.bankAccountName.trim()) payload.bankAccountName = form.bankAccountName.trim();
+      if (form.bankAccountNumber.trim()) payload.bankAccountNumber = form.bankAccountNumber.trim();
+      if (form.bankName.trim()) payload.bankName = form.bankName.trim();
 
       const created = await apiFetch('/teachers', {
         method: 'POST',
@@ -335,6 +369,98 @@ export default function NewTeacherPage() {
               <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading HR options&hellip;
             </p>
           )}
+        </FormSection>
+
+        <FormSection
+          title="Professional Details"
+          description="Complete professional and employment information for the teacher."
+        >
+          <FormGrid>
+            <Input
+              label="Date of birth"
+              type="date"
+              value={form.dateOfBirth}
+              error={fieldErrors.dateOfBirth}
+              onChange={(event) => setForm({ ...form, dateOfBirth: event.target.value })}
+              helperText="Teacher's date of birth."
+            />
+            <Select
+              label="Gender"
+              value={form.gender}
+              options={[
+                { value: '', label: 'Not specified' },
+                { value: 'MALE', label: 'Male' },
+                { value: 'FEMALE', label: 'Female' },
+                { value: 'OTHER', label: 'Other' },
+              ]}
+              onChange={(event) => setForm({ ...form, gender: event.target.value })}
+            />
+            <Input
+              label="Address"
+              placeholder="Residential address"
+              value={form.address}
+              error={fieldErrors.address}
+              onChange={(event) => setForm({ ...form, address: event.target.value })}
+            />
+            <Input
+              label="National ID / Tax ID"
+              placeholder="National identification number"
+              value={form.nationalId}
+              error={fieldErrors.nationalId}
+              onChange={(event) => setForm({ ...form, nationalId: event.target.value })}
+            />
+            <Input
+              label="Date of joining"
+              type="date"
+              value={form.dateOfJoining}
+              error={fieldErrors.dateOfJoining}
+              onChange={(event) => setForm({ ...form, dateOfJoining: event.target.value })}
+              helperText="Date the teacher joined the school."
+            />
+            <Input
+              label="Years of experience"
+              type="number"
+              value={form.yearsOfExperience}
+              error={fieldErrors.yearsOfExperience}
+              onChange={(event) => setForm({ ...form, yearsOfExperience: event.target.value })}
+              helperText="Total years of teaching experience."
+            />
+            <Input
+              label="Emergency contact name"
+              placeholder="Next of kin"
+              value={form.emergencyContactName}
+              error={fieldErrors.emergencyContactName}
+              onChange={(event) => setForm({ ...form, emergencyContactName: event.target.value })}
+            />
+            <Input
+              label="Emergency contact phone"
+              placeholder="+233 20 000 0000"
+              value={form.emergencyContactPhone}
+              error={fieldErrors.emergencyContactPhone}
+              onChange={(event) => setForm({ ...form, emergencyContactPhone: event.target.value })}
+            />
+            <Input
+              label="Bank account name"
+              placeholder="Account holder name"
+              value={form.bankAccountName}
+              onChange={(event) => setForm({ ...form, bankAccountName: event.target.value })}
+              helperText="For salary payments."
+            />
+            <Input
+              label="Bank account number"
+              placeholder="Account number"
+              value={form.bankAccountNumber}
+              onChange={(event) => setForm({ ...form, bankAccountNumber: event.target.value })}
+              helperText="For salary payments."
+            />
+            <Input
+              label="Bank name"
+              placeholder="Bank name"
+              value={form.bankName}
+              onChange={(event) => setForm({ ...form, bankName: event.target.value })}
+              helperText="For salary payments."
+            />
+          </FormGrid>
         </FormSection>
 
         <FormActions>

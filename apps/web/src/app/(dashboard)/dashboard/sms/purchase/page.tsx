@@ -172,7 +172,7 @@ export default function SmsPurchasePage() {
                     if (isSelected) setSelectedPackage(null);
                     else setSelectedPackage(pkg.id);
                   }}
-                  disabled={isPurchasing}
+                  disabled={purchasing === pkg.id}
                   className={`w-full ${
                     isSelected
                       ? 'bg-forest-700 hover:bg-forest-800 text-white'

@@ -42,8 +42,9 @@ export function Sidebar({ isCollapsed = false, onClose }: SidebarProps) {
   const supportGrantId = getActiveSupportGrantId();
 
   const getNavSections = (): NavigationSection[] => {
+    // Only actual platform super admins see the super admin portal — never school admins
+    if (isSuperAdmin) return SUPER_ADMIN_NAV;
     if (supportGrantId && !pathname.startsWith("/super-admin")) return SCHOOL_NAV;
-    if (pathname.startsWith("/super-admin") || isSuperAdmin) return SUPER_ADMIN_NAV;
     if (pathname.startsWith("/teacher")) return TEACHER_NAV;
     if (pathname.startsWith("/student")) return STUDENT_NAV;
     if (pathname.startsWith("/parent")) return PARENT_NAV;
@@ -123,16 +124,10 @@ export function Sidebar({ isCollapsed = false, onClose }: SidebarProps) {
       <div className={cn("flex-1 overflow-y-auto py-4 space-y-5 scrollbar-thin", isCollapsed ? "px-2" : "px-3")}>
         {navSections.map((section, sIdx) => {
           const filteredItems = section.items.filter((item) => {
-            if (!item.roles || item.roles.length === 0) return true;
-            if (
-              isSuperAdmin ||
-              userRoles.includes("SCHOOL_ADMIN") ||
-              userRoles.includes("ADMIN") ||
-              userRoles.includes("PRINCIPAL")
-            )
-              return true;
-            return userRoles.some((r) => item.roles?.includes(r));
-          });
+          if (!item.roles || item.roles.length === 0) return true;
+          if (isSuperAdmin) return true;
+          return userRoles.some((r) => item.roles?.includes(r));
+        });
 
           if (filteredItems.length === 0) return null;
 

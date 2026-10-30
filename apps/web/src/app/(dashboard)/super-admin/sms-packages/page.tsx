@@ -277,14 +277,14 @@ export default function SmsPackagesPage() {
                   </td>
                   <td className="px-5 py-4 text-center">
                     <Badge
-                      variant={pkg.status === 'ACTIVE' ? 'default' : 'secondary'}
+                      variant={pkg.status === 'ACTIVE' ? 'success' : 'secondary'}
                       className="text-[10px] font-semibold"
                     >
                       {pkg.status}
                     </Badge>
                   </td>
                   <td className="px-5 py-4 text-center">
-                    <Badge variant={pkg.isFeatured ? 'default' : 'secondary'} className="text-[10px]">
+                    <Badge variant={pkg.isFeatured ? 'neutral' : 'secondary'} className="text-[10px]">
                       {pkg.isFeatured ? 'Yes' : 'No'}
                     </Badge>
                   </td>
@@ -360,10 +360,10 @@ export default function SmsPackagesPage() {
                     <div className="text-[10px] text-warm-500 font-mono">{school.code}</div>
                   </td>
                   <td className="px-5 py-4 text-center">
-                    <Badge
-                      variant={school.status === 'ACTIVE' ? 'default' : 'destructive'}
-                      className="text-[10px] font-semibold"
-                    >
+                      <Badge
+                        variant={school.status === 'ACTIVE' ? 'success' : 'destructive'}
+                        className="text-[10px] font-semibold"
+                      >
                       {school.status}
                     </Badge>
                   </td>
