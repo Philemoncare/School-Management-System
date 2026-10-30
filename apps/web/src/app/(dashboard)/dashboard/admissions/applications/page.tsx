@@ -1,23 +1,39 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { apiFetch } from '@/lib/api/client';
+import { Button } from '@/components/ui/button';
+import { Select } from '@/components/ui/input';
+import { EmptyState } from '@/components/ui/empty-state';
 import {
   Search,
-  Filter,
-  MoreVertical,
   ChevronRight,
   Loader2,
-  FileText,
-  User,
   Inbox,
   AlertCircle,
-  CheckCircle,
-  XCircle,
-  Clock
 } from 'lucide-react';
 import Link from 'next/link';
+
+const STATUS_OPTIONS = [
+  { value: '', label: 'All statuses' },
+  { value: 'SUBMITTED', label: 'Submitted' },
+  { value: 'UNDER_REVIEW', label: 'Under review' },
+  { value: 'DOCUMENTS_REQUIRED', label: 'Documents required' },
+  { value: 'SCREENING', label: 'Screening' },
+  { value: 'INTERVIEW_SCHEDULED', label: 'Interview scheduled' },
+  { value: 'ASSESSMENT_PENDING', label: 'Assessment pending' },
+  { value: 'ASSESSMENT_COMPLETED', label: 'Assessment completed' },
+  { value: 'DECISION_PENDING', label: 'Decision pending' },
+  { value: 'OFFERED', label: 'Offered' },
+  { value: 'ACCEPTED', label: 'Accepted' },
+  { value: 'ADMITTED', label: 'Admitted' },
+  { value: 'ENROLLED', label: 'Enrolled' },
+  { value: 'WAITLISTED', label: 'Waitlisted' },
+  { value: 'REJECTED', label: 'Rejected' },
+  { value: 'WITHDRAWN', label: 'Withdrawn' },
+  { value: 'EXPIRED', label: 'Expired' },
+];
 
 export default function ApplicationsList() {
   const searchParams = useSearchParams();
@@ -25,133 +41,228 @@ export default function ApplicationsList() {
 
   const [applications, setApplications] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [status, setStatus] = useState('');
 
   useEffect(() => {
-    loadApplications();
-  }, [search, campaignId]);
+    const timeout = setTimeout(() => setDebouncedSearch(search.trim()), 300);
+    return () => clearTimeout(timeout);
+  }, [search]);
 
-  async function loadApplications() {
+  const loadApplications = useCallback(async () => {
     setLoading(true);
+    setError('');
     try {
       const query = new URLSearchParams();
-      if (search) query.append('search', search);
+      if (debouncedSearch) query.append('search', debouncedSearch);
       if (campaignId) query.append('campaignId', campaignId);
+      if (status) query.append('status', status);
 
-      const data = await apiFetch(`/admissions/applications?${query.toString()}`);
-      setApplications(data);
-    } catch (err) {
-      console.error(err);
+      const data = await apiFetch(
+        `/admissions/applications${query.toString() ? `?${query.toString()}` : ''}`,
+      );
+      setApplications(Array.isArray(data) ? data : []);
+    } catch (err: any) {
+      setApplications([]);
+      setError(err?.message || 'Could not load the application queue.');
     } finally {
       setLoading(false);
     }
-  }
+  }, [debouncedSearch, campaignId, status]);
+
+  useEffect(() => {
+    loadApplications();
+  }, [loadApplications]);
+
+  const hasFilters = Boolean(debouncedSearch || status || campaignId);
 
   return (
-    <div className="p-8 space-y-8">
-      <div className="flex justify-between items-end">
-        <div>
-          <h1 className="text-3xl font-semibold text-charcoal-900 tracking-tight">Application Queue</h1>
-          <p className="text-warm-500 mt-1 font-medium text-sm">Reviewing and processing student admission requests.</p>
-        </div>
+    <div className="space-y-6 p-4 sm:p-6 lg:p-8">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight text-charcoal-900 sm:text-3xl">
+          Application queue
+        </h1>
+        <p className="mt-1 text-[11px] font-bold uppercase tracking-wide text-warm-500">
+          Review and process student admission requests
+        </p>
       </div>
 
-      <div className="bg-card border border-warm-200 rounded-xl shadow-sm overflow-hidden">
-        <div className="p-6 border-b border-warm-100 flex items-center gap-4 bg-ivory-50/50">
-          <div className="flex-1 bg-card border border-warm-200 px-5 py-3 rounded-2xl flex items-center shadow-sm focus-within:ring-2 focus-within:ring-forest-700/10 transition-all">
-            <Search size={18} className="text-warm-400 mr-3" />
+      <div className="overflow-hidden rounded-xl border border-warm-200 bg-card shadow-sm">
+        <div className="flex flex-col gap-3 border-b border-warm-100 bg-ivory-50/50 p-4 sm:p-6 lg:flex-row lg:items-end">
+          <div className="flex flex-1 items-center rounded-2xl border border-warm-200 bg-card px-5 py-3 shadow-sm transition-all focus-within:ring-2 focus-within:ring-forest-700/10">
+            <Search size={18} className="mr-3 shrink-0 text-warm-400" />
             <input
-              type="text"
-              placeholder="Search by name, reference or guardian..."
-              className="bg-transparent border-none w-full focus:ring-0 text-sm font-bold"
+              type="search"
+              aria-label="Search applications"
+              placeholder="Search by name, reference or guardian…"
+              className="w-full border-none bg-transparent text-sm font-bold text-charcoal-900 placeholder:text-warm-400 focus:ring-0"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(event) => setSearch(event.target.value)}
             />
           </div>
-          <button className="p-3 bg-card border border-warm-200 rounded-2xl text-warm-500 shadow-sm hover:bg-ivory-50 transition-all"><Filter size={18}/></button>
+          <div className="w-full lg:w-60">
+            <Select
+              label="Status"
+              value={status}
+              onChange={(event) => setStatus(event.target.value)}
+              options={STATUS_OPTIONS}
+            />
+          </div>
         </div>
 
-        <div className="relative min-h-[400px]">
-          {loading && (
-            <div className="absolute inset-0 bg-card/60 z-10 flex items-center justify-center">
-              <Loader2 className="animate-spin text-forest-700" size={32} />
-            </div>
-          )}
+        {campaignId && (
+          <p className="border-b border-warm-100 bg-sage-50/50 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-forest-800 sm:px-6">
+            Filtered to one admission campaign
+          </p>
+        )}
 
+        {error && (
+          <div
+            role="alert"
+            className="flex flex-col gap-3 border-b border-danger-100 bg-danger-50 p-4 text-xs font-semibold text-danger-700 sm:flex-row sm:items-center sm:justify-between"
+          >
+            <span className="flex items-center gap-2">
+              <AlertCircle size={16} /> {error}
+            </span>
+            <Button variant="outline" size="sm" onClick={loadApplications}>
+              Try again
+            </Button>
+          </div>
+        )}
+
+        {loading ? (
+          <div className="flex items-center justify-center gap-3 py-24 text-sm font-medium text-warm-500">
+            <Loader2 className="h-5 w-5 animate-spin text-forest-700" /> Loading applications…
+          </div>
+        ) : applications.length === 0 ? (
+          <div className="p-6 sm:p-10">
+            <EmptyState
+              icon={<Inbox className="h-8 w-8" />}
+              title={hasFilters ? 'No applications match your filters' : 'No applications yet'}
+              description={
+                hasFilters
+                  ? 'Clear the search or status filter to see the full queue.'
+                  : 'Applications submitted through an admission campaign appear here.'
+              }
+              actionButton={
+                hasFilters ? (
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setSearch('');
+                      setStatus('');
+                    }}
+                  >
+                    Clear filters
+                  </Button>
+                ) : (
+                  <Link
+                    href="/dashboard/admissions"
+                    className="inline-flex items-center gap-2 rounded-xl bg-forest-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-forest-800"
+                  >
+                    Admissions overview
+                  </Link>
+                )
+              }
+            />
+          </div>
+        ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-warm-200">
               <thead className="bg-ivory-50/50">
                 <tr>
-                  <th className="px-8 py-4 text-left text-[11px] font-semibold text-warm-400 uppercase tracking-wide">Applicant</th>
-                  <th className="px-8 py-4 text-left text-[11px] font-semibold text-warm-400 uppercase tracking-wide">Target Class</th>
-                  <th className="px-8 py-4 text-left text-[11px] font-semibold text-warm-400 uppercase tracking-wide">Reference</th>
-                  <th className="px-8 py-4 text-left text-[11px] font-semibold text-warm-400 uppercase tracking-wide">Status</th>
-                  <th className="px-8 py-4 text-right text-[11px] font-semibold text-warm-400 uppercase tracking-wide">Actions</th>
+                  {['Applicant', 'Target class', 'Reference', 'Status', 'Actions'].map((heading) => (
+                    <th
+                      key={heading}
+                      className={`px-5 py-4 text-[10px] font-semibold uppercase tracking-wide text-warm-400 sm:px-8 ${
+                        heading === 'Actions' ? 'text-right' : 'text-left'
+                      }`}
+                    >
+                      {heading}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-warm-100 bg-card">
                 {applications.map((app) => (
-                  <tr key={app.id} className="hover:bg-ivory-50/50 transition-all group">
-                    <td className="px-8 py-5">
+                  <tr key={app.id} className="group transition-colors hover:bg-ivory-50/50">
+                    <td className="px-5 py-5 sm:px-8">
                       <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 bg-warm-100 rounded-xl flex items-center justify-center text-warm-400 font-semibold text-xs">
-                          {app.firstName[0]}{app.lastName[0]}
+                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-warm-100 text-xs font-semibold text-warm-400">
+                          {app.firstName?.[0] ?? ''}
+                          {app.lastName?.[0] ?? ''}
                         </div>
-                        <div>
-                          <p className="text-sm font-semibold text-charcoal-900 leading-tight">{app.firstName} {app.lastName}</p>
-                          <p className="text-[11px] font-bold text-warm-400 uppercase tracking-tight mt-0.5">{app.campaign.name}</p>
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold leading-tight text-charcoal-900">
+                            {app.firstName} {app.lastName}
+                          </p>
+                          <p className="mt-0.5 text-[11px] font-bold uppercase tracking-tight text-warm-400">
+                            {app.campaign?.name ?? 'No campaign'}
+                          </p>
                         </div>
                       </div>
                     </td>
-                    <td className="px-8 py-5">
-                      <p className="text-xs font-bold text-warm-700">{app.class.name}</p>
-                      <p className="text-[11px] font-semibold text-warm-400 uppercase tracking-wide mt-1">{app.academicYear.name}</p>
+                    <td className="px-5 py-5 sm:px-8">
+                      <p className="text-xs font-bold text-warm-700">{app.class?.name ?? '—'}</p>
+                      <p className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-warm-400">
+                        {app.academicYear?.name ?? '—'}
+                      </p>
                     </td>
-                    <td className="px-8 py-5 font-mono text-[11px] font-semibold text-forest-700">
+                    <td className="px-5 py-5 font-mono text-[11px] font-semibold text-forest-700 sm:px-8">
                       {app.reference}
                     </td>
-                    <td className="px-8 py-5">
+                    <td className="px-5 py-5 sm:px-8">
                       <StatusBadge status={app.status} />
                     </td>
-                    <td className="px-8 py-5 text-right">
-                      <Link href={`/dashboard/admissions/applications/${app.id}`} className="p-2 hover:bg-card hover:shadow-md border border-transparent hover:border-warm-100 rounded-xl text-warm-400 hover:text-forest-700 transition-all opacity-0 group-hover:opacity-100">
+                    <td className="px-5 py-5 text-right sm:px-8">
+                      <Link
+                        href={`/dashboard/admissions/applications/${app.id}`}
+                        aria-label={`Review application ${app.reference}`}
+                        className="inline-flex rounded-xl border border-transparent p-2 text-warm-400 transition-all hover:border-warm-100 hover:bg-card hover:text-forest-700 hover:shadow-md"
+                      >
                         <ChevronRight size={18} />
                       </Link>
                     </td>
                   </tr>
                 ))}
-                {applications.length === 0 && !loading && (
-                  <tr>
-                    <td colSpan={5} className="px-8 py-20 text-center">
-                      <Inbox className="mx-auto text-warm-200 mb-4" size={64} />
-                      <p className="text-warm-400 font-bold text-lg uppercase tracking-wide">No applications found</p>
-                    </td>
-                  </tr>
-                )}
               </tbody>
             </table>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
 }
 
 function StatusBadge({ status }: { status: string }) {
-  const styles: any = {
+  const styles: Record<string, string> = {
     SUBMITTED: 'bg-sage-50 text-forest-800',
     UNDER_REVIEW: 'bg-warning-50 text-warning-700',
     DOCUMENTS_REQUIRED: 'bg-danger-50 text-danger-700',
+    SCREENING: 'bg-warning-50 text-warning-700',
+    INTERVIEW_SCHEDULED: 'bg-warning-50 text-warning-700',
+    ASSESSMENT_PENDING: 'bg-warning-50 text-warning-700',
+    ASSESSMENT_COMPLETED: 'bg-sage-50 text-forest-800',
+    DECISION_PENDING: 'bg-warning-50 text-warning-700',
     OFFERED: 'bg-terracotta-50 text-terracotta-700',
     ACCEPTED: 'bg-sage-50 text-forest-700',
+    ADMITTED: 'bg-sage-50 text-forest-700',
+    ENROLLED: 'bg-success-600 text-white shadow-md shadow-success-100',
+    WAITLISTED: 'bg-warm-100 text-warm-600',
     REJECTED: 'bg-warm-100 text-warm-500',
-    ENROLLED: 'bg-success-600 text-white shadow-md shadow-success-100'
+    WITHDRAWN: 'bg-warm-100 text-warm-500',
+    EXPIRED: 'bg-warm-100 text-warm-500',
   };
 
   return (
-    <span className={`px-2.5 py-1 rounded-full text-[11px] font-semibold uppercase tracking-tight ${styles[status] || 'bg-ivory-50 text-warm-500'}`}>
-      {status.replace('_', ' ')}
+    <span
+      className={`rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-tight ${
+        styles[status] || 'bg-ivory-50 text-warm-500'
+      }`}
+    >
+      {String(status).replace(/_/g, ' ')}
     </span>
   );
 }
-

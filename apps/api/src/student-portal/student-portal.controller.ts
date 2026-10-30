@@ -1,13 +1,14 @@
 import { Controller, Get, Post, Body, Param, UseGuards, Patch } from '@nestjs/common';
 import { StudentPortalService } from './student-portal.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
 import { TenantGuard } from '../auth/guards/tenant.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { ActiveSchool } from '../auth/decorators/active-school.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 
 @Controller('student')
-@UseGuards(JwtAuthGuard, TenantGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, TenantGuard)
 @Roles('STUDENT')
 export class StudentPortalController {
   constructor(private readonly studentPortalService: StudentPortalService) {}

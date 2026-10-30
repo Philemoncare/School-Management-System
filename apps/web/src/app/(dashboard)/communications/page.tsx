@@ -20,6 +20,7 @@ import {
 import { CommunicationComposer } from '@/components/communications/communication-composer';
 import { useFeatureStatus } from '@/hooks/use-feature-status';
 import { UnsupportedFeatureBanner } from '@/components/common/unsupported-feature-banner';
+import Link from 'next/link';
 
 export default function CommunicationsDashboard() {
   const [stats, setStats] = useState<any>(null);
@@ -110,7 +111,12 @@ export default function CommunicationsDashboard() {
                  <h2 className="text-lg font-semibold text-charcoal-900 flex items-center gap-2">
                    <TrendingUp size={20} className="text-forest-700" /> Recent Activity
                  </h2>
-                 <button className="text-[11px] font-semibold text-forest-700 uppercase tracking-wide hover:underline flex items-center gap-1">View Full Logs <ArrowRight size={14}/></button>
+                 <Link
+                   href="/communications/delivery"
+                   className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-forest-700 hover:underline"
+                 >
+                   View full logs <ArrowRight size={14} />
+                 </Link>
               </div>
               <div className="divide-y divide-ivory-50">
                  {recentComms.map((comm) => (
@@ -138,19 +144,19 @@ export default function CommunicationsDashboard() {
               </div>
            </div>
 
-           {/* Campaigns / Strategies */}
-           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+           {/* Operational destinations */}
+           <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
               <QuickActionCard
-                title="Automated Rules"
-                description="Manage triggers like absence alerts & fee reminders."
-                icon={Settings}
-                color="indigo"
+                href="/communications/delivery"
+                title="Delivery logs"
+                description="Trace every message, filter by status and retry failures."
+                icon={Send}
               />
               <QuickActionCard
-                title="Templates"
-                description="Edit reusable message designs and variables."
-                icon={FileText}
-                color="teal"
+                href="/communications/failed"
+                title="Failed deliveries"
+                description="Review messages the provider rejected and re-queue them."
+                icon={XCircle}
               />
            </div>
         </div>
@@ -242,19 +248,18 @@ function ChannelIcon({ channel }: { channel: string }) {
   return <div className="p-1 bg-card border border-warm-200 rounded-md text-warm-400" title={channel}><Icon size={10} /></div>;
 }
 
-function QuickActionCard({ title, description, icon: Icon, color }: any) {
-  const bgColors: any = {
-    indigo: 'bg-terracotta-600',
-    teal: 'bg-terracotta-600',
-  };
+function QuickActionCard({ title, description, icon: Icon, href }: any) {
   return (
-    <div className="bg-card rounded-3xl border border-warm-100 p-8 shadow-sm hover:shadow-md transition-all cursor-pointer group">
-       <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-6 text-white shadow-lg group-hover:scale-110 transition-transform ${bgColors[color]}`}>
+    <Link
+      href={href}
+      className="group block rounded-3xl border border-warm-100 bg-card p-8 shadow-sm transition-all hover:shadow-md"
+    >
+       <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-2xl bg-terracotta-600 text-white shadow-lg transition-transform group-hover:scale-110">
           <Icon size={24} />
        </div>
-       <h4 className="text-lg font-semibold text-charcoal-900 mb-2">{title}</h4>
-       <p className="text-xs text-warm-500 font-medium leading-relaxed">{description}</p>
-    </div>
+       <h4 className="mb-2 text-lg font-semibold text-charcoal-900">{title}</h4>
+       <p className="text-xs font-medium leading-relaxed text-warm-500">{description}</p>
+    </Link>
   );
 }
 
@@ -309,29 +314,6 @@ function RealHealthStatus({ label, configured, provider, loading }: { label: str
           )}
        </div>
     </div>
-  );
-}
-
-function FileText(props: any) {
-  return (
-    <svg
-      {...props}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
-      <polyline points="14 2 14 8 20 8" />
-      <line x1="16" y1="13" x2="8" y2="13" />
-      <line x1="16" y1="17" x2="8" y2="17" />
-      <line x1="10" y1="9" x2="8" y2="9" />
-    </svg>
   );
 }
 

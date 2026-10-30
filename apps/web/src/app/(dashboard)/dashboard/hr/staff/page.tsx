@@ -1,142 +1,278 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { apiFetch } from '@/lib/api/client';
+import { Button } from '@/components/ui/button';
+import { Select } from '@/components/ui/input';
+import { EmptyState } from '@/components/ui/empty-state';
 import {
   Search,
-  Filter,
   Plus,
-  MoreVertical,
   ChevronRight,
   Loader2,
-  Mail,
-  Phone,
   Building,
-  UserCircle
+  UserCircle,
+  AlertCircle,
+  Mail,
 } from 'lucide-react';
-import Link from 'next/link';
 
 export default function StaffDirectory() {
   const [staff, setStaff] = useState<any[]>([]);
+  const [departments, setDepartments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [status, setStatus] = useState('');
+  const [type, setType] = useState('');
+  const [departmentId, setDepartmentId] = useState('');
 
   useEffect(() => {
-    loadStaff();
+    const timeout = setTimeout(() => setDebouncedSearch(search.trim()), 300);
+    return () => clearTimeout(timeout);
   }, [search]);
 
-  async function loadStaff() {
+  useEffect(() => {
+    apiFetch('/hr/departments')
+      .then((data) => setDepartments(Array.isArray(data) ? data : []))
+      .catch(() => setDepartments([]));
+  }, []);
+
+  const loadStaff = useCallback(async () => {
     setLoading(true);
+    setError('');
     try {
-      const data = await apiFetch(`/hr/staff?search=${search}`);
-      setStaff(data);
-    } catch (err) {
-      console.error(err);
+      const params = new URLSearchParams();
+      if (debouncedSearch) params.set('search', debouncedSearch);
+      if (status) params.set('status', status);
+      if (type) params.set('type', type);
+      if (departmentId) params.set('departmentId', departmentId);
+      const data = await apiFetch(`/hr/staff${params.toString() ? `?${params.toString()}` : ''}`);
+      setStaff(Array.isArray(data) ? data : []);
+    } catch (err: any) {
+      setStaff([]);
+      setError(err?.message || 'Could not load the staff directory.');
     } finally {
       setLoading(false);
     }
-  }
+  }, [debouncedSearch, status, type, departmentId]);
+
+  useEffect(() => {
+    loadStaff();
+  }, [loadStaff]);
+
+  const hasFilters = Boolean(debouncedSearch || status || type || departmentId);
 
   return (
-    <div className="p-8 space-y-8">
-      <div className="flex justify-between items-end">
+    <div className="space-y-6 p-4 sm:p-6 lg:p-8">
+      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div>
-          <h1 className="text-3xl font-semibold text-charcoal-900 tracking-tight">Staff Directory</h1>
-          <p className="text-warm-500 mt-1 font-medium text-sm">Central registry of all teaching and administrative workforce.</p>
+          <h1 className="text-2xl font-semibold tracking-tight text-charcoal-900 sm:text-3xl">
+            Staff directory
+          </h1>
+          <p className="mt-1 text-[11px] font-bold uppercase tracking-wide text-warm-500">
+            {staff.length} teaching and administrative record{staff.length === 1 ? '' : 's'}
+          </p>
         </div>
-        <Link href="/dashboard/hr/staff/new" className="bg-charcoal-900 text-white px-6 py-3 rounded-2xl font-semibold text-xs uppercase tracking-wide hover:bg-charcoal-950 transition-all shadow-xs flex items-center gap-2">
-          <Plus size={18} /> Register New Employee
+        <Link
+          href="/dashboard/hr/staff/new"
+          className="inline-flex items-center justify-center gap-2 rounded-2xl bg-charcoal-900 px-6 py-3 text-xs font-semibold uppercase tracking-wide text-white shadow-sm transition-all hover:bg-charcoal-950"
+        >
+          <Plus size={18} /> Register employee
         </Link>
       </div>
 
-      <div className="bg-card border border-warm-200 rounded-xl shadow-sm overflow-hidden">
-        <div className="p-6 border-b border-warm-100 flex items-center gap-4 bg-ivory-50/50">
-          <div className="flex-1 bg-card border border-warm-200 px-5 py-3 rounded-2xl flex items-center shadow-sm focus-within:ring-2 focus-within:ring-forest-700/10 transition-all">
-            <Search size={18} className="text-warm-400 mr-3" />
+      <div className="overflow-hidden rounded-xl border border-warm-200 bg-card shadow-sm">
+        <div className="grid grid-cols-1 gap-3 border-b border-warm-100 bg-ivory-50/50 p-4 sm:p-6 md:grid-cols-2 xl:grid-cols-4">
+          <div className="flex items-center rounded-2xl border border-warm-200 bg-card px-5 py-3 shadow-sm transition-all focus-within:ring-2 focus-within:ring-forest-700/10 md:col-span-2 xl:col-span-1">
+            <Search size={18} className="mr-3 shrink-0 text-warm-400" />
             <input
-              type="text"
-              placeholder="Search by name, staff ID or email..."
-              className="bg-transparent border-none w-full focus:ring-0 text-sm font-bold"
+              type="search"
+              aria-label="Search staff"
+              placeholder="Name, staff ID or email…"
+              className="w-full border-none bg-transparent text-sm font-bold text-charcoal-900 placeholder:text-warm-400 focus:ring-0"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(event) => setSearch(event.target.value)}
             />
           </div>
-          <button className="p-3 bg-card border border-warm-200 rounded-2xl text-warm-500 shadow-sm hover:bg-ivory-50 transition-all"><Filter size={18}/></button>
+          <Select
+            label="Employee type"
+            value={type}
+            onChange={(event) => setType(event.target.value)}
+            options={[
+              { value: '', label: 'All types' },
+              { value: 'TEACHER', label: 'Teachers' },
+              { value: 'STAFF', label: 'Non-teaching staff' },
+            ]}
+          />
+          <Select
+            label="Department"
+            value={departmentId}
+            onChange={(event) => setDepartmentId(event.target.value)}
+            options={[
+              { value: '', label: 'All departments' },
+              ...departments.map((department) => ({
+                value: department.id,
+                label: department.name,
+              })),
+            ]}
+          />
+          <Select
+            label="Status"
+            value={status}
+            onChange={(event) => setStatus(event.target.value)}
+            options={[
+              { value: '', label: 'All statuses' },
+              { value: 'ACTIVE', label: 'Active' },
+              { value: 'SUSPENDED', label: 'Suspended' },
+              { value: 'INACTIVE', label: 'Inactive' },
+              { value: 'TERMINATED', label: 'Terminated' },
+              { value: 'RETIRED', label: 'Retired' },
+            ]}
+          />
         </div>
 
-        <div className="relative min-h-[400px]">
-          {loading && (
-            <div className="absolute inset-0 bg-card/60 z-10 flex items-center justify-center">
-              <Loader2 className="animate-spin text-forest-700" size={32} />
-            </div>
-          )}
+        {error && (
+          <div
+            role="alert"
+            className="flex flex-col gap-3 border-b border-danger-100 bg-danger-50 p-4 text-xs font-semibold text-danger-700 sm:flex-row sm:items-center sm:justify-between"
+          >
+            <span className="flex items-center gap-2">
+              <AlertCircle size={16} /> {error}
+            </span>
+            <Button variant="outline" size="sm" onClick={loadStaff}>
+              Try again
+            </Button>
+          </div>
+        )}
 
+        {loading ? (
+          <div className="flex items-center justify-center gap-3 py-24 text-sm font-medium text-warm-500">
+            <Loader2 className="h-5 w-5 animate-spin text-forest-700" /> Loading workforce records…
+          </div>
+        ) : staff.length === 0 ? (
+          <div className="p-6 sm:p-10">
+            <EmptyState
+              icon={<UserCircle className="h-8 w-8" />}
+              title={hasFilters ? 'No staff match your filters' : 'No workforce records yet'}
+              description={
+                hasFilters
+                  ? 'Clear the search or filters to see the full directory.'
+                  : 'Register the first employee to start building the staff directory.'
+              }
+              actionButton={
+                hasFilters ? (
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setSearch('');
+                      setStatus('');
+                      setType('');
+                      setDepartmentId('');
+                    }}
+                  >
+                    Clear filters
+                  </Button>
+                ) : (
+                  <Link
+                    href="/dashboard/hr/staff/new"
+                    className="inline-flex items-center gap-2 rounded-xl bg-forest-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-forest-800"
+                  >
+                    <Plus size={15} /> Register employee
+                  </Link>
+                )
+              }
+            />
+          </div>
+        ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-warm-200">
               <thead className="bg-ivory-50/50">
                 <tr>
-                  <th className="px-8 py-4 text-left text-[11px] font-semibold text-warm-400 uppercase tracking-wide">Employee Details</th>
-                  <th className="px-8 py-4 text-left text-[11px] font-semibold text-warm-400 uppercase tracking-wide">Department & Position</th>
-                  <th className="px-8 py-4 text-left text-[11px] font-semibold text-warm-400 uppercase tracking-wide">Type</th>
-                  <th className="px-8 py-4 text-left text-[11px] font-semibold text-warm-400 uppercase tracking-wide">Status</th>
-                  <th className="px-8 py-4 text-right text-[11px] font-semibold text-warm-400 uppercase tracking-wide">Actions</th>
+                  {['Employee', 'Department & position', 'Type', 'Status', 'Actions'].map(
+                    (heading) => (
+                      <th
+                        key={heading}
+                        className={`px-5 py-4 text-[10px] font-semibold uppercase tracking-wide text-warm-400 sm:px-8 ${
+                          heading === 'Actions' ? 'text-right' : 'text-left'
+                        }`}
+                      >
+                        {heading}
+                      </th>
+                    ),
+                  )}
                 </tr>
               </thead>
               <tbody className="divide-y divide-warm-100 bg-card">
                 {staff.map((member) => (
-                  <tr key={member.id} className="hover:bg-ivory-50/50 transition-all group">
-                    <td className="px-8 py-5">
+                  <tr key={`${member.type}-${member.id}`} className="group transition-colors hover:bg-ivory-50/50">
+                    <td className="px-5 py-5 sm:px-8">
                       <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 bg-warm-100 rounded-xl flex items-center justify-center text-warm-400 group-hover:bg-sage-100 group-hover:text-forest-700 transition-colors font-semibold text-xs">
-                          {member.firstName[0]}{member.lastName[0]}
+                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-warm-100 text-xs font-semibold text-warm-400 transition-colors group-hover:bg-sage-100 group-hover:text-forest-700">
+                          {member.firstName?.[0] ?? ''}
+                          {member.lastName?.[0] ?? ''}
                         </div>
-                        <div>
-                          <p className="text-sm font-semibold text-charcoal-900 leading-tight">{member.firstName} {member.lastName}</p>
-                          <p className="text-[11px] font-bold text-warm-400 uppercase tracking-tight mt-0.5">{member.employeeId || 'No ID'}</p>
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold leading-tight text-charcoal-900">
+                            {member.firstName} {member.lastName}
+                          </p>
+                          <p className="mt-0.5 text-[11px] font-bold uppercase tracking-tight text-warm-400">
+                            {member.employeeId || 'No staff ID'}
+                          </p>
+                          {member.user?.email && (
+                            <p className="mt-0.5 flex items-center gap-1 text-[11px] font-medium text-warm-400">
+                              <Mail size={10} /> {member.user.email}
+                            </p>
+                          )}
                         </div>
                       </div>
                     </td>
-                    <td className="px-8 py-5">
-                      <p className="text-xs font-bold text-warm-700">{member.position?.name || member.designation || 'Unassigned'}</p>
-                      <p className="text-[11px] font-semibold text-warm-400 uppercase tracking-wide flex items-center gap-1 mt-1">
+                    <td className="px-5 py-5 sm:px-8">
+                      <p className="text-xs font-bold text-warm-700">
+                        {member.position?.name || member.designation || 'Unassigned'}
+                      </p>
+                      <p className="mt-1 flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-warm-400">
                         <Building size={10} /> {member.department?.name || 'General'}
                       </p>
                     </td>
-                    <td className="px-8 py-5">
-                      <span className={`px-2 py-0.5 rounded-lg text-[11px] font-semibold uppercase tracking-tighter ${
-                        member.type === 'TEACHER' ? 'bg-sage-50 text-forest-700' : 'bg-terracotta-50 text-terracotta-600'
-                      }`}>
+                    <td className="px-5 py-5 sm:px-8">
+                      <span
+                        className={`rounded-lg px-2 py-0.5 text-[11px] font-semibold uppercase tracking-tight ${
+                          member.type === 'TEACHER'
+                            ? 'bg-sage-50 text-forest-700'
+                            : 'bg-terracotta-50 text-terracotta-600'
+                        }`}
+                      >
                         {member.type}
                       </span>
                     </td>
-                    <td className="px-8 py-5">
-                      <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold uppercase ${
-                        member.status === 'ACTIVE' ? 'bg-success-50 text-success-700' : 'bg-warm-100 text-warm-500'
-                      }`}>
-                        {member.status}
+                    <td className="px-5 py-5 sm:px-8">
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase ${
+                          member.status === 'ACTIVE'
+                            ? 'bg-success-50 text-success-700'
+                            : 'bg-warm-100 text-warm-500'
+                        }`}
+                      >
+                        {String(member.status).replace(/_/g, ' ')}
                       </span>
                     </td>
-                    <td className="px-8 py-5 text-right">
-                      <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all">
-                        <Link href={`/dashboard/hr/staff/${member.id}?type=${member.type}`} className="p-2 hover:bg-card hover:shadow-md border border-transparent hover:border-warm-100 rounded-xl text-warm-400 hover:text-forest-700 transition-all">
-                          <ChevronRight size={18} />
-                        </Link>
-                      </div>
+                    <td className="px-5 py-5 text-right sm:px-8">
+                      <Link
+                        href={`/dashboard/hr/staff/${member.id}?type=${member.type}`}
+                        aria-label={`Open ${member.firstName} ${member.lastName}`}
+                        className="inline-flex rounded-xl border border-transparent p-2 text-warm-400 transition-all hover:border-warm-100 hover:bg-card hover:text-forest-700 hover:shadow-md"
+                      >
+                        <ChevronRight size={18} />
+                      </Link>
                     </td>
                   </tr>
                 ))}
-                {staff.length === 0 && !loading && (
-                  <tr>
-                    <td colSpan={5} className="px-8 py-20 text-center">
-                      <UserCircle className="mx-auto text-warm-200 mb-4" size={64} />
-                      <p className="text-warm-400 font-bold text-lg uppercase tracking-wide">No workforce records found</p>
-                    </td>
-                  </tr>
-                )}
               </tbody>
             </table>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

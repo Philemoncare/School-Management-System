@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
@@ -13,6 +13,7 @@ import {
   ShieldCheck,
   Tag
 } from 'lucide-react';
+import { Select } from '@/components/ui/input';
 
 export default function LedgerPage() {
   const [entries, setEntries] = useState<any[]>([]);
@@ -86,16 +87,18 @@ export default function LedgerPage() {
                 onChange={(e) => setSearch(e.target.value)}
               />
            </div>
-           <select
+           <Select
              aria-label="Filter ledger entries by direction"
              value={direction}
-             onChange={(e) => setDirection(e.target.value)}
-             className="p-3 bg-card border border-warm-200 rounded-2xl text-[11px] font-bold uppercase tracking-wide text-warm-500 shadow-sm focus:border-forest-600 focus:outline-none"
-           >
-             <option value="">All entries</option>
-             <option value="DEBIT">Debits</option>
-             <option value="CREDIT">Credits</option>
-           </select>
+             placeholder="All entries"
+             options={[
+                { value: "", label: "All entries" },
+                { value: "DEBIT", label: "Debits" },
+                { value: "CREDIT", label: "Credits" },
+             ]}
+             onChange={(event) => setDirection(event.target.value)}
+             className="w-auto min-w-[140px]"
+           />
         </div>
 
         {error && (

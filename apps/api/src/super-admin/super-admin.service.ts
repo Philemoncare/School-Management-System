@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { EmailProvider } from '../communication/providers/email.provider';
+import { TopUpSmsCreditDto } from './dto/super-admin.dto';
 import {
   AnnouncementStatus,
   BillingInterval,
@@ -285,6 +286,7 @@ export class SuperAdminService {
     schoolType?: string;
     from?: string;
     to?: string;
+    sort?: 'name';
   }) {
     const skip = Math.max(0, params.skip ?? 0);
     const take = Math.min(100, Math.max(1, params.take ?? 10));
@@ -324,7 +326,10 @@ export class SuperAdminService {
           },
           _count: { select: { students: true, teachers: true } },
         },
-        orderBy: { createdAt: 'desc' },
+        orderBy:
+          params.sort === 'name'
+            ? [{ name: 'asc' }]
+            : [{ createdAt: 'desc' }],
       }),
       this.prisma.school.count({ where }),
     ]);
@@ -1820,6 +1825,335 @@ export class SuperAdminService {
       failed,
       schools: schools.length,
       emailRequested: Boolean(options.sendEmail),
+    };
+  }
+
+  /* ============================================================
+     SMS Credit Management
+     Platform Super Admin manages SMS token balances per school
+     ============================================================ */
+
+  async getSmsCredits() {
+    const schools = await this.prisma.school.findMany({
+      select: {
+        id: true,
+        name: true,
+        code: true,
+        status: true,
+        currency: true,
+        smsCreditBalance: true,
+      },
+      orderBy: [{ smsCreditBalance: 'asc' }, { name: 'asc' }],
+    });
+
+    return schools.map((school) => ({
+      schoolId: school.id,
+      schoolName: school.name,
+      schoolCode: school.code,
+      status: school.status,
+      currency: school.currency,
+      smsCreditBalance: Number(school.smsCreditBalance),
+    }));
+  }
+
+  async getSmsCreditDetail(schoolId: string) {
+    const school = await this.prisma.school.findUnique({
+      where: { id: schoolId },
+      select: {
+        id: true,
+        name: true,
+        code: true,
+        status: true,
+        currency: true,
+        smsCreditBalance: true,
+      },
+    });
+    if (!school) throw new NotFoundException('School not found');
+
+    // Get recent SMS usage
+    const recentUsage = await this.prisma.communicationUsage.findMany({
+      where: { schoolId, channel: 'SMS' },
+      orderBy: { billingPeriodStart: 'desc' },
+      take: 12,
+    });
+
+    return {
+      schoolId: school.id,
+      schoolName: school.name,
+      schoolCode: school.code,
+      status: school.status,
+      currency: school.currency,
+      smsCreditBalance: Number(school.smsCreditBalance),
+      recentUsage: recentUsage.map((u) => ({
+        periodStart: u.billingPeriodStart,
+        periodEnd: u.billingPeriodEnd,
+        successfulCount: u.successfulCount,
+        failedCount: u.failedCount,
+      })),
+    };
+  }
+
+  async topUpSmsCredit(dto: TopUpSmsCreditDto, actorId: string) {
+    const school = await this.prisma.school.findUnique({
+      where: { id: dto.schoolId },
+    });
+    if (!school) throw new NotFoundException('School not found');
+
+    const previousBalance = Number(school.smsCreditBalance);
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const updatedSchool = await tx.school.update({
+        where: { id: dto.schoolId },
+        data: {
+          smsCreditBalance: {
+            increment: new Prisma.Decimal(dto.amount),
+          },
+        },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          userId: actorId,
+          schoolId: dto.schoolId,
+          action: 'SMS_CREDIT_TOPUP',
+          module: 'BILLING',
+          resourceId: dto.schoolId,
+          metadata: {
+            previousBalance,
+            amountAdded: dto.amount,
+            newBalance: Number(updatedSchool.smsCreditBalance),
+            reason: dto.reason,
+          },
+        },
+      });
+
+      return updatedSchool;
+    });
+
+    return {
+      schoolId: updated.id,
+      schoolName: updated.name,
+      previousBalance,
+      amountAdded: dto.amount,
+      newBalance: Number(updated.smsCreditBalance),
+    };
+  }
+
+  async deductSmsCredit(schoolId: string, amount: number, reason: string) {
+    const school = await this.prisma.school.findUnique({
+      where: { id: schoolId },
+      select: { id: true, name: true, smsCreditBalance: true, currency: true },
+    });
+    if (!school) throw new NotFoundException('School not found');
+
+    const currentBalance = Number(school.smsCreditBalance);
+    if (currentBalance < amount) {
+      throw new BadRequestException(
+        `Insufficient SMS credits. Current balance: ${currentBalance}, required: ${amount}`
+      );
+    }
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const updatedSchool = await tx.school.update({
+        where: { id: schoolId },
+        data: {
+          smsCreditBalance: {
+            decrement: new Prisma.Decimal(amount),
+          },
+        },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          userId: 'system',
+          schoolId,
+          action: 'SMS_CREDIT_DEDUCTED',
+          module: 'BILLING',
+          resourceId: schoolId,
+          metadata: {
+            previousBalance: currentBalance,
+            amountDeducted: amount,
+            newBalance: Number(updatedSchool.smsCreditBalance),
+            reason,
+          },
+        },
+      });
+
+      return updatedSchool;
+    });
+
+    return {
+      schoolId: updated.id,
+      previousBalance: currentBalance,
+      amountDeducted: amount,
+      newBalance: Number(updated.smsCreditBalance),
+    };
+  }
+
+  async getOperationsData() {
+    const now = new Date();
+    const dayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+    const [
+      securityEvents,
+      failedDeliveries,
+      recentAuditLogs,
+      pendingSchools,
+      expiringSubscriptions,
+      lowSmsCreditSchools,
+    ] = await Promise.all([
+      this.prisma.securityEvent.findMany({
+        where: { createdAt: { gte: dayAgo } },
+        orderBy: { createdAt: 'desc' },
+        take: 20,
+        include: {
+          user: { select: { id: true, email: true, firstName: true, lastName: true } },
+          school: { select: { id: true, name: true, code: true } },
+        },
+      }),
+      this.prisma.notificationDelivery.findMany({
+        where: {
+          status: 'FAILED',
+          failedAt: { gte: dayAgo },
+        },
+        orderBy: { failedAt: 'desc' },
+        take: 20,
+        include: {
+          notification: {
+            select: { id: true, title: true, schoolId: true, createdAt: true },
+          },
+        },
+      }),
+      this.prisma.auditLog.findMany({
+        where: { createdAt: { gte: dayAgo } },
+        orderBy: { createdAt: 'desc' },
+        take: 30,
+      }),
+      this.prisma.school.count({
+        where: { status: SchoolStatus.PENDING },
+      }),
+      this.prisma.schoolSubscription.count({
+        where: {
+          status: SubscriptionStatus.TRIALING,
+          trialEnd: { lt: now },
+        },
+      }),
+      this.prisma.school.findMany({
+        where: {
+          smsCreditBalance: { lt: 10 },
+          status: SchoolStatus.ACTIVE,
+        },
+        select: { id: true, name: true, code: true, smsCreditBalance: true },
+        take: 20,
+        orderBy: { smsCreditBalance: 'asc' },
+      }),
+    ]);
+
+    // AuditLog has no Prisma relations to User/School, so enrich ids separately.
+    const auditUserIds = Array.from(
+      new Set(recentAuditLogs.map((log) => log.userId).filter((id): id is string => Boolean(id))),
+    );
+    const auditSchoolIds = Array.from(
+      new Set(recentAuditLogs.map((log) => log.schoolId).filter((id): id is string => Boolean(id))),
+    );
+    const [auditUsers, auditSchools] = await Promise.all([
+      auditUserIds.length
+        ? this.prisma.user.findMany({
+            where: { id: { in: auditUserIds } },
+            select: { id: true, firstName: true, lastName: true },
+          })
+        : [],
+      auditSchoolIds.length
+        ? this.prisma.school.findMany({
+            where: { id: { in: auditSchoolIds } },
+            select: { id: true, name: true },
+          })
+        : [],
+    ]);
+    const auditUserMap = new Map<string, { firstName: string; lastName: string }>(
+      auditUsers.map((u) => [u.id, u] as [string, { firstName: string; lastName: string }]),
+    );
+    const auditSchoolMap = new Map<string, { name: string }>(
+      auditSchools.map((s) => [s.id, s] as [string, { name: string }]),
+    );
+
+    const alerts = [
+      ...securityEvents.map((event: any) => ({
+        id: event.id,
+        type: 'security' as const,
+        severity: event.severity || 'medium',
+        title: event.title || 'Security Event',
+        description: event.description || '',
+        user: event.user ? `${event.user.firstName} ${event.user.lastName}` : 'System',
+        school: event.school ? event.school.name : 'Platform',
+        time: event.createdAt,
+      })),
+      ...failedDeliveries.map((d: any) => ({
+        id: d.id,
+        type: 'delivery' as const,
+        severity: 'high' as const,
+        title: 'Failed Message Delivery',
+        description: d.errorMessage || 'Message failed to send',
+        user: d.notification ? 'System' : 'Unknown',
+        school: d.notification?.schoolId ? 'School' : 'Platform',
+        time: d.failedAt,
+      })),
+      ...(pendingSchools > 0 ? [{
+        id: 'pending-schools',
+        type: 'approval' as const,
+        severity: 'medium' as const,
+        title: 'Pending School Registrations',
+        description: `${pendingSchools} school(s) awaiting approval`,
+        user: 'System',
+        school: 'Platform',
+        time: now,
+      }] : []),
+      ...(expiringSubscriptions > 0 ? [{
+        id: 'expiring-subscriptions',
+        type: 'billing' as const,
+        severity: 'medium' as const,
+        title: 'Trial Subscriptions Expiring',
+        description: `${expiringSubscriptions} trial subscription(s) expiring soon`,
+        user: 'System',
+        school: 'Platform',
+        time: now,
+      }] : []),
+      ...(lowSmsCreditSchools.length > 0 ? [{
+        id: 'low-sms-credits',
+        type: 'billing' as const,
+        severity: 'high' as const,
+        title: 'Low SMS Credit Balances',
+        description: `${lowSmsCreditSchools.length} school(s) have SMS credits below 10`,
+        user: 'System',
+        school: 'Platform',
+        time: now,
+      }] : []),
+    ].sort((a: any, b: any) =>
+      new Date(b.time).getTime() - new Date(a.time).getTime(),
+    );
+
+    return {
+      alerts,
+      alertCount: alerts.length,
+      criticalCount: alerts.filter((a: any) => a.severity === 'critical').length,
+      highCount: alerts.filter((a: any) => a.severity === 'high').length,
+      mediumCount: alerts.filter((a: any) => a.severity === 'medium').length,
+      lowCount: alerts.filter((a: any) => a.severity === 'low').length,
+      recentActivity: recentAuditLogs.map((log: any) => ({
+        id: log.id,
+        action: log.action,
+        module: log.module,
+        user: log.userId
+          ? `${(auditUserMap.get(log.userId)?.firstName ?? '')} ${(auditUserMap.get(log.userId)?.lastName ?? '')}`.trim() ||
+            'Unknown user'
+          : 'System',
+        school: log.schoolId ? auditSchoolMap.get(log.schoolId)?.name || 'Platform' : 'Platform',
+        time: log.createdAt,
+      })),
+      pendingApprovals: pendingSchools,
+      expiringTrials: expiringSubscriptions,
+      lowSmsCreditSchools,
+      generatedAt: now.toISOString(),
     };
   }
 }

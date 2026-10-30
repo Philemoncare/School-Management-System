@@ -1,6 +1,7 @@
-import { Controller, Get, Post, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { TeachersService } from './teachers.service';
 import { CreateTeacherDto } from './dto/create-teacher.dto';
+import { UpdateTeacherDto } from './dto/update-teacher.dto';
 import { PaginationDto } from '../common/dto/pagination.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -40,5 +41,16 @@ export class TeachersController {
     @Param('id') id: string
   ) {
     return this.teachersService.findOne(schoolId, id);
+  }
+
+  @Roles('SCHOOL_ADMIN', 'PRINCIPAL', 'HR_OFFICER')
+  @Patch(':id')
+  update(
+    @ActiveSchool() schoolId: string,
+    @Param('id') id: string,
+    @Body() dto: UpdateTeacherDto,
+    @CurrentUser() user: any,
+  ) {
+    return this.teachersService.update(schoolId, id, dto, user.id);
   }
 }

@@ -27,6 +27,7 @@ export default function AdvancedSearchPage() {
   const [results, setResults] = useState<any[]>([]);
   const [savedSearches, setSavedSearches] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
   const fetchSavedSearches = async () => {
@@ -42,23 +43,43 @@ export default function AdvancedSearchPage() {
     fetchSavedSearches();
   }, []);
 
-  const performSearch = async () => {
+  const performSearch = async (overrides?: {
+    query?: string;
+    filters?: any;
+    entity?: string;
+    sortBy?: string;
+    sortOrder?: 'asc' | 'desc';
+  }) => {
+    const activeQuery = overrides?.query ?? query;
+    const activeFilters = overrides?.filters ?? filters;
+    const activeEntity = overrides?.entity ?? entity;
+    const activeSortBy = overrides?.sortBy ?? sortBy;
+    const activeSortOrder = overrides?.sortOrder ?? sortOrder;
+
     setLoading(true);
+    setError('');
     try {
       const queryString = new URLSearchParams({
-        q: query,
-        entity,
-        filters: JSON.stringify(filters),
-        sortBy,
-        sortOrder,
+        q: activeQuery,
+        entity: activeEntity,
+        filters: JSON.stringify(activeFilters),
+        sortBy: activeSortBy,
+        sortOrder: activeSortOrder,
       }).toString();
       const data = await apiFetch(`/search/advanced?${queryString}`);
-      setResults(data);
-    } catch (err) {
-      console.error('Advanced search failed', err);
+      setResults(Array.isArray(data) ? data : []);
+    } catch (err: any) {
+      setResults([]);
+      setError(err?.message || 'Advanced search could not be completed.');
     } finally {
       setLoading(false);
     }
+  };
+
+  const resetSearch = () => {
+    setQuery('');
+    setFilters({});
+    performSearch({ query: '', filters: {} });
   };
 
   useEffect(() => {
@@ -80,8 +101,9 @@ export default function AdvancedSearchPage() {
         })
       });
       showFeedback('SUCCESS', 'Search saved successfully!');
-    } catch (err) {
-      console.error('Failed to save search', err);
+      await fetchSavedSearches();
+    } catch (err: any) {
+      showFeedback('ERROR', err?.message || 'Could not save this search.');
     } finally {
       setIsSaving(false);
     }
@@ -103,7 +125,7 @@ export default function AdvancedSearchPage() {
              <Save size={16} /> Save Search
            </button>
            <button
-             onClick={() => { setQuery(''); setFilters({}); performSearch(); }}
+             onClick={resetSearch}
              className="flex items-center gap-2 px-5 py-2.5 bg-warm-100 text-warm-600 rounded-2xl font-semibold text-xs uppercase tracking-wide hover:bg-warm-200 transition-all"
            >
              <RotateCcw size={16} /> Reset
@@ -145,6 +167,7 @@ export default function AdvancedSearchPage() {
                  <label className="text-[11px] font-semibold text-warm-400 uppercase tracking-wide mb-1.5 block">Status</label>
                  <Select
                    className="w-full bg-ivory-50 border-none rounded-xl text-sm font-bold focus:ring-2 focus:ring-terracotta-600"
+                   value={filters.status ?? ''}
                    onChange={(e) => setFilters({ ...filters, status: e.target.value })}
                  >
                    <option value="">All Statuses</option>
@@ -222,12 +245,31 @@ export default function AdvancedSearchPage() {
               onKeyDown={(e) => e.key === 'Enter' && performSearch()}
             />
             <button
-              onClick={performSearch}
+              type="button"
+              onClick={() => performSearch()}
               className="absolute right-3 top-1/2 -translate-y-1/2 bg-forest-700 text-white px-8 py-3.5 rounded-xl font-semibold text-xs uppercase tracking-wide hover:bg-forest-800 transition-all shadow-lg shadow-sage-200 active:scale-95"
             >
               Search
             </button>
           </div>
+
+          {error && (
+            <div
+              role="alert"
+              className="flex flex-col gap-3 rounded-2xl border border-danger-200 bg-danger-50 p-4 text-xs font-semibold text-danger-700 sm:flex-row sm:items-center sm:justify-between"
+            >
+              <span className="flex items-center gap-2">
+                <Info size={16} /> {error}
+              </span>
+              <button
+                type="button"
+                onClick={() => performSearch()}
+                className="rounded-xl border border-danger-200 bg-card px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-danger-700 transition-colors hover:bg-danger-50"
+              >
+                Try again
+              </button>
+            </div>
+          )}
 
           <div className="space-y-4">
             {loading ? (

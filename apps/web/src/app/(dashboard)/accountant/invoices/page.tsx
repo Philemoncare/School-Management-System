@@ -13,6 +13,7 @@ import {
   XCircle,
   Eye
 } from 'lucide-react';
+import { Select } from '@/components/ui/input';
 import Link from 'next/link';
 
 const STATUS_OPTIONS = [
@@ -78,16 +79,14 @@ export default function AccountantInvoicesPage() {
                 onChange={(e) => setSearch(e.target.value)}
               />
            </div>
-           <select
-             aria-label="Filter invoices by status"
-             value={status}
-             onChange={(e) => setStatus(e.target.value)}
-             className="p-3 bg-card border border-warm-200 rounded-2xl text-[11px] font-semibold uppercase tracking-wide text-warm-600 shadow-sm focus:border-forest-600 focus:outline-none"
-           >
-             {STATUS_OPTIONS.map((option) => (
-               <option key={option.value} value={option.value}>{option.label}</option>
-             ))}
-           </select>
+           <Select
+              aria-label="Filter invoices by status"
+              value={status}
+              placeholder="All statuses"
+              options={STATUS_OPTIONS}
+              onChange={(event) => setStatus(event.target.value)}
+              className="w-auto min-w-[140px]"
+            />
         </div>
 
         {error && (

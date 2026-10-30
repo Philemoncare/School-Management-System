@@ -25,17 +25,6 @@ export class SettingsController {
     return this.settingsService.getFeatureFlags(schoolId);
   }
 
-  @Roles('SCHOOL_ADMIN')
-  @Put('features/:name')
-  toggleFeature(
-    @ActiveSchool() schoolId: string,
-    @Param('name') name: string,
-    @Body('isEnabled') isEnabled: boolean,
-    @CurrentUser() user: any,
-  ) {
-    return this.settingsService.toggleFeatureOverride(schoolId, name, isEnabled, user.id);
-  }
-
   @Get(':key')
   getSchoolSetting(@ActiveSchool() schoolId: string, @Param('key') key: string) {
     return this.settingsService.getSchoolSetting(schoolId, key);

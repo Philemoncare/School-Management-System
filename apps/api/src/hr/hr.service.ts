@@ -24,6 +24,8 @@ export class HRService {
   async getDashboardMetrics(schoolId: string) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+    const certificationWindowEnd = new Date();
+    certificationWindowEnd.setDate(certificationWindowEnd.getDate() + 30);
 
     const [
       totalStaff,
@@ -32,6 +34,9 @@ export class HRService {
       pendingLeave,
       absentToday,
       departments,
+      expiringCertifications,
+      pendingDocuments,
+      recentLeaveRequests,
     ] = await Promise.all([
       this.prisma.staff.count({ where: { schoolId, status: StaffStatus.ACTIVE } }),
       this.prisma.teacher.count({ where: { schoolId, status: StaffStatus.ACTIVE } }),
@@ -54,7 +59,29 @@ export class HRService {
       this.prisma.department.findMany({
         where: { schoolId },
         include: { _count: { select: { staff: true, teachers: true } } }
-      })
+      }),
+      this.prisma.staffCertification.count({
+        where: {
+          expiryDate: { not: null, gte: new Date(), lte: certificationWindowEnd },
+          OR: [{ staff: { schoolId } }, { teacher: { schoolId } }],
+        },
+      }),
+      this.prisma.staffDocument.count({
+        where: {
+          verificationStatus: 'PENDING',
+          OR: [{ staff: { schoolId } }, { teacher: { schoolId } }],
+        },
+      }),
+      this.prisma.leaveRequest.findMany({
+        where: { schoolId, status: LeaveRequestStatus.PENDING_APPROVAL },
+        include: {
+          leaveType: true,
+          staff: { select: { id: true, firstName: true, lastName: true } },
+          teacher: { select: { id: true, firstName: true, lastName: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 5,
+      }),
     ]);
 
     return {
@@ -65,11 +92,26 @@ export class HRService {
         employeesOnLeave: onLeave,
         pendingLeaveRequests: pendingLeave,
         absentToday,
+        expiringCertifications,
+        pendingDocuments,
       },
       departments: departments.map(d => ({
         name: d.name,
         count: d._count.staff + d._count.teachers
-      }))
+      })),
+      recentLeaveRequests: recentLeaveRequests.map((request) => ({
+        id: request.id,
+        leaveType: request.leaveType?.name ?? 'Leave',
+        startDate: request.startDate,
+        endDate: request.endDate,
+        totalDays: request.totalDays,
+        createdAt: request.createdAt,
+        employeeName: request.staff
+          ? `${request.staff.firstName} ${request.staff.lastName}`.trim()
+          : request.teacher
+            ? `${request.teacher.firstName} ${request.teacher.lastName}`.trim()
+            : 'Unknown employee',
+      })),
     };
   }
 
@@ -278,36 +320,60 @@ export class HRService {
 
   // Staff Directory (Combined Staff & Teachers)
   async getStaffDirectory(schoolId: string, filters: any = {}) {
-    const { departmentId, status, search } = filters;
+    const departmentId =
+      typeof filters.departmentId === 'string' && filters.departmentId.trim()
+        ? filters.departmentId.trim()
+        : undefined;
+    const status =
+      typeof filters.status === 'string' && filters.status.trim() ? filters.status.trim() : undefined;
+    const search = typeof filters.search === 'string' ? filters.search.trim() : '';
+    const type = ['STAFF', 'TEACHER'].includes(String(filters.type))
+      ? String(filters.type)
+      : undefined;
 
     const staffWhere: any = {
       schoolId,
-      departmentId,
-      status,
-      ...(search ? {
-        OR: [
-          { firstName: { contains: search, mode: 'insensitive' } },
-          { lastName: { contains: search, mode: 'insensitive' } },
-          { employeeId: { contains: search, mode: 'insensitive' } },
-        ]
-      } : {})
+      ...(departmentId ? { departmentId } : {}),
+      ...(status ? { status } : {}),
+      ...(search
+        ? {
+            OR: [
+              { firstName: { contains: search, mode: 'insensitive' } },
+              { lastName: { contains: search, mode: 'insensitive' } },
+              { employeeId: { contains: search, mode: 'insensitive' } },
+              { user: { email: { contains: search, mode: 'insensitive' } } },
+            ],
+          }
+        : {}),
     };
 
     const [staff, teachers] = await Promise.all([
-      this.prisma.staff.findMany({
-        where: staffWhere,
-        include: { department: true, position: true }
-      }),
-      this.prisma.teacher.findMany({
-        where: staffWhere,
-        include: { department: true, position: true }
-      })
+      type === 'TEACHER'
+        ? Promise.resolve([])
+        : this.prisma.staff.findMany({
+            where: staffWhere,
+            include: {
+              department: true,
+              position: true,
+              user: { select: { email: true, isActive: true } },
+            },
+          }),
+      type === 'STAFF'
+        ? Promise.resolve([])
+        : this.prisma.teacher.findMany({
+            where: staffWhere,
+            include: {
+              department: true,
+              position: true,
+              user: { select: { email: true, isActive: true } },
+            },
+          }),
     ]);
 
     return [
-      ...staff.map(s => ({ ...s, type: 'STAFF' })),
-      ...teachers.map(t => ({ ...t, type: 'TEACHER' }))
-    ].sort((a, b) => a.lastName.localeCompare(b.lastName));
+      ...staff.map((s) => ({ ...s, type: 'STAFF' })),
+      ...teachers.map((t) => ({ ...t, type: 'TEACHER' })),
+    ].sort((a, b) => String(a.lastName).localeCompare(String(b.lastName)));
   }
 
   // Leave Management

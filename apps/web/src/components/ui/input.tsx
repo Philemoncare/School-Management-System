@@ -1,8 +1,8 @@
 "use client";
 
-import React, { forwardRef, ReactNode, useEffect, useId, useImperativeHandle, useLayoutEffect, useRef, useState } from "react";
+import React, { forwardRef, ReactNode, useEffect, useId, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Check, ChevronDown, X } from "lucide-react";
+import { Check, ChevronDown, Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // useLayoutEffect on the client, useEffect during server rendering (where it
@@ -77,6 +77,12 @@ Input.displayName = "Input";
 export interface SelectOption {
   value: string;
   label: string;
+  /** Optional second line, e.g. a student number or class code. */
+  description?: string;
+  /** Extra words that should match a search without being displayed. */
+  keywords?: string;
+  /** Optional group heading used to bucket long lists. */
+  group?: string;
   disabled?: boolean;
 }
 
@@ -89,6 +95,12 @@ export interface SelectProps
   placeholder?: string;
   leftIcon?: ReactNode;
   className?: string;
+  /** Show a filter box inside the panel. Use for lists longer than ~10 items. */
+  searchable?: boolean;
+  /** Show a loading state and keep the control disabled while options arrive. */
+  loading?: boolean;
+  /** Copy shown when the list (or the current search) has no matches. */
+  emptyMessage?: string;
 }
 
 function extractOptionsFromChildren(childrenNode: ReactNode): SelectOption[] {
@@ -160,6 +172,9 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
       required,
       title,
       tabIndex,
+      searchable = false,
+      loading = false,
+      emptyMessage,
       "aria-label": ariaLabel,
       "aria-labelledby": ariaLabelledBy,
       "aria-describedby": ariaDescribedBy,
@@ -169,8 +184,10 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
     const generatedId = useId();
     const selectId = id || `select-${generatedId.replace(/:/g, "")}`;
     const labelId = label ? `${selectId}-label` : undefined;
+    const listboxId = `${selectId}-listbox`;
     const triggerRef = useRef<HTMLButtonElement>(null);
     const panelRef = useRef<HTMLDivElement>(null);
+    const searchRef = useRef<HTMLInputElement>(null);
     const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
     const typeahead = useRef("");
     const typeaheadTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -182,6 +199,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
     const [activeIndex, setActiveIndex] = useState(-1);
     const [panelStyle, setPanelStyle] = useState<React.CSSProperties>({});
     const [internalValue, setInternalValue] = useState(String(defaultValue ?? ""));
+    const [query, setQuery] = useState("");
 
     const options: SelectOption[] = optionsProp?.length
       ? optionsProp
@@ -191,6 +209,20 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
     const selectedOption = selectedIndex >= 0 ? options[selectedIndex] : undefined;
     const emptyOption = options.find((option) => option.value === "");
     const displayText = selectedOption?.label || emptyOption?.label || placeholder;
+    const isDisabled = disabled || loading;
+
+    const filteredOptions = useMemo(() => {
+      const needle = query.trim().toLowerCase();
+      if (!searchable || !needle) return options;
+      return options.filter((option) => {
+        const haystack = `${option.label} ${option.description ?? ""} ${option.keywords ?? ""}`.toLowerCase();
+        return haystack.includes(needle);
+      });
+    }, [options, query, searchable]);
+
+    const filteredSelectedIndex = filteredOptions.findIndex(
+      (option) => option.value === selectedValue,
+    );
 
     useImperativeHandle(ref, () => triggerRef.current as unknown as HTMLSelectElement, []);
 
@@ -199,15 +231,37 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
     useEffect(() => {
       if (!open) {
         setActiveIndex(-1);
+        setQuery("");
         return;
       }
 
       const initialIndex =
-        selectedIndex >= 0
-          ? selectedIndex
-          : options.findIndex((option) => !option.disabled);
+        filteredSelectedIndex >= 0
+          ? filteredSelectedIndex
+          : filteredOptions.findIndex((option) => !option.disabled);
       setActiveIndex(initialIndex);
-    }, [open, selectedIndex]);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [open]);
+
+    // Keep the highlighted row valid while the search narrows the list.
+    useEffect(() => {
+      if (!open) return;
+      setActiveIndex((current) => {
+        if (current >= 0 && current < filteredOptions.length && !filteredOptions[current]?.disabled) {
+          return current;
+        }
+        return filteredOptions.findIndex((option) => !option.disabled);
+      });
+    }, [filteredOptions, open]);
+
+    useEffect(() => {
+      if (!open) return;
+      if (searchable) {
+        const timer = window.setTimeout(() => searchRef.current?.focus(), 0);
+        return () => window.clearTimeout(timer);
+      }
+      return undefined;
+    }, [open, searchable]);
 
     useEffect(() => {
       if (!open) return;
@@ -234,10 +288,10 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
         const rect = trigger.getBoundingClientRect();
         const spaceBelow = window.innerHeight - rect.bottom - 12;
         const spaceAbove = rect.top - 12;
-        const openUp = spaceBelow < 220 && spaceAbove > spaceBelow;
+        const openUp = spaceBelow < 240 && spaceAbove > spaceBelow;
         const width = Math.max(rect.width, 224);
         const left = Math.max(12, Math.min(rect.left, window.innerWidth - width - 12));
-        const maxHeight = Math.min(320, Math.max(160, openUp ? spaceAbove : spaceBelow));
+        const maxHeight = Math.min(360, Math.max(180, openUp ? spaceAbove : spaceBelow));
 
         setPanelStyle({
           position: "fixed",
@@ -282,6 +336,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
 
     function closePanel(restoreFocus = true) {
       setOpen(false);
+      setQuery("");
       if (restoreFocus) {
         window.setTimeout(() => triggerRef.current?.focus(), 0);
       }
@@ -294,16 +349,16 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
     }
 
     function enabledIndex(from: number, direction: 1 | -1) {
-      if (!options.length) return -1;
-      for (let step = 1; step <= options.length; step += 1) {
-        const index = (from + step * direction + options.length) % options.length;
-        if (!options[index].disabled) return index;
+      if (!filteredOptions.length) return -1;
+      for (let step = 1; step <= filteredOptions.length; step += 1) {
+        const index = (from + step * direction + filteredOptions.length) % filteredOptions.length;
+        if (!filteredOptions[index].disabled) return index;
       }
       return -1;
     }
 
     function handleTriggerKeyDown(event: React.KeyboardEvent<HTMLButtonElement>) {
-      if (disabled) return;
+      if (isDisabled) return;
 
       if (!open && ["ArrowDown", "ArrowUp", "Enter", " "].includes(event.key)) {
         event.preventDefault();
@@ -327,21 +382,23 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
       if (event.key === "ArrowDown" || event.key === "ArrowUp") {
         event.preventDefault();
         const direction = event.key === "ArrowDown" ? 1 : -1;
-        const start = activeIndex >= 0 ? activeIndex : selectedIndex;
+        const start = activeIndex >= 0 ? activeIndex : filteredSelectedIndex;
         setActiveIndex(enabledIndex(start, direction));
         return;
       }
 
       if (event.key === "Home" || event.key === "End") {
         event.preventDefault();
-        const start = event.key === "Home" ? -1 : options.length;
+        const start = event.key === "Home" ? -1 : filteredOptions.length;
         setActiveIndex(enabledIndex(start, event.key === "Home" ? 1 : -1));
         return;
       }
 
       if (event.key === "Enter" || event.key === " ") {
         event.preventDefault();
-        if (activeIndex >= 0) chooseOption(options[activeIndex]);
+        if (activeIndex >= 0 && filteredOptions[activeIndex]) {
+          chooseOption(filteredOptions[activeIndex]);
+        }
         return;
       }
 
@@ -352,7 +409,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
           typeahead.current = "";
         }, 500);
 
-        const match = options.findIndex(
+        const match = filteredOptions.findIndex(
           (option) =>
             !option.disabled &&
             option.label.toLowerCase().startsWith(typeahead.current),
@@ -360,6 +417,40 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
         if (match >= 0) setActiveIndex(match);
       }
     }
+
+    function handleSearchKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closePanel();
+        return;
+      }
+
+      if (event.key === "Tab") {
+        closePanel(false);
+        return;
+      }
+
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        const direction = event.key === "ArrowDown" ? 1 : -1;
+        const start = activeIndex >= 0 ? activeIndex : filteredSelectedIndex;
+        setActiveIndex(enabledIndex(start, direction));
+        return;
+      }
+
+      if (event.key === "Enter") {
+        event.preventDefault();
+        if (activeIndex >= 0 && filteredOptions[activeIndex]) {
+          chooseOption(filteredOptions[activeIndex]);
+        } else if (filteredOptions.length === 1) {
+          chooseOption(filteredOptions[0]);
+        }
+      }
+    }
+
+    const resolvedEmptyMessage =
+      emptyMessage ??
+      (query.trim() ? `No matches for "${query.trim()}"` : "No options available");
 
     const panel = open && mounted
       ? createPortal(
@@ -377,10 +468,6 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
 
             <div
               ref={panelRef}
-              id={`${selectId}-listbox`}
-              role="listbox"
-              aria-labelledby={labelId}
-              aria-label={!label ? ariaLabel || placeholder : undefined}
               style={isMobile ? undefined : panelStyle}
               className={cn(
                 "flex flex-col overflow-hidden border border-warm-200 bg-card shadow-panel",
@@ -410,42 +497,98 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
                 </div>
               )}
 
-              <div className="overflow-y-auto p-1.5">
-                {options.length === 0 && (
-                  <p className="px-3 py-6 text-center text-sm text-warm-500">
-                    No options available
-                  </p>
-                )}
-
-                {options.map((option, index) => {
-                  const isSelected = option.value === selectedValue;
-                  const isActive = index === activeIndex;
-                  return (
+              {searchable && !loading && (
+                <div className="relative border-b border-warm-100 p-2">
+                  <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-warm-400" />
+                  <input
+                    ref={searchRef}
+                    type="text"
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                    onKeyDown={handleSearchKeyDown}
+                    placeholder="Type to filter…"
+                    aria-label={`Filter ${label || "options"}`}
+                    aria-controls={listboxId}
+                    aria-autocomplete="list"
+                    className="h-9 w-full rounded-md border border-warm-200 bg-ivory-50 pl-9 pr-8 text-sm text-charcoal-900 outline-none placeholder:text-warm-400 focus-visible:border-forest-600 focus-visible:ring-2 focus-visible:ring-forest-600/15"
+                  />
+                  {query && (
                     <button
-                      key={`${option.value}-${index}`}
-                      ref={(node) => {
-                        optionRefs.current[index] = node;
-                      }}
                       type="button"
-                      role="option"
-                      aria-selected={isSelected}
-                      disabled={option.disabled}
-                      onMouseEnter={() => setActiveIndex(index)}
-                      onClick={() => chooseOption(option)}
-                      className={cn(
-                        "flex min-h-[42px] w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-left text-sm transition-colors",
-                        isSelected
-                          ? "bg-forest-50 font-semibold text-forest-900"
-                          : "text-charcoal-800",
-                        isActive && !option.disabled && "bg-warm-100",
-                        option.disabled && "cursor-not-allowed opacity-45",
-                      )}
+                      onClick={() => {
+                        setQuery("");
+                        searchRef.current?.focus();
+                      }}
+                      className="absolute right-3 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded text-warm-400 hover:bg-warm-100 hover:text-charcoal-800"
+                      aria-label="Clear filter"
                     >
-                      <span className="min-w-0 truncate">{option.label}</span>
-                      {isSelected && <Check className="h-4 w-4 shrink-0 text-forest-700" />}
+                      <X className="h-3.5 w-3.5" />
                     </button>
-                  );
-                })}
+                  )}
+                </div>
+              )}
+
+              <div
+                id={listboxId}
+                role="listbox"
+                aria-labelledby={labelId}
+                aria-label={!label ? ariaLabel || placeholder : undefined}
+                aria-busy={loading || undefined}
+                className="overflow-y-auto p-1.5"
+              >
+                {loading ? (
+                  <div className="flex items-center justify-center gap-2 px-3 py-6 text-sm text-warm-500">
+                    <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-warm-300 border-t-forest-700" />
+                    Loading options…
+                  </div>
+                ) : filteredOptions.length === 0 ? (
+                  <p className="px-3 py-6 text-center text-sm text-warm-500">{resolvedEmptyMessage}</p>
+                ) : (
+                  filteredOptions.map((option, index) => {
+                    const isSelected = option.value === selectedValue;
+                    const isActive = index === activeIndex;
+                    const showGroup =
+                      Boolean(option.group) && option.group !== filteredOptions[index - 1]?.group;
+                    return (
+                      <React.Fragment key={`${option.value}-${index}`}>
+                        {showGroup && (
+                          <p className="px-3 pb-1 pt-2 text-[10px] font-bold uppercase tracking-wide text-warm-400">
+                            {option.group}
+                          </p>
+                        )}
+                        <button
+                          ref={(node) => {
+                            optionRefs.current[index] = node;
+                          }}
+                          type="button"
+                          role="option"
+                          aria-selected={isSelected}
+                          disabled={option.disabled}
+                          onMouseEnter={() => setActiveIndex(index)}
+                          onClick={() => chooseOption(option)}
+                          className={cn(
+                            "flex min-h-[42px] w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-left text-sm transition-colors",
+                            isSelected
+                              ? "bg-forest-50 font-semibold text-forest-900"
+                              : "text-charcoal-800",
+                            isActive && !option.disabled && "bg-warm-100",
+                            option.disabled && "cursor-not-allowed opacity-45",
+                          )}
+                        >
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate">{option.label}</span>
+                            {option.description && (
+                              <span className="block truncate text-xs font-normal text-warm-500">
+                                {option.description}
+                              </span>
+                            )}
+                          </span>
+                          {isSelected && <Check className="h-4 w-4 shrink-0 text-forest-700" />}
+                        </button>
+                      </React.Fragment>
+                    );
+                  })
+                )}
               </div>
             </div>
           </div>,
@@ -478,13 +621,14 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
             role="combobox"
             aria-haspopup="listbox"
             aria-expanded={open}
-            aria-controls={`${selectId}-listbox`}
+            aria-controls={listboxId}
             aria-labelledby={ariaLabelledBy || labelId}
             aria-describedby={ariaDescribedBy}
             aria-label={!label ? ariaLabel || placeholder : undefined}
             aria-required={required || undefined}
             aria-invalid={Boolean(error) || undefined}
-            disabled={disabled}
+            aria-busy={loading || undefined}
+            disabled={isDisabled}
             onClick={() => setOpen((current) => !current)}
             onKeyDown={handleTriggerKeyDown}
             tabIndex={tabIndex}
@@ -497,13 +641,19 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
               className,
             )}
           >
-            <span className="min-w-0 flex-1 truncate">{displayText}</span>
-            <ChevronDown
-              className={cn(
-                "absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-warm-500 transition-transform",
-                open && "rotate-180",
-              )}
-            />
+            <span className="min-w-0 flex-1 truncate">
+              {loading ? "Loading options…" : displayText}
+            </span>
+            {loading ? (
+              <span className="absolute right-3.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 animate-spin rounded-full border-2 border-warm-300 border-t-forest-700" />
+            ) : (
+              <ChevronDown
+                className={cn(
+                  "absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-warm-500 transition-transform",
+                  open && "rotate-180",
+                )}
+              />
+            )}
           </button>
         </div>
         {error && (

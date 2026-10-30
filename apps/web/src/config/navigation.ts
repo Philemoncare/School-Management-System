@@ -39,10 +39,22 @@ import {
   Monitor,
   ShoppingCart,
   Package,
+  Code,
   Stethoscope,
   Activity,
   Heart,
-  Thermometer
+  Thermometer,
+  Smartphone,
+  Mail,
+  UserCircle,
+  BarChart3,
+  File,
+  Gavel,
+  HardHat,
+  PiggyBank,
+  Book,
+  Tool,
+  GraduationCap as GradCap,
 } from 'lucide-react';
 
 export interface NavigationItem {
@@ -61,71 +73,137 @@ export interface NavigationSection {
   items: NavigationItem[];
 }
 
+/* ============================================================
+   PLATFORM SUPER ADMIN PORTAL
+   Manages ALL schools across the platform
+   ============================================================ */
 export const SUPER_ADMIN_NAV: NavigationSection[] = [
   {
-    title: 'Platform',
+    title: 'Platform Overview',
     items: [
       { label: 'Dashboard', href: '/super-admin', icon: LayoutDashboard },
-      { label: 'Schools', href: '/super-admin/schools', icon: Building2 },
-      { label: 'Users', href: '/super-admin/users', icon: Users },
-      { label: 'Support Access', href: '/super-admin/support-access', icon: LifeBuoy },
+      { label: 'System Health', href: '/super-admin/monitoring', icon: BarChart3 },
+      { label: 'Recent Platform Activity', href: '/super-admin/audit', icon: History },
+    ]
+  },
+  {
+    title: 'School Management',
+    items: [
+      { label: 'Registered Schools', href: '/super-admin/schools', icon: Building2 },
+      { label: 'Registration Requests', href: '/super-admin/schools?status=PENDING', icon: ClipboardList },
+      { label: 'School Administrators', href: '/super-admin/users', icon: Users },
+      { label: 'School Status & Onboarding', href: '/super-admin/schools', icon: Rocket },
+    ]
+  },
+  {
+    title: 'Commercial Management',
+    items: [
+      { label: 'SMS Packages', href: '/super-admin/sms-packages', icon: Smartphone },
+      { label: 'SMS Credit Ledger', href: '/super-admin/sms-credits', icon: Wallet },
+      { label: 'SMS Usage', href: '/super-admin/sms-credits', icon: Activity },
+      { label: 'Payment Transactions', href: '/super-admin/payments', icon: CreditCard },
+      { label: 'Subscription Plans', href: '/super-admin/plans', icon: PiggyBank },
+      { label: 'Premium Features & Entitlements', href: '/super-admin/settings', icon: Settings },
+    ]
+  },
+  {
+    title: 'Platform Services',
+    items: [
+      { label: 'SMS Gateway', href: '/super-admin/settings', icon: Smartphone },
+      { label: 'Email Services', href: '/super-admin/settings', icon: Mail },
+      { label: 'Payment Integrations', href: '/super-admin/payments', icon: CreditCard },
+      { label: 'API Configuration', href: '/super-admin/settings', icon: Code },
+      { label: 'Service Monitoring', href: '/super-admin/monitoring', icon: Monitor },
+    ]
+  },
+  {
+    title: 'System Administration',
+    items: [
+      { label: 'Maintenance', href: '/super-admin/maintenance', icon: Gavel },
+      { label: 'Application Configuration', href: '/super-admin/settings', icon: Settings },
+      { label: 'Developer Mode', href: '/super-admin/dev-mode', icon: Tool },
+      { label: 'Error Monitoring', href: '/super-admin/monitoring', icon: AlertCircle },
+      { label: 'Background Jobs', href: '/super-admin/monitoring', icon: Activity },
+      { label: 'Backup & Recovery', href: '/super-admin/backups', icon: Database },
+    ]
+  },
+  {
+    title: 'Security and Audit',
+    items: [
+      { label: 'Platform Users', href: '/super-admin/users', icon: Users },
+      { label: 'Privileged Access', href: '/super-admin/support-access', icon: ShieldCheck },
+      { label: 'Security Events', href: '/super-admin/security', icon: AlertCircle },
+      { label: 'Audit Logs', href: '/super-admin/audit', icon: FileText },
+    ]
+  },
+  {
+    title: 'Communication',
+    items: [
       { label: 'Announcements', href: '/super-admin/announcements', icon: Megaphone },
-      { label: 'Platform Settings', href: '/super-admin/settings', icon: Settings },
-      { label: 'Launch Readiness', href: '/super-admin/launch-readiness', icon: Rocket },
-    ]
-  },
-  {
-    title: 'Financials',
-    items: [
-      { label: 'Plans', href: '/super-admin/plans', icon: Layers },
-      { label: 'Revenue', href: '/super-admin/payments', icon: CreditCard },
-    ]
-  },
-  {
-    title: 'Operations',
-    items: [
-      { label: 'Maintenance', href: '/super-admin/maintenance', icon: Settings },
-      { label: 'Backups', href: '/super-admin/backups', icon: Database },
-      { label: 'Security', href: '/super-admin/security', icon: ShieldCheck },
-      { label: 'Audit', href: '/super-admin/audit', icon: History },
-      { label: 'Monitoring', href: '/super-admin/monitoring', icon: PieChart },
     ]
   }
 ];
 
+/* ============================================================
+   SCHOOL ADMIN PORTAL
+   Each school manages ONLY their own data
+   ============================================================ */
 export const SCHOOL_NAV: NavigationSection[] = [
   {
-    title: 'Overview',
+    title: 'Dashboard',
     items: [
-      { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+      { label: 'Overview', href: '/dashboard', icon: LayoutDashboard },
+    ]
+  },
+  {
+    title: 'School Management',
+    items: [
+      { label: 'School Profile', href: '/dashboard/settings', icon: Building2, roles: ['SCHOOL_ADMIN', 'ADMIN', 'PRINCIPAL'] },
+      { label: 'Academic Years & Terms', href: '/dashboard/academics/years', icon: Clock, roles: ['SCHOOL_ADMIN', 'ADMIN', 'PRINCIPAL'] },
+      { label: 'Classes & Streams', href: '/dashboard/academics/classes', icon: Layers, roles: ['SCHOOL_ADMIN', 'ADMIN', 'PRINCIPAL'] },
+      { label: 'Subjects', href: '/dashboard/academics/subjects', icon: Book, roles: ['SCHOOL_ADMIN', 'ADMIN', 'PRINCIPAL'] },
     ]
   },
   {
     title: 'People',
     items: [
       { label: 'Students', href: '/dashboard/students', icon: GraduationCap, roles: ['SCHOOL_ADMIN', 'ADMIN', 'PRINCIPAL', 'TEACHER', 'ACCOUNTANT', 'HR'] },
-      { label: 'Staff', href: '/dashboard/hr/staff', icon: Briefcase, roles: ['SCHOOL_ADMIN', 'ADMIN', 'PRINCIPAL', 'HR'] },
-      { label: 'Users & Roles', href: '/dashboard/users', icon: ShieldCheck, roles: ['SCHOOL_ADMIN', 'ADMIN'] },
+      { label: 'Parents & Guardians', href: '/dashboard/guardians', icon: UserCircle, roles: ['SCHOOL_ADMIN', 'ADMIN', 'PRINCIPAL', 'RECEPTIONIST'] },
+      { label: 'Teachers & Staff', href: '/dashboard/hr/staff', icon: Briefcase, roles: ['SCHOOL_ADMIN', 'ADMIN', 'PRINCIPAL', 'HR'] },
+      { label: 'Register Teacher', href: '/dashboard/teachers/new', icon: GraduationCap, roles: ['SCHOOL_ADMIN', 'PRINCIPAL', 'HR_OFFICER', 'RECEPTIONIST'] },
+      { label: 'User Accounts', href: '/dashboard/users', icon: ShieldCheck, roles: ['SCHOOL_ADMIN', 'ADMIN'] },
     ]
   },
   {
     title: 'Academics',
     items: [
       { label: 'Academic Overview', href: '/dashboard/academics', icon: BookMarked },
-      { label: 'Academic Years', href: '/dashboard/academics/years', icon: Clock, roles: ['SCHOOL_ADMIN', 'ADMIN', 'PRINCIPAL'] },
       { label: 'Enrollments', href: '/dashboard/academics/enrollments', icon: UserCheck },
       { label: 'Timetable', href: '/dashboard/academics/timetable', icon: Clock },
       { label: 'Attendance', href: '/dashboard/attendance', icon: CalendarCheck },
-      { label: 'Examinations', href: '/dashboard/examinations', icon: ClipboardList },
-      { label: 'Results', href: '/dashboard/results', icon: FileSpreadsheet },
+      { label: 'Assessments & Examinations', href: '/dashboard/assessments', icon: ClipboardList },
+      { label: 'Results & Report Cards', href: '/dashboard/results', icon: FileSpreadsheet },
     ]
   },
   {
     title: 'Finance',
     items: [
       { label: 'Finance Overview', href: '/dashboard/finance', icon: Wallet, roles: ['SCHOOL_ADMIN', 'ADMIN', 'ACCOUNTANT'] },
+      { label: 'Fee Structures', href: '/accountant/fees', icon: PiggyBank, roles: ['SCHOOL_ADMIN', 'ADMIN', 'ACCOUNTANT'] },
       { label: 'Invoices', href: '/dashboard/finance/invoices', icon: FileText, roles: ['SCHOOL_ADMIN', 'ADMIN', 'ACCOUNTANT'] },
       { label: 'Payments', href: '/dashboard/finance/payments', icon: CreditCard, roles: ['SCHOOL_ADMIN', 'ADMIN', 'ACCOUNTANT'] },
+      { label: 'Outstanding Balances', href: '/accountant/outstanding', icon: AlertCircle, roles: ['SCHOOL_ADMIN', 'ADMIN', 'ACCOUNTANT'] },
+      { label: 'Financial Reports', href: '/accountant/reports', icon: BarChart3, roles: ['SCHOOL_ADMIN', 'ADMIN', 'ACCOUNTANT'] },
+    ]
+  },
+  {
+    title: 'Communication',
+    items: [
+      { label: 'SMS & Email', href: '/communications', icon: Megaphone, roles: ['SCHOOL_ADMIN', 'ADMIN'] },
+      { label: 'SMS Credit Balance', href: '/dashboard/sms/balance', icon: Smartphone, roles: ['SCHOOL_ADMIN', 'ADMIN'] },
+      { label: 'Purchase SMS Credits', href: '/dashboard/sms/purchase', icon: CreditCard, roles: ['SCHOOL_ADMIN', 'ADMIN'] },
+      { label: 'Message History', href: '/communications/delivery', icon: FileText, roles: ['SCHOOL_ADMIN', 'ADMIN'] },
+      { label: 'Announcements', href: '/dashboard/announcements', icon: Bell },
     ]
   },
   {
@@ -135,19 +213,6 @@ export const SCHOOL_NAV: NavigationSection[] = [
       { label: 'Library', href: '/dashboard/library', icon: Library },
       { label: 'Transport', href: '/dashboard/transport', icon: Bus },
       { label: 'HR', href: '/dashboard/hr', icon: Briefcase, roles: ['SCHOOL_ADMIN', 'ADMIN', 'HR'] },
-    ]
-  },
-  {
-    title: 'Communication',
-    items: [
-      { label: 'Operations Center', href: '/communications', icon: Megaphone, roles: ['SCHOOL_ADMIN', 'ADMIN'] },
-      { label: 'Messages', href: '/dashboard/messages', icon: MessageSquare, badge: 'New' },
-      { label: 'Announcements', href: '/dashboard/announcements', icon: Bell },
-    ]
-  },
-  {
-    title: 'Resources',
-    items: [
       { label: 'Inventory', href: '/inventory', icon: Package, roles: ['SCHOOL_ADMIN', 'ADMIN', 'INVENTORY_OFFICER', 'STOREKEEPER'] },
       { label: 'Assets', href: '/assets', icon: Monitor, roles: ['SCHOOL_ADMIN', 'ADMIN', 'INVENTORY_OFFICER'] },
       { label: 'Procurement', href: '/procurement', icon: ShoppingCart, roles: ['SCHOOL_ADMIN', 'ADMIN', 'PROCUREMENT_OFFICER'] },
@@ -155,9 +220,21 @@ export const SCHOOL_NAV: NavigationSection[] = [
     ]
   },
   {
-    title: 'Administration',
+    title: 'Reports',
     items: [
+      { label: 'Student Reports', href: '/dashboard/report-cards/generate', icon: File, roles: ['SCHOOL_ADMIN', 'ADMIN', 'PRINCIPAL'] },
+      { label: 'Academic Reports', href: '/dashboard/results', icon: BarChart3, roles: ['SCHOOL_ADMIN', 'ADMIN', 'PRINCIPAL', 'TEACHER'] },
+      { label: 'Attendance Reports', href: '/dashboard/attendance/history', icon: CalendarCheck, roles: ['SCHOOL_ADMIN', 'ADMIN', 'PRINCIPAL'] },
+      { label: 'Financial Reports', href: '/accountant/reports', icon: BarChart3, roles: ['SCHOOL_ADMIN', 'ADMIN', 'ACCOUNTANT'] },
+    ]
+  },
+  {
+    title: 'Administration & Settings',
+    items: [
+      { label: 'Roles & Permissions', href: '/dashboard/users', icon: Gavel, roles: ['SCHOOL_ADMIN', 'ADMIN'] },
       { label: 'School Settings', href: '/dashboard/settings', icon: Settings, roles: ['SCHOOL_ADMIN', 'ADMIN'] },
+      { label: 'Notification Settings', href: '/dashboard/settings/features', icon: Bell, roles: ['SCHOOL_ADMIN', 'ADMIN'] },
+      { label: 'School Activity History', href: '/dashboard/activity', icon: FileText, roles: ['SCHOOL_ADMIN', 'ADMIN'] },
     ]
   }
 ];
@@ -274,21 +351,15 @@ export const ACCOUNTANT_NAV: NavigationSection[] = [
     title: 'Finance',
     items: [
       { label: 'Dashboard', href: '/accountant/dashboard', icon: LayoutDashboard },
+      { label: 'Fee Structures', href: '/accountant/fees', icon: PiggyBank },
       { label: 'Invoices', href: '/accountant/invoices', icon: FileText },
       { label: 'Payments', href: '/accountant/payments', icon: CreditCard },
       { label: 'Receipts', href: '/accountant/receipts', icon: Receipt },
       { label: 'Ledger', href: '/accountant/ledger', icon: Scale },
-      { label: 'Outstanding', href: '/accountant/outstanding', icon: AlertCircle },
+      { label: 'Outstanding Balances', href: '/accountant/outstanding', icon: AlertCircle },
       { label: 'Billing', href: '/accountant/billing', icon: Receipt },
       { label: 'Record Refund', href: '/accountant/refunds/new', icon: History },
-      { label: 'Fee Structures', href: '/accountant/fees', icon: Wallet },
-      { label: 'Reports', href: '/accountant/reports', icon: TrendingUp },
-    ]
-  },
-  {
-    title: 'Students',
-    items: [
-      { label: 'Students', href: '/dashboard/students', icon: GraduationCap },
+      { label: 'Reports', href: '/accountant/reports', icon: BarChart3 },
     ]
   },
   {
@@ -308,7 +379,7 @@ export const LIBRARIAN_NAV: NavigationSection[] = [
       { label: 'Books', href: '/librarian/books', icon: Library },
       { label: 'Issue Loan', href: '/librarian/loans/issue', icon: BookCopy },
       { label: 'Return Loan', href: '/librarian/loans/return', icon: GitPullRequest },
-      { label: 'Reports', href: '/librarian/reports', icon: TrendingUp },
+      { label: 'Reports', href: '/librarian/reports', icon: BarChart3 },
     ]
   }
 ];

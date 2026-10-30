@@ -103,11 +103,53 @@ export class SchoolDashboardService {
     };
   }
 
-  async getFullActivityLog(schoolId: string) {
-    return this.prisma.auditLog.findMany({
-      where: { schoolId },
+  async getFullActivityLog(
+    schoolId: string,
+    filters: { search?: string; module?: string } = {},
+  ) {
+    const module = typeof filters.module === 'string' ? filters.module.trim() : '';
+    const search = typeof filters.search === 'string' ? filters.search.trim().toLowerCase() : '';
+
+    const logs = await this.prisma.auditLog.findMany({
+      where: {
+        schoolId,
+        ...(module ? { module: { equals: module, mode: 'insensitive' as const } } : {}),
+      },
       orderBy: { createdAt: 'desc' },
-      take: 100,
+      take: 200,
+    });
+
+    const userIds = Array.from(
+      new Set(logs.map((log) => log.userId).filter((id): id is string => Boolean(id))),
+    );
+    const users = userIds.length
+      ? await this.prisma.user.findMany({
+          where: { id: { in: userIds } },
+          select: { id: true, firstName: true, lastName: true, email: true },
+        })
+      : [];
+    const userMap = new Map(users.map((user) => [user.id, user]));
+
+    const enriched = logs.map((log) => ({
+      ...log,
+      user: log.userId ? userMap.get(log.userId) ?? null : null,
+    }));
+
+    if (!search) return enriched;
+
+    return enriched.filter((log) => {
+      const haystack = [
+        log.action,
+        log.module,
+        log.resourceId,
+        log.user?.firstName,
+        log.user?.lastName,
+        log.user?.email,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      return haystack.includes(search);
     });
   }
 }

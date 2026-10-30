@@ -1,12 +1,15 @@
 import { Controller, Get, Post, Body, Param, UseGuards, Query, Patch } from '@nestjs/common';
 import { FrontOfficeService } from './front-office.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
 import { TenantGuard } from '../auth/guards/tenant.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { ActiveSchool } from '../auth/decorators/active-school.decorator';
 
 @Controller('front-office')
-@UseGuards(JwtAuthGuard, TenantGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, TenantGuard)
+@Roles('RECEPTIONIST', 'SCHOOL_ADMIN', 'PRINCIPAL')
 export class FrontOfficeController {
   constructor(private readonly frontOfficeService: FrontOfficeService) {}
 

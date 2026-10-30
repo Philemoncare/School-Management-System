@@ -1,4 +1,5 @@
 import { IsString, IsOptional, IsEnum, IsArray, IsObject, MinLength } from 'class-validator';
+import { Transform } from 'class-transformer';
 import { SearchableEntityType } from '@prisma/client';
 
 export class GlobalSearchDto {
@@ -24,6 +25,14 @@ export class AdvancedSearchDto {
   @IsEnum(SearchableEntityType)
   entity: SearchableEntityType;
 
+  @Transform(({ value }) => {
+    if (typeof value !== 'string') return value;
+    try {
+      return JSON.parse(value);
+    } catch {
+      return value;
+    }
+  })
   @IsObject()
   filters: any;
 

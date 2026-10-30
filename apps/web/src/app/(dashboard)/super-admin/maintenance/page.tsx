@@ -18,6 +18,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input, Select } from '@/components/ui/input';
 import { Modal } from '@/components/ui/modal';
+import { SearchableChecklist } from '@/components/ui/checklist';
 
 const emptyForm = {
   title: '',
@@ -53,7 +54,7 @@ export default function SuperAdminMaintenance() {
   useEffect(() => {
     Promise.all([
       loadMaintenance(),
-      apiFetch('/super-admin/schools?take=100').then((data) => setSchools(data.items || [])).catch(() => setSchools([])),
+      apiFetch('/super-admin/schools?take=100&sort=name').then((data) => setSchools(data.items || [])).catch(() => setSchools([])),
     ]);
   }, []);
 
@@ -313,18 +314,18 @@ export default function SuperAdminMaintenance() {
           </label>
 
           {!form.allSchools && (
-            <div>
-              <p className="mb-2 text-xs font-semibold text-warm-600">Select schools ({form.schoolIds.length} selected)</p>
-              <div className="max-h-52 overflow-y-auto rounded-xl border border-warm-200 p-2 grid grid-cols-1 sm:grid-cols-2 gap-1">
-                {schools.map((school) => (
-                  <label key={school.id} className="flex items-center gap-2 rounded-lg px-2 py-2 hover:bg-ivory-50 cursor-pointer">
-                    <input type="checkbox" checked={form.schoolIds.includes(school.id)} onChange={() => toggleSchool(school.id)} className="h-4 w-4 rounded border-warm-300 text-forest-700" />
-                    <span className="text-xs font-semibold text-warm-700 truncate">{school.name}</span>
-                  </label>
-                ))}
-                {schools.length === 0 && <p className="p-2 text-xs text-warm-400">No schools available.</p>}
-              </div>
-            </div>
+            <SearchableChecklist
+              items={schools.map((school) => ({
+                id: school.id,
+                label: school.name,
+                description: school.code,
+              }))}
+              selectedIds={form.schoolIds}
+              onToggle={toggleSchool}
+              searchPlaceholder="Search schools…"
+              emptyMessage="No schools available."
+              label="Select schools"
+            />
           )}
         </div>
       </Modal>

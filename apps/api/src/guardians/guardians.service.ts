@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
-import { CreateGuardianDto, LinkGuardianDto } from './dto/create-guardian.dto';
+import { CreateGuardianDto, LinkGuardianDto, UpdateLinkGuardianDto } from './dto/create-guardian.dto';
 
 @Injectable()
 export class GuardiansService {
@@ -62,6 +62,96 @@ export class GuardiansService {
       include: {
         guardian: true
       }
+    });
+  }
+
+  async unlinkFromStudent(schoolId: string, studentId: string, guardianId: string, actorId: string) {
+    // Verify the link exists and belongs to this school
+    const link = await this.prisma.studentGuardian.findFirst({
+      where: {
+        studentId,
+        guardianId,
+        student: { schoolId }
+      }
+    });
+    if (!link) {
+      throw new NotFoundException('Guardian is not linked to this student.');
+    }
+
+    await this.prisma.studentGuardian.delete({
+      where: {
+        studentId_guardianId: {
+          studentId,
+          guardianId
+        }
+      }
+    });
+
+    await this.audit.log({
+      userId: actorId,
+      schoolId,
+      action: 'GUARDIAN_UNLINKED',
+      module: 'STUDENTS',
+      resourceId: studentId,
+      metadata: { guardianId },
+    });
+
+    return { success: true };
+  }
+
+  async updateLink(schoolId: string, studentId: string, guardianId: string, dto: UpdateLinkGuardianDto, actorId: string) {
+    // Verify the link exists and belongs to this school
+    const link = await this.prisma.studentGuardian.findFirst({
+      where: {
+        studentId,
+        guardianId,
+        student: { schoolId }
+      }
+    });
+    if (!link) {
+      throw new NotFoundException('Guardian is not linked to this student.');
+    }
+
+    const updated = await this.prisma.studentGuardian.update({
+      where: {
+        studentId_guardianId: {
+          studentId,
+          guardianId
+        }
+      },
+      data: {
+        ...(dto.relation !== undefined ? { relation: dto.relation } : {}),
+        ...(dto.isPrimary !== undefined ? { isPrimary: dto.isPrimary } : {}),
+      }
+    });
+
+    await this.audit.log({
+      userId: actorId,
+      schoolId,
+      action: 'GUARDIAN_LINK_UPDATED',
+      module: 'STUDENTS',
+      resourceId: studentId,
+      metadata: { guardianId, changes: dto },
+    });
+
+    return updated;
+  }
+
+  async findAll(schoolId: string) {
+    return this.prisma.guardian.findMany({
+      where: {
+        students: {
+          some: {
+            student: { schoolId }
+          }
+        }
+      },
+      include: {
+        _count: {
+          select: { students: true }
+        }
+      },
+      orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
     });
   }
 }

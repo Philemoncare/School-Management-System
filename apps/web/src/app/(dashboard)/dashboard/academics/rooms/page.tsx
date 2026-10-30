@@ -114,17 +114,14 @@ export default function RoomManagementPage() {
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
-          <select
+          <Select
             aria-label="Filter rooms by type"
             value={typeFilter}
+            placeholder="All room types"
+            options={ROOM_TYPES}
             onChange={(e) => setTypeFilter(e.target.value)}
-            className="rounded-2xl border border-warm-200 bg-card p-3 text-[11px] font-semibold uppercase tracking-wide text-warm-600 shadow-sm focus:border-forest-600 focus:outline-none"
-          >
-            <option value="ALL">All room types</option>
-            {ROOM_TYPES.map((type) => (
-              <option key={type.value} value={type.value}>{type.label}</option>
-            ))}
-          </select>
+            className="w-auto min-w-[160px]"
+          />
         </div>
 
         {error && (

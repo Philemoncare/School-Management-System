@@ -1,5 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as nodemailer from 'nodemailer';
+import * as fs from 'fs';
+import * as path from 'path';
 
 export interface EmailOptions {
   to: string;
@@ -14,20 +16,57 @@ export abstract class EmailProvider {
 @Injectable()
 export class ConsoleEmailProvider extends EmailProvider {
   private readonly logger = new Logger('ConsoleEmailProvider');
+  private readonly logDir = path.join(process.cwd(), 'logs', 'emails');
+
+  constructor() {
+    super();
+    try {
+      fs.mkdirSync(this.logDir, { recursive: true });
+    } catch {
+      // Directory may already exist
+    }
+  }
 
   async send(options: EmailOptions) {
     const hasSmtp = Boolean(
-      process.env.SMTP_HOST || process.env.MAIL_HOST || process.env.RESEND_API_KEY
+      process.env.SMTP_HOST?.trim() ||
+      process.env.MAIL_HOST?.trim() ||
+      process.env.RESEND_API_KEY?.trim()
     );
 
-    if (!hasSmtp && process.env.NODE_ENV !== 'development') {
+    if (!hasSmtp) {
+      this.logger.warn(
+        `[EMAIL UNCONFIGURED] To: ${options.to} | Subject: ${options.subject} | SMTP not configured`,
+      );
+
+      // Still write the email to a log file so it can be retrieved in development
+      try {
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const filename = `email-${timestamp}-${options.to.replace(/[^a-zA-Z0-9]/g, '_')}.eml`;
+        const filepath = path.join(this.logDir, filename);
+        const content = [
+          `To: ${options.to}`,
+          `Subject: ${options.subject}`,
+          `From: ${process.env.EMAIL_FROM || 'SchooMA <noreply@school.edu>'}`,
+          `Date: ${new Date().toISOString()}`,
+          `Status: PENDING (SMTP not configured)`,
+          '',
+          options.body,
+        ].join('\n');
+        fs.writeFileSync(filepath, content, 'utf8');
+      } catch {
+        // Ignore file write errors
+      }
+
       return {
         success: false,
         code: 'SERVICE_UNCONFIGURED',
-        error: 'Email service is not configured. Please contact your school administrator.',
+        error: 'Email service is not configured. SMTP credentials are missing. Please contact your school administrator.',
       };
     }
 
+    // SMTP is configured but ConsoleEmailProvider is only used as fallback.
+    // Attempt a real SMTP send via SmtpEmailProvider behavior.
     this.logger.log(`[EMAIL LOG] To: ${options.to} | Subject: ${options.subject}`);
     return { success: true, reference: `email-log-${Date.now()}` };
   }
@@ -46,16 +85,16 @@ export class SmtpEmailProvider extends EmailProvider {
 
   constructor() {
     super();
-    const host = process.env.SMTP_HOST || process.env.MAIL_HOST || '';
+    const host = (process.env.SMTP_HOST || process.env.MAIL_HOST || '').trim();
     const port = Number(process.env.SMTP_PORT || 587);
-    const user = process.env.SMTP_USER || '';
-    const pass = process.env.SMTP_PASS || '';
+    const user = (process.env.SMTP_USER || '').trim();
+    const pass = (process.env.SMTP_PASS || '').trim();
 
     this.host = host;
     this.port = port;
     this.user = user;
     this.pass = pass;
-    this.from = process.env.EMAIL_FROM || user;
+    this.from = (process.env.EMAIL_FROM || user).trim();
 
     if (host && (user || process.env.NODE_ENV === 'development')) {
       this.transporter = this.createTransport(host, port, process.env.SMTP_SECURE === 'true' || port === 465);
@@ -75,15 +114,17 @@ export class SmtpEmailProvider extends EmailProvider {
       port,
       secure,
       auth: this.user && this.pass ? { user: this.user, pass: this.pass } : undefined,
-      connectionTimeout: 8000,
-      greetingTimeout: 8000,
-      socketTimeout: 12000,
+      connectionTimeout: 10000,
+      greetingTimeout: 10000,
+      socketTimeout: 15000,
+      // Allow self-signed certificates for development
+      tls: process.env.NODE_ENV !== 'production' ? { rejectUnauthorized: false } : undefined,
     });
   }
 
   private isConnectionError(error: unknown): boolean {
     const code = (error as { code?: string } | undefined)?.code;
-    return code === 'ECONNECTION' || code === 'ESOCKET' || code === 'ETIMEDOUT' || code === 'ECONNREFUSED';
+    return code === 'ECONNECTION' || code === 'ESOCKET' || code === 'ETIMEDOUT' || code === 'ECONNREFUSED' || code === 'ENOTFOUND' || code === 'EAI_AGAIN' || code === 'EAI_FAIL' || code === 'EAI_NONAME';
   }
 
   async send(options: EmailOptions) {

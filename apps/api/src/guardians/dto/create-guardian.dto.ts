@@ -39,3 +39,13 @@ export class LinkGuardianDto {
   @IsOptional()
   isPrimary?: boolean;
 }
+
+export class UpdateLinkGuardianDto {
+  @IsString()
+  @IsOptional()
+  relation?: string;
+
+  @IsBoolean()
+  @IsOptional()
+  isPrimary?: boolean;
+}

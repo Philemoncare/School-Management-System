@@ -135,6 +135,17 @@ export default function TimetableDashboardPage() {
   useEffect(() => {
     let cancelled = false;
 
+    async function loadAllTeachers() {
+      const first = await apiFetch('/teachers?limit=100&page=1');
+      const items = Array.isArray(first?.items) ? [...first.items] : [];
+      const totalPages = Number(first?.meta?.totalPages ?? 1);
+      for (let page = 2; page <= totalPages; page += 1) {
+        const next = await apiFetch(`/teachers?limit=100&page=${page}`);
+        if (Array.isArray(next?.items)) items.push(...next.items);
+      }
+      return { items };
+    }
+
     async function loadReference() {
       setLoading(true);
       setError('');
@@ -143,7 +154,7 @@ export default function TimetableDashboardPage() {
         apiFetch('/academic-years'),
         apiFetch('/classes'),
         apiFetch('/subjects'),
-        apiFetch('/teachers?limit=200&page=1'),
+        loadAllTeachers(),
         apiFetch('/timetable/rooms'),
         apiFetch('/timetable/bell-schedules'),
         apiFetch('/timetable/substitutions'),
@@ -873,6 +884,8 @@ function LessonModal({
   });
   const [terms, setTerms] = useState<any[]>([]);
   const [sections, setSections] = useState<any[]>([]);
+  const [classSubjectIds, setClassSubjectIds] = useState<string[] | null>(null);
+  const [loadingSections, setLoadingSections] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -910,23 +923,48 @@ function LessonModal({
 
   useEffect(() => {
     let cancelled = false;
+    setSections([]);
+    setClassSubjectIds(null);
     if (!form.classId) {
-      setSections([]);
+      setLoadingSections(false);
       return () => {
         cancelled = true;
       };
     }
-    apiFetch(`/sections/by-class/${form.classId}`)
-      .then((data) => {
-        if (!cancelled) setSections(Array.isArray(data) ? data : []);
+    setLoadingSections(true);
+    Promise.all([
+      apiFetch(`/sections/by-class/${form.classId}`),
+      apiFetch(`/class-subjects/by-class/${form.classId}`),
+    ])
+      .then(([sectionData, assignmentData]) => {
+        if (cancelled) return;
+        setSections(
+          (Array.isArray(sectionData) ? sectionData : []).filter(
+            (section: any) => section.isActive !== false,
+          ),
+        );
+        const assignments: any[] = Array.isArray(assignmentData) ? assignmentData : [];
+        setClassSubjectIds(assignments.map((assignment) => assignment.subjectId));
       })
       .catch(() => {
-        if (!cancelled) setSections([]);
+        if (cancelled) return;
+        setSections([]);
+        setClassSubjectIds(null);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingSections(false);
       });
     return () => {
       cancelled = true;
     };
   }, [form.classId]);
+
+  const availableSubjects = useMemo(() => {
+    if (classSubjectIds && classSubjectIds.length) {
+      return subjects.filter((subject) => classSubjectIds.includes(subject.id));
+    }
+    return subjects;
+  }, [subjects, classSubjectIds]);
 
   function pickPeriod(periodId: string) {
     const period = periods.find((item: any) => item.id === periodId);
@@ -998,15 +1036,17 @@ function LessonModal({
           <Select
             label="Academic year *"
             value={form.academicYearId}
-            options={[
-              { value: '', label: 'Select year' },
-              ...years.map((year) => ({ value: year.id, label: year.name })),
-            ]}
+            placeholder="Select academic year"
+            options={years.map((year) => ({
+              value: year.id,
+              label: `${year.name}${year.isCurrent ? ' (current)' : ''}`,
+            }))}
             onChange={(event) => setForm({ ...form, academicYearId: event.target.value, termId: '', periodId: '' })}
           />
           <Select
             label="Term"
             value={form.termId}
+            placeholder={terms.length ? 'Whole year' : 'No terms for this year'}
             options={[
               { value: '', label: 'Whole year' },
               ...terms.map((term) => ({ value: term.id, label: term.name })),
@@ -1016,46 +1056,88 @@ function LessonModal({
           <Select
             label="Class *"
             value={form.classId}
-            options={[
-              { value: '', label: 'Select class' },
-              ...classes.map((clazz) => ({ value: clazz.id, label: clazz.name })),
-            ]}
-            onChange={(event) => setForm({ ...form, classId: event.target.value, sectionId: '' })}
+            placeholder="Select class"
+            options={classes.map((clazz) => ({
+              value: clazz.id,
+              label: clazz.name,
+              description: clazz.code ?? undefined,
+              disabled: clazz.isActive === false,
+            }))}
+            onChange={(event) =>
+              setForm({ ...form, classId: event.target.value, sectionId: '', subjectId: '' })
+            }
           />
           <Select
             label="Section"
             value={form.sectionId}
-            disabled={!form.classId || sections.length === 0}
+            loading={loadingSections}
+            placeholder={
+              !form.classId
+                ? 'Select a class first'
+                : sections.length
+                  ? 'Whole class'
+                  : 'No sections'
+            }
+            disabled={!form.classId || loadingSections || sections.length === 0}
             options={[
-              { value: '', label: sections.length ? 'Whole class' : 'No sections' },
-              ...sections.map((section) => ({ value: section.id, label: section.name })),
+              { value: '', label: 'Whole class' },
+              ...sections.map((section) => ({
+                value: section.id,
+                label: section.name,
+                description: section.code ?? undefined,
+              })),
             ]}
             onChange={(event) => setForm({ ...form, sectionId: event.target.value })}
           />
           <Select
             label="Subject *"
             value={form.subjectId}
-            options={[
-              { value: '', label: 'Select subject' },
-              ...subjects.map((subject) => ({ value: subject.id, label: subject.name })),
-            ]}
+            searchable={availableSubjects.length > 10}
+            placeholder={
+              !form.classId
+                ? 'Select a class first'
+                : availableSubjects.length
+                  ? 'Select subject'
+                  : 'No subjects for this class'
+            }
+            disabled={!form.classId || availableSubjects.length === 0}
+            options={availableSubjects.map((subject) => ({
+              value: subject.id,
+              label: subject.name,
+              description: subject.code ?? undefined,
+            }))}
+            helperText={
+              form.classId && classSubjectIds && classSubjectIds.length === 0
+                ? 'This class has no assigned subjects yet — showing all active subjects.'
+                : undefined
+            }
             onChange={(event) => setForm({ ...form, subjectId: event.target.value })}
           />
           <Select
             label="Teacher *"
             value={form.teacherId}
-            options={[
-              { value: '', label: 'Select teacher' },
-              ...teachers.map((teacher) => ({ value: teacher.id, label: teacherName(teacher) })),
-            ]}
+            searchable
+            placeholder="Select teacher"
+            options={teachers.map((teacher) => ({
+              value: teacher.id,
+              label: teacherName(teacher),
+              description: teacher.employeeId ?? undefined,
+            }))}
+            emptyMessage="No teachers registered yet."
             onChange={(event) => setForm({ ...form, teacherId: event.target.value })}
           />
           <Select
             label="Room"
             value={form.roomId}
+            placeholder={rooms.length ? 'No room' : 'No rooms registered'}
+            disabled={rooms.length === 0}
             options={[
               { value: '', label: 'No room' },
-              ...rooms.map((room) => ({ value: room.id, label: `${room.name} (${room.code})` })),
+              ...rooms.map((room) => ({
+                value: room.id,
+                label: room.name,
+                description: room.code ?? undefined,
+              })),
             ]}
             onChange={(event) => setForm({ ...form, roomId: event.target.value })}
           />

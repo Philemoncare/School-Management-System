@@ -13,6 +13,7 @@ import {
   Loader2,
   AlertCircle,
 } from 'lucide-react';
+import { Select } from '@/components/ui/input';
 import Link from 'next/link';
 
 export default function EnrollmentsPage() {
@@ -113,19 +114,14 @@ export default function EnrollmentsPage() {
               className="w-full border-none bg-transparent text-sm font-medium placeholder:text-warm-400 focus:outline-none"
             />
           </div>
-          <select
+          <Select
             aria-label="Filter enrollments by status"
             value={status}
+            placeholder="All statuses"
+            options={statusOptions.map((option) => ({ value: option, label: option.replace(/_/g, " ") }))}
             onChange={(event) => setStatus(event.target.value)}
-            className="rounded-2xl border border-warm-200 bg-card px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-warm-600 shadow-sm focus:border-forest-600 focus:outline-none"
-          >
-            <option value="ALL">All statuses</option>
-            {statusOptions.map((option) => (
-              <option key={option} value={option}>
-                {option.replace(/_/g, ' ')}
-              </option>
-            ))}
-          </select>
+            className="w-auto min-w-[160px]"
+          />
         </div>
 
         {loading ? (

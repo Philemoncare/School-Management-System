@@ -1,8 +1,4 @@
-﻿import {
-  BadRequestException,
-  ConflictException,
-  Injectable,
-} from '@nestjs/common';
+﻿import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
 import { AccountState, Prisma, SchoolStatus } from '@prisma/client';
 import * as argon2 from 'argon2';
 import { AuditService } from '../audit/audit.service';
@@ -18,6 +14,7 @@ import {
   SCHOOL_TYPE_CONFIG,
   SchoolType,
 } from './school-registration.constants';
+import { NotificationsService } from '../notifications/notifications.service';
 
 type EmailDelivery = OtpDelivery | 'skipped';
 
@@ -54,6 +51,7 @@ export class SchoolRegistrationService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly emailOtp: EmailOtpService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async register(dto: RegisterSchoolRequestDto): Promise<SchoolRegistrationResult> {
@@ -280,12 +278,13 @@ export class SchoolRegistrationService {
           });
         }
 
-        for (const classPreset of typeConfig.classes) {
+        for (const [index, classPreset] of typeConfig.classes.entries()) {
           const schoolClass = await tx.class.create({
             data: {
               schoolId: school.id,
               name: classPreset.name,
               code: classPreset.code,
+              level: index + 1,
             },
           });
 
@@ -389,6 +388,30 @@ export class SchoolRegistrationService {
       );
       emailSent = delivery.emailSent;
       emailDelivery = delivery.emailDelivery;
+    }
+
+    // Notify Platform Super Admins of the new school registration awaiting review.
+    try {
+      const platformAdmins = await this.prisma.userRole.findMany({
+        where: {
+          role: {
+            name: { in: ['PLATFORM_SUPER_ADMIN', 'SUPER_ADMIN'] },
+            schoolId: null,
+          },
+        },
+        select: { userId: true },
+      });
+      for (const assignment of platformAdmins) {
+        await this.notifications.send(
+          assignment.userId,
+          'New school registration awaiting review',
+          `${schoolName} (${identifiers.code}) has been registered and requires platform approval before activation.`,
+          'SCHOOL_REGISTRATION',
+          undefined,
+        );
+      }
+    } catch {
+      // Notification failures must not roll back the registration.
     }
 
     return {

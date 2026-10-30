@@ -5,6 +5,7 @@ import {
   Bell, Plus, Search, Megaphone, AlertCircle, RefreshCw, Send, Trash2, XCircle,
   CalendarClock, CheckCircle2, Users, Inbox, Clock,
 } from 'lucide-react';
+import { Select } from '@/components/ui/input';
 import { apiFetch, ApiError } from '@/lib/api/client';
 import { useAuth } from '@/context/auth-context';
 import { collectUserRoles } from '@/lib/auth/roles';
@@ -264,29 +265,22 @@ export default function AnnouncementsPage() {
             className="h-9 w-full rounded-lg border border-warm-300 bg-card pl-9 pr-3 text-sm text-charcoal-800 placeholder:text-warm-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-600/30"
           />
         </div>
-        <select
-          value={statusFilter}
-          onChange={(event) => setStatusFilter(event.target.value)}
+        <Select
           aria-label="Filter by status"
-          className="h-9 rounded-lg border border-warm-300 bg-card px-3 text-xs font-semibold text-charcoal-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-600/30"
-        >
-          <option value="ALL">All statuses</option>
-          <option value="PUBLISHED">Published</option>
-          <option value="SCHEDULED">Scheduled</option>
-          <option value="DRAFT">Drafts</option>
-          <option value="CANCELLED">Cancelled</option>
-        </select>
-        <select
-          value={audienceFilter}
-          onChange={(event) => setAudienceFilter(event.target.value)}
+          value={statusFilter}
+          placeholder="All statuses"
+          options={[{ value: "ALL", label: "All statuses" }, { value: "PUBLISHED", label: "Published" }, { value: "SCHEDULED", label: "Scheduled" }, { value: "DRAFT", label: "Drafts" }, { value: "CANCELLED", label: "Cancelled" }]}
+          onChange={(event) => setStatusFilter(event.target.value)}
+          className="w-auto min-w-[140px]"
+        />
+        <Select
           aria-label="Filter by audience"
-          className="h-9 rounded-lg border border-warm-300 bg-card px-3 text-xs font-semibold text-charcoal-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-600/30"
-        >
-          <option value="ALL">All audiences</option>
-          {AUDIENCE_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>{option.label}</option>
-          ))}
-        </select>
+          value={audienceFilter}
+          placeholder="All audiences"
+          options={AUDIENCE_OPTIONS}
+          onChange={(event) => setAudienceFilter(event.target.value)}
+          className="w-auto min-w-[140px]"
+        />
         <Button variant="outline" size="sm" onClick={load} isLoading={loading} leftIcon={<RefreshCw size={15} />}>
           Refresh
         </Button>
@@ -437,32 +431,32 @@ export default function AnnouncementsPage() {
               <label htmlFor="announcement-priority" className="mb-1.5 block text-[11px] font-semibold text-warm-600 sm:text-xs">
                 Priority
               </label>
-              <select
+              <Select
                 id="announcement-priority"
                 value={form.priority}
-                onChange={(event) => setForm({ ...form, priority: event.target.value })}
-                className="h-10 w-full rounded-xl border border-warm-300 bg-card px-3 text-sm text-charcoal-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-600/30"
-              >
-                <option value="LOW">Low</option>
-                <option value="NORMAL">Normal</option>
-                <option value="HIGH">High</option>
-                <option value="CRITICAL">Critical</option>
-              </select>
+                placeholder="Select priority"
+                options={[
+                    { value: "LOW", label: "Low" },
+                    { value: "NORMAL", label: "Normal" },
+                    { value: "HIGH", label: "High" },
+                    { value: "CRITICAL", label: "Critical" },
+                ]}
+              />
             </div>
             <div>
               <label htmlFor="announcement-mode" className="mb-1.5 block text-[11px] font-semibold text-warm-600 sm:text-xs">
                 Delivery
               </label>
-              <select
+              <Select
                 id="announcement-mode"
                 value={form.mode}
-                onChange={(event) => setForm({ ...form, mode: event.target.value as typeof form.mode })}
-                className="h-10 w-full rounded-xl border border-warm-300 bg-card px-3 text-sm text-charcoal-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-600/30"
-              >
-                <option value="PUBLISH">Publish now</option>
-                <option value="SCHEDULE">Schedule for later</option>
-                <option value="DRAFT">Save as draft</option>
-              </select>
+                placeholder="Select delivery mode"
+                options={[
+                    { value: "PUBLISH", label: "Publish now" },
+                    { value: "SCHEDULE", label: "Schedule for later" },
+                    { value: "DRAFT", label: "Save as draft" },
+                ]}
+              />
             </div>
           </div>
 

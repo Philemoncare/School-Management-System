@@ -1,13 +1,14 @@
 import { Controller, Get, Param, UseGuards } from '@nestjs/common';
 import { ParentPortalService } from './parent-portal.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
 import { TenantGuard } from '../auth/guards/tenant.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { ActiveSchool } from '../auth/decorators/active-school.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 
 @Controller('parent')
-@UseGuards(JwtAuthGuard, TenantGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, TenantGuard)
 @Roles('PARENT', 'SCHOOL_ADMIN') // Allow parent or admin
 export class ParentPortalController {
   constructor(private readonly parentService: ParentPortalService) {}

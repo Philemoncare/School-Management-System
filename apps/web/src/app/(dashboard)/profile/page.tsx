@@ -369,29 +369,23 @@ export default function GlobalProfilePage() {
                 <div>
                   <label className="block text-xs font-bold text-warm-700 uppercase tracking-wider mb-2">Preferred Language</label>
                   <Select
-                    className="w-full border border-warm-200 rounded-xl px-4 py-2.5 font-semibold text-sm bg-transparent"
+                    label="Preferred Language"
                     value={language}
+                    placeholder="Select language"
+                    options={[{ value: "en", label: "English" }, { value: "fr", label: "Français" }, { value: "es", label: "Español" }]}
                     onChange={(e) => setLanguage(e.target.value)}
-                  >
-                    <option>English</option>
-                    <option>Français</option>
-                    <option>Español</option>
-                  </Select>
+                  />
                 </div>
 
                 <div>
                   <label className="block text-xs font-bold text-warm-700 uppercase tracking-wider mb-2">Explicit Timezone Context</label>
                   <Select
-                    className="w-full border border-warm-200 rounded-xl px-4 py-2.5 font-semibold text-sm bg-transparent"
+                    label="Timezone"
                     value={timezone}
+                    placeholder="Select timezone"
+                    options={[{ value: "UTC", label: "UTC" }, { value: "GMT", label: "GMT" }, { value: "America/New_York", label: "America/New_York" }, { value: "Europe/London", label: "Europe/London" }, { value: "Africa/Accra", label: "Africa/Accra" }]}
                     onChange={(e) => setTimezone(e.target.value)}
-                  >
-                    <option>UTC</option>
-                    <option>GMT</option>
-                    <option>America/New_York</option>
-                    <option>Europe/London</option>
-                    <option>Africa/Accra</option>
-                  </Select>
+                  />
                 </div>
 
                 <div>

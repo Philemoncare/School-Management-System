@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input, Select } from '@/components/ui/input';
+import { SearchableChecklist } from '@/components/ui/checklist';
 import { Modal } from '@/components/ui/modal';
 
 const emptyForm = {
@@ -50,7 +51,7 @@ export default function AnnouncementsPage() {
     try {
       const [announcements, schoolData] = await Promise.all([
         apiFetch('/super-admin/announcements'),
-        apiFetch('/super-admin/schools?take=100'),
+        apiFetch('/super-admin/schools?take=100&sort=name'),
       ]);
       setItems(announcements);
       setSchools(schoolData.items || []);
@@ -239,14 +240,18 @@ export default function AnnouncementsPage() {
             <span className="text-xs font-semibold text-warm-700">Target all active schools</span>
           </label>
           {!form.allSchools && (
-            <div className="max-h-44 overflow-y-auto rounded-xl border border-warm-200 p-2 grid grid-cols-1 sm:grid-cols-2 gap-1">
-              {schools.map((school) => (
-                <label key={school.id} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-2 hover:bg-ivory-50">
-                  <input type="checkbox" checked={form.schoolIds.includes(school.id)} onChange={() => toggleFormSchool(school.id)} className="h-4 w-4 rounded border-warm-300 text-forest-700" />
-                  <span className="truncate text-xs font-semibold text-warm-700">{school.name}</span>
-                </label>
-              ))}
-            </div>
+            <SearchableChecklist
+              items={schools.map((school) => ({
+                id: school.id,
+                label: school.name,
+                description: school.code,
+              }))}
+              selectedIds={form.schoolIds}
+              onToggle={toggleFormSchool}
+              searchPlaceholder="Search schools…"
+              emptyMessage="No schools match this search."
+              label="Select schools"
+            />
           )}
         </div>
       </Modal>
@@ -265,14 +270,18 @@ export default function AnnouncementsPage() {
             <span className="text-xs font-semibold text-warm-700">All active schools</span>
           </label>
           {!publishForm.allSchools && (
-            <div className="max-h-44 overflow-y-auto rounded-xl border border-warm-200 p-2 grid grid-cols-1 sm:grid-cols-2 gap-1">
-              {schools.map((school) => (
-                <label key={school.id} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-2 hover:bg-ivory-50">
-                  <input type="checkbox" checked={publishForm.schoolIds.includes(school.id)} onChange={() => togglePublishSchool(school.id)} className="h-4 w-4 rounded border-warm-300 text-forest-700" />
-                  <span className="truncate text-xs font-semibold text-warm-700">{school.name}</span>
-                </label>
-              ))}
-            </div>
+            <SearchableChecklist
+              items={schools.map((school) => ({
+                id: school.id,
+                label: school.name,
+                description: school.code,
+              }))}
+              selectedIds={publishForm.schoolIds}
+              onToggle={togglePublishSchool}
+              searchPlaceholder="Search schools…"
+              emptyMessage="No schools match this search."
+              label="Select schools"
+            />
           )}
           <label className="flex items-center gap-2 rounded-xl border border-warm-200 p-3">
             <input type="checkbox" checked={publishForm.sendEmail} onChange={(e) => setPublishForm({ ...publishForm, sendEmail: e.target.checked })} className="h-4 w-4 rounded border-warm-300 text-forest-700" />

@@ -380,12 +380,25 @@ export class AttendanceService {
     });
   }
 
-  async findSessions(schoolId: string, filters: any) {
+  async findSessions(schoolId: string, filters: any = {}) {
+    const where: any = { schoolId };
+    for (const key of ['classId', 'sectionId', 'subjectId', 'academicYearId', 'termId', 'status'] as const) {
+      const value = filters?.[key];
+      if (typeof value === 'string' && value.trim()) where[key] = value.trim();
+    }
+
+    const date = typeof filters?.date === 'string' ? filters.date.trim() : '';
+    if (date) {
+      const start = new Date(date);
+      if (!Number.isNaN(start.getTime())) {
+        const end = new Date(start);
+        end.setDate(end.getDate() + 1);
+        where.date = { gte: start, lt: end };
+      }
+    }
+
     return this.prisma.attendanceSession.findMany({
-      where: {
-        schoolId,
-        ...filters,
-      },
+      where,
       include: {
         class: true,
         section: true,

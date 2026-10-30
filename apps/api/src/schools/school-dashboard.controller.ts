@@ -1,4 +1,4 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
+import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { SchoolDashboardService } from './school-dashboard.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { TenantGuard } from '../auth/guards/tenant.guard';
@@ -19,7 +19,11 @@ export class SchoolDashboardController {
 
   @Roles('SCHOOL_ADMIN', 'PRINCIPAL')
   @Get('activity')
-  getActivity(@ActiveSchool() schoolId: string) {
-    return this.dashboardService.getFullActivityLog(schoolId);
+  getActivity(
+    @ActiveSchool() schoolId: string,
+    @Query('search') search?: string,
+    @Query('module') module?: string,
+  ) {
+    return this.dashboardService.getFullActivityLog(schoolId, { search, module });
   }
 }

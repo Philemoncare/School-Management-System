@@ -28,6 +28,9 @@ import {
   Plus,
   RefreshCw,
   ShieldCheck,
+  Send,
+  Smartphone,
+  Trash2,
   User,
   Users,
 } from 'lucide-react';
@@ -96,6 +99,17 @@ export default function StudentProfilePage() {
   const [guardianOpen, setGuardianOpen] = useState(false);
   const [statementOpen, setStatementOpen] = useState(false);
   const [moveOpen, setMoveOpen] = useState(false);
+  const [composeOpen, setComposeOpen] = useState(false);
+  const [composeContact, setComposeContact] = useState<{ name: string; email?: string | null; phone?: string | null } | null>(null);
+  const [composeChannel, setComposeChannel] = useState<'sms' | 'email'>('sms');
+  const [composeMessage, setComposeMessage] = useState('');
+  const [composeSubject, setComposeSubject] = useState('');
+  const [composeSending, setComposeSending] = useState(false);
+  const [existingGuardians, setExistingGuardians] = useState<{ id: string; firstName: string; lastName: string; email?: string | null; phone?: string | null }[]>([]);
+  const [guardianEditOpen, setGuardianEditOpen] = useState(false);
+  const [editGuardianId, setEditGuardianId] = useState('');
+  const [editRelation, setEditRelation] = useState('');
+  const [editIsPrimary, setEditIsPrimary] = useState(false);
 
   const load = useCallback(async () => {
     if (!studentId) return;
@@ -115,6 +129,115 @@ export default function StudentProfilePage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    if (!studentId) return;
+    apiFetch(`/guardians/student/${studentId}`)
+      .then((data) => {
+        const links = Array.isArray(data) ? data : [];
+        setExistingGuardians(links.map((l: any) => ({
+          id: l.guardianId,
+          firstName: l.guardian?.firstName ?? '',
+          lastName: l.guardian?.lastName ?? '',
+          email: l.guardian?.email ?? null,
+          phone: l.guardian?.phone ?? null,
+        })));
+      })
+      .catch(() => setExistingGuardians([]));
+  }, [studentId]);
+
+  async function removeGuardian(guardianId: string) {
+    try {
+      await apiFetch(`/guardians/unlink/${studentId}/${guardianId}`, {
+        method: 'DELETE',
+      });
+      showFeedback('SUCCESS', 'Guardian unlinked from student.');
+      load();
+    } catch (err: any) {
+      setError(err?.message || 'Could not unlink the guardian.');
+      showFeedback('ERROR', err?.message || 'Could not unlink the guardian.');
+    }
+  }
+
+  function openGuardianEdit(guardianId: string, relation: string, isPrimary: boolean) {
+    setEditGuardianId(guardianId);
+    setEditRelation(relation);
+    setEditIsPrimary(isPrimary);
+    setGuardianEditOpen(true);
+  }
+
+  async function updateGuardianLink() {
+    try {
+      await apiFetch(`/guardians/link/${studentId}/${editGuardianId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          relation: editRelation.trim(),
+          isPrimary: editIsPrimary,
+        }),
+      });
+      showFeedback('SUCCESS', 'Guardian relationship updated.');
+      setGuardianEditOpen(false);
+      load();
+    } catch (err: any) {
+      setError(err?.message || 'Could not update the guardian relationship.');
+      showFeedback('ERROR', err?.message || 'Could not update the guardian relationship.');
+    }
+  }
+
+  function openCompose(contact: { name: string; email?: string | null; phone?: string | null }, channel: 'sms' | 'email') {
+    setComposeContact(contact);
+    setComposeChannel(channel);
+    setComposeMessage('');
+    setComposeSubject('');
+    setComposeOpen(true);
+  }
+
+  async function sendComposedMessage() {
+    if (!composeContact) return;
+    setComposeSending(true);
+    try {
+      if (composeChannel === 'sms') {
+        if (!composeContact.phone) {
+          setError('This contact has no phone number on file.');
+          return;
+        }
+        await apiFetch('/communications/send-direct', {
+          method: 'POST',
+          body: JSON.stringify({
+            to: composeContact.phone,
+            channel: 'SMS',
+            content: composeMessage.trim(),
+            recipientName: composeContact.name,
+            studentId,
+          }),
+        });
+        showFeedback('SUCCESS', `SMS queued to ${composeContact.name}.`);
+      } else {
+        if (!composeContact.email) {
+          setError('This contact has no email address on file.');
+          return;
+        }
+        await apiFetch('/communications/send-direct', {
+          method: 'POST',
+          body: JSON.stringify({
+            to: composeContact.email,
+            channel: 'EMAIL',
+            subject: composeSubject.trim() || 'Message from SchooMA',
+            content: composeMessage.trim(),
+            recipientName: composeContact.name,
+            studentId,
+          }),
+        });
+        showFeedback('SUCCESS', `Email queued to ${composeContact.name}.`);
+      }
+      setComposeOpen(false);
+    } catch (err: any) {
+      setError(err?.message || 'Could not send message.');
+      showFeedback('ERROR', err?.message || 'Message could not be sent.');
+    } finally {
+      setComposeSending(false);
+    }
+  }
 
   if (loading && !data) {
     return (
@@ -323,25 +446,77 @@ export default function StudentProfilePage() {
                 {student.guardians.map((link: any) => (
                   <li key={link.guardianId} className="rounded-xl bg-ivory-50 p-3">
                     <div className="flex items-center justify-between gap-2">
-                      <p className="text-sm font-semibold text-charcoal-900">
-                        {link.guardian.firstName} {link.guardian.lastName}
-                      </p>
-                      {link.isPrimary && (
-                        <span className="rounded-full bg-sage-100 px-2 py-0.5 text-[10px] font-bold uppercase text-forest-800">
-                          Primary
-                        </span>
-                      )}
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-semibold text-charcoal-900">
+                          {link.guardian.firstName} {link.guardian.lastName}
+                        </p>
+                        {link.isPrimary && (
+                          <span className="rounded-full bg-sage-100 px-2 py-0.5 text-[10px] font-bold uppercase text-forest-800">
+                            Primary
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1">
+                        {canLinkGuardian && (
+                          <button
+                            type="button"
+                            onClick={() => openGuardianEdit(link.guardianId, link.relation, link.isPrimary)}
+                            className="p-1 text-warm-400 hover:text-forest-700 hover:bg-sage-50 rounded transition-colors"
+                            aria-label={`Edit relationship for ${link.guardian.firstName} ${link.guardian.lastName}`}
+                            title="Edit relationship"
+                          >
+                            <Edit3 size={12} />
+                          </button>
+                        )}
+                        {canLinkGuardian && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (window.confirm(`Remove ${link.guardian.firstName} ${link.guardian.lastName} as a guardian for this student?`)) {
+                                removeGuardian(link.guardianId);
+                              }
+                            }}
+                            className="p-1 text-warm-400 hover:text-danger-600 hover:bg-danger-50 rounded transition-colors"
+                            aria-label={`Remove ${link.guardian.firstName} ${link.guardian.lastName} as guardian`}
+                            title="Remove guardian"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        )}
+                      </div>
                     </div>
-                    <p className="mt-1 text-xs text-warm-500">{link.relation}</p>
+                    <p className="mt-1 text-xs text-warm-500 capitalize">{link.relation}</p>
                     {link.guardian.phone && (
-                      <p className="mt-1 inline-flex items-center gap-1.5 text-xs text-warm-600">
+                      <div className="mt-1 inline-flex items-center gap-1.5 text-xs text-warm-600">
                         <Phone size={12} /> {link.guardian.phone}
-                      </p>
+                        {canLinkGuardian && (
+                          <button
+                            type="button"
+                            onClick={() => openCompose({ name: `${link.guardian.firstName} ${link.guardian.lastName}`, phone: link.guardian.phone }, 'sms')}
+                            className="ml-2 p-1 text-warm-400 hover:text-forest-700 hover:bg-sage-50 rounded transition-colors"
+                            aria-label={`Send SMS to ${link.guardian.firstName} ${link.guardian.lastName}`}
+                            title="Send SMS"
+                          >
+                            <Smartphone size={12} />
+                          </button>
+                        )}
+                      </div>
                     )}
                     {link.guardian.email && (
-                      <p className="mt-1 inline-flex items-center gap-1.5 text-xs text-warm-600">
+                      <div className="mt-1 inline-flex items-center gap-1.5 text-xs text-warm-600">
                         <Mail size={12} /> {link.guardian.email}
-                      </p>
+                        {canLinkGuardian && (
+                          <button
+                            type="button"
+                            onClick={() => openCompose({ name: `${link.guardian.firstName} ${link.guardian.lastName}`, email: link.guardian.email }, 'email')}
+                            className="ml-2 p-1 text-warm-400 hover:text-forest-700 hover:bg-sage-50 rounded transition-colors"
+                            aria-label={`Send Email to ${link.guardian.firstName} ${link.guardian.lastName}`}
+                            title="Send Email"
+                          >
+                            <Send size={12} />
+                          </button>
+                        )}
+                      </div>
                     )}
                   </li>
                 ))}
@@ -595,6 +770,20 @@ export default function StudentProfilePage() {
         />
       )}
 
+      {guardianEditOpen && (
+        <GuardianEditModal
+          studentId={studentId}
+          guardianId={editGuardianId}
+          relation={editRelation}
+          isPrimary={editIsPrimary}
+          onClose={() => setGuardianEditOpen(false)}
+          onSaved={() => {
+            setGuardianEditOpen(false);
+            load();
+          }}
+        />
+      )}
+
       {moveOpen && (
         <MoveClassModal
           studentId={student.id}
@@ -614,6 +803,80 @@ export default function StudentProfilePage() {
           data={data}
           onClose={() => setStatementOpen(false)}
         />
+      )}
+
+      {composeOpen && composeContact && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="fixed inset-0 bg-charcoal-900/40 backdrop-blur-sm" onClick={() => setComposeOpen(false)} />
+          <div className="relative bg-card rounded-2xl border border-warm-200 p-6 shadow-2xl w-full max-w-md mx-4 sm:mx-0">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-charcoal-900">
+                {composeChannel === 'sms' ? 'Send SMS' : 'Send Email'}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setComposeOpen(false)}
+                className="rounded-md p-1.5 text-warm-400 hover:text-charcoal-900 hover:bg-warm-100 transition-colors"
+                aria-label="Close"
+              >
+                <span className="text-warm-400">✕</span>
+              </button>
+            </div>
+
+            <p className="mb-4 text-sm text-charcoal-800">
+              To: <strong className="text-forest-700">{composeContact.name}</strong>
+              {composeChannel === 'sms' && composeContact.phone && (
+                <span className="block text-xs mt-1 text-warm-500">+ {composeContact.phone}</span>
+              )}
+              {composeChannel === 'email' && composeContact.email && (
+                <span className="block text-xs mt-1 text-warm-500">✉ {composeContact.email}</span>
+              )}
+            </p>
+
+            <form onSubmit={(e) => { e.preventDefault(); sendComposedMessage(); }} className="space-y-3">
+              {composeChannel === 'email' && (
+                <div className="space-y-1.5">
+                  <label className="ml-0.5 text-[11px] font-semibold text-warm-600">Subject</label>
+                  <input
+                    type="text"
+                    placeholder="Enter subject"
+                    value={composeSubject}
+                    onChange={(e) => setComposeSubject(e.target.value)}
+                    className="flex h-10 w-full rounded-lg border border-warm-300 bg-card px-3 py-2 text-sm text-charcoal-900 outline-none transition-colors focus-visible:border-forest-600 focus-visible:ring-2 focus-visible:ring-forest-600/15"
+                  />
+                </div>
+              )}
+              <div className="space-y-1.5">
+                <label className="ml-0.5 text-[11px] font-semibold text-warm-600">{composeChannel === 'sms' ? 'Message *' : 'Message body *'}</label>
+                <textarea
+                  rows={4}
+                  placeholder={composeChannel === 'sms' ? 'Type your SMS message…' : 'Type your email…'}
+                  value={composeMessage}
+                  onChange={(e) => setComposeMessage(e.target.value)}
+                  className="flex h-32 w-full resize-none rounded-lg border border-warm-300 bg-card px-3 py-2 text-sm text-charcoal-900 outline-none transition-colors focus-visible:border-forest-600 focus-visible:ring-2 focus-visible:ring-forest-600/15"
+                  required
+                />
+              </div>
+              <p className="text-xs text-warm-500">
+                Message will be sent through the school's configured {composeChannel === 'sms' ? 'SMS' : 'email'} provider.
+              </p>
+            </form>
+
+            <div className="mt-6 flex items-center justify-end gap-3">
+              <Button variant="outline" onClick={() => setComposeOpen(false)} disabled={composeSending}>
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                isLoading={composeSending}
+                disabled={composeSending || !composeMessage.trim()}
+                leftIcon={<Send size={16} />}
+              >
+                {composeSending ? 'Sending…' : composeChannel === 'sms' ? 'Send SMS' : 'Send Email'}
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -922,6 +1185,93 @@ function GuardianModal({
     </Modal>
   );
 }
+
+
+  function GuardianEditModal({
+    studentId,
+    guardianId,
+    relation,
+    isPrimary,
+    onClose,
+    onSaved,
+  }: {
+    studentId: string;
+    guardianId: string;
+    relation: string;
+    isPrimary: boolean;
+    onClose: () => void;
+    onSaved: () => void;
+  }) {
+    const [formRelation, setFormRelation] = useState(relation);
+    const [formIsPrimary, setFormIsPrimary] = useState(isPrimary);
+    const [saving, setSaving] = useState(false);
+    const [error, setError] = useState('');
+
+    async function save(event: React.FormEvent) {
+      event.preventDefault();
+      if (saving) return;
+      if (!formRelation.trim()) {
+        setError('Relationship is required.');
+        return;
+      }
+      setSaving(true);
+      setError('');
+      try {
+        await apiFetch(`/guardians/link/${studentId}/${guardianId}`, {
+          method: 'PATCH',
+          body: JSON.stringify({
+            relation: formRelation.trim(),
+            isPrimary: formIsPrimary,
+          }),
+        });
+        showFeedback('SUCCESS', 'Guardian relationship updated.');
+        onSaved();
+      } catch (err: any) {
+        setError(err?.message || 'Could not update the relationship.');
+      } finally {
+        setSaving(false);
+      }
+    }
+
+    return (
+      <Modal
+        isOpen
+        onClose={onClose}
+        title="Edit guardian relationship"
+        size="lg"
+        footerActions={
+          <>
+            <Button variant="outline" onClick={onClose} disabled={saving}>
+              Cancel
+            </Button>
+            <Button type="submit" form="guardian-edit-form" isLoading={saving} leftIcon={<Edit3 size={16} />}>
+              Save changes
+            </Button>
+          </>
+        }
+      >
+        <form id="guardian-edit-form" onSubmit={save} className="space-y-4">
+          {error && <p role="alert" className="rounded-lg bg-danger-50 p-3 text-xs font-semibold text-danger-700">{error}</p>}
+          <Input
+            label="Relationship *"
+            required
+            placeholder="e.g. Mother, Father, Uncle"
+            value={formRelation}
+            onChange={(e) => setFormRelation(e.target.value)}
+          />
+          <label className="flex items-center gap-2 self-end pb-2 text-xs font-semibold text-warm-700">
+            <input
+              type="checkbox"
+              className="h-4 w-4 rounded border-warm-300"
+              checked={formIsPrimary}
+              onChange={(e) => setFormIsPrimary(e.target.checked)}
+            />
+            Primary guardian
+          </label>
+        </form>
+      </Modal>
+    );
+  }
 
 function MoveClassModal({
   studentId,

@@ -9,10 +9,11 @@ import {
   CreateOfferDto,
   ScheduleInterviewDto
 } from './dto/admissions.dto';
-import { ApplicationStatus, DecisionType, OfferStatus, CampaignStatus } from '@prisma/client';
+import { ApplicationStatus, DecisionType, OfferStatus, CampaignStatus, Prisma } from '@prisma/client';
 import { OutboxService } from '../workflow/events/outbox.service';
 import { DomainEvent } from '../workflow/events/domain-event';
 import { SettingsService } from '../settings/settings.service';
+import { sortClasses } from '../academics/class-order';
 
 @Injectable()
 export class AdmissionsService {
@@ -102,7 +103,7 @@ export class AdmissionsService {
       orderBy: [{ level: 'asc' }, { name: 'asc' }],
     });
 
-    return { ...campaign, classes };
+    return { ...campaign, classes: sortClasses(classes) };
   }
 
   async submitPublicApplication(slug: string, dto: SubmitApplicationDto) {
@@ -170,8 +171,42 @@ export class AdmissionsService {
   }
 
   async findAllApplications(schoolId: string, filters: any = {}) {
+    const search = typeof filters?.search === 'string' ? filters.search.trim() : '';
+    const where: Prisma.AdmissionApplicationWhereInput = { schoolId };
+
+    for (const key of ['campaignId', 'academicYearId', 'classId'] as const) {
+      const value = filters?.[key];
+      if (typeof value === 'string' && value.trim()) {
+        (where as any)[key] = value.trim();
+      }
+    }
+    const status = typeof filters?.status === 'string' ? filters.status.trim() : '';
+    if (status && Object.values(ApplicationStatus).includes(status as ApplicationStatus)) {
+      where.status = status as ApplicationStatus;
+    }
+
+    if (search) {
+      where.OR = [
+        { firstName: { contains: search, mode: 'insensitive' } },
+        { lastName: { contains: search, mode: 'insensitive' } },
+        { reference: { contains: search, mode: 'insensitive' } },
+        {
+          guardians: {
+            some: {
+              OR: [
+                { firstName: { contains: search, mode: 'insensitive' } },
+                { lastName: { contains: search, mode: 'insensitive' } },
+                { email: { contains: search, mode: 'insensitive' } },
+                { phone: { contains: search, mode: 'insensitive' } },
+              ],
+            },
+          },
+        },
+      ];
+    }
+
     return this.prisma.admissionApplication.findMany({
-      where: { ...filters, schoolId },
+      where,
       include: {
         campaign: true,
         academicYear: true,

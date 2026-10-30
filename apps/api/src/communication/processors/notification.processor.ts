@@ -4,7 +4,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { TemplateService } from '../template.service';
 import { EmailProvider } from '../providers/email.provider';
 import { SmsProvider } from '../providers/sms.provider';
-import { CommunicationChannel, DeliveryStatus } from '@prisma/client';
+import { CommunicationChannel, DeliveryStatus, Prisma } from '@prisma/client';
 import { Logger } from '@nestjs/common';
 
 @Processor('notifications')
@@ -78,7 +78,10 @@ export class NotificationProcessor extends WorkerHost {
     const { deliveryId, channel, recipientId, templateVersionId, data: variables, manualContent } = data;
 
     const [delivery, recipient, templateVersion] = await Promise.all([
-      this.prisma.notificationDelivery.findUnique({ where: { id: deliveryId } }),
+      this.prisma.notificationDelivery.findUnique({
+        where: { id: deliveryId },
+        include: { notification: { select: { schoolId: true } } },
+      }),
       this.prisma.user.findUnique({ where: { id: recipientId } }),
       templateVersionId ? this.prisma.notificationTemplateVersion.findUnique({ where: { id: templateVersionId } }) : Promise.resolve(null),
     ]);
@@ -99,16 +102,21 @@ export class NotificationProcessor extends WorkerHost {
       const body = manualContent?.body || this.templateService.render(templateVersion!.body, variables);
       const subject = manualContent?.subject || (templateVersion?.subject ? this.templateService.render(templateVersion.subject, variables) : undefined);
 
+      // For direct messages, the target address is stored in directTarget.
+      // Otherwise, use the recipient user's contact details.
+      const directTarget = (data as any)?.directTarget;
+
       if (channel === CommunicationChannel.EMAIL) {
         result = await this.emailProvider.send({
-          to: recipient.email,
+          to: directTarget || recipient.email,
           subject: subject || 'Notification',
           body,
         });
       } else if (channel === CommunicationChannel.SMS) {
-        if (!recipient.phone) throw new Error('Recipient has no phone number');
+        const phone = directTarget || recipient.phone;
+        if (!phone) throw new Error('Recipient has no phone number');
         result = await this.smsProvider.send({
-          to: recipient.phone,
+          to: phone,
           message: body,
         });
       } else if (channel === CommunicationChannel.WEBSOCKET) {
@@ -129,6 +137,18 @@ export class NotificationProcessor extends WorkerHost {
           failedAt: !result.success ? new Date() : null,
         },
       });
+
+      // Deduct SMS credit on successful delivery
+      if (channel === CommunicationChannel.SMS && result.success && delivery.notification?.schoolId) {
+        await this.prisma.school.update({
+          where: { id: delivery.notification.schoolId },
+          data: {
+            smsCreditBalance: {
+              decrement: new Prisma.Decimal(1),
+            },
+          },
+        });
+      }
 
       return result;
     } catch (error: any) {

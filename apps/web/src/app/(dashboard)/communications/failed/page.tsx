@@ -1,108 +1,191 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { apiFetch } from '@/lib/api/client';
+import { Button } from '@/components/ui/button';
+import { EmptyState } from '@/components/ui/empty-state';
+import { showFeedback } from '@/components/layout/global-feedback';
 import {
   AlertCircle,
   RefreshCcw,
-  Search,
   ArrowLeft,
   XCircle,
   Clock,
-  Trash2,
-  Mail,
-  Smartphone
+  Loader2,
 } from 'lucide-react';
-import Link from 'next/link';
-import { toast } from 'sonner';
 
 export default function FailedDeliveriesPage() {
   const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [retryingId, setRetryingId] = useState('');
+
+  const fetchFailed = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const response = await apiFetch('/communications/delivery-logs?status=FAILED&limit=100');
+      const list = Array.isArray(response) ? response : [];
+      setLogs(list.filter((log: any) => log.status === 'FAILED'));
+    } catch (err: any) {
+      setLogs([]);
+      setError(err?.message || 'Could not load failed deliveries.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     fetchFailed();
-  }, []);
+  }, [fetchFailed]);
 
-  const fetchFailed = () => {
-    setLoading(true);
-    apiFetch('/communications/delivery-logs?status=FAILED')
-      .then(res => setLogs(res.filter((l: any) => l.status === 'FAILED')))
-      .finally(() => setLoading(false));
-  };
-
-  const handleRetry = async (id: string) => {
-    toast.promise(apiFetch(`/communications/delivery-logs/${id}/retry`, { method: 'POST' }), {
-      loading: 'Retrying delivery...',
-      success: 'Retry initiated',
-      error: 'Retry failed'
-    });
-  };
+  async function handleRetry(id: string) {
+    if (retryingId) return;
+    setRetryingId(id);
+    setError('');
+    try {
+      await apiFetch(`/communications/delivery-logs/${id}/retry`, { method: 'POST' });
+      showFeedback('SUCCESS', 'Retry queued for this delivery.');
+      await fetchFailed();
+    } catch (err: any) {
+      const message = err?.message || 'Retry failed.';
+      setError(message);
+      showFeedback('ERROR', message);
+    } finally {
+      setRetryingId('');
+    }
+  }
 
   return (
-    <div className="p-8 space-y-10">
-      <div className="flex justify-between items-center">
+    <div className="space-y-6 p-4 sm:p-6 lg:p-8">
+      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div className="flex items-center gap-4">
-          <Link href="/communications" className="p-2 hover:bg-warm-100 rounded-2xl transition-colors text-warm-400">
+          <Link
+            href="/communications"
+            aria-label="Back to communications"
+            className="rounded-2xl p-2 text-warm-400 transition-colors hover:bg-warm-100"
+          >
             <ArrowLeft size={24} />
           </Link>
           <div>
-            <h1 className="text-3xl font-semibold text-charcoal-900 tracking-tight">Failed <span className="text-danger-600">Deliveries</span></h1>
-            <p className="text-warm-500 font-medium">Critical queue for messages that could not reach their destination.</p>
+            <h1 className="text-2xl font-semibold tracking-tight text-charcoal-900 sm:text-3xl">
+              Failed <span className="text-danger-600">deliveries</span>
+            </h1>
+            <p className="text-sm font-medium text-warm-500">
+              Messages that could not reach their destination.
+            </p>
           </div>
         </div>
-        <button onClick={fetchFailed} className="p-3 bg-card border border-warm-100 rounded-2xl text-warm-400 hover:text-forest-700 transition-all">
-          <RefreshCcw size={20} />
-        </button>
+        <Button
+          variant="outline"
+          onClick={fetchFailed}
+          isLoading={loading}
+          leftIcon={<RefreshCcw size={16} />}
+        >
+          Refresh
+        </Button>
       </div>
 
-      <div className="bg-card rounded-xl border border-danger-100 shadow-sm overflow-hidden">
-        <div className="p-6 border-b border-danger-50 bg-danger-50/10 flex justify-between items-center">
-           <div className="flex items-center gap-2 text-danger-600">
-              <AlertCircle size={20} />
-              <span className="text-sm font-semibold uppercase tracking-wide">{logs.length} Messages require attention</span>
-           </div>
+      <div className="overflow-hidden rounded-xl border border-danger-100 bg-card shadow-sm">
+        <div className="flex items-center justify-between gap-3 border-b border-danger-50 bg-danger-50/10 p-4 sm:p-6">
+          <div className="flex items-center gap-2 text-danger-600">
+            {loading ? <Loader2 size={18} className="animate-spin" /> : <AlertCircle size={20} />}
+            <span className="text-sm font-semibold uppercase tracking-wide">
+              {logs.length} message{logs.length === 1 ? '' : 's'} require attention
+            </span>
+          </div>
         </div>
 
+        {error && (
+          <div
+            role="alert"
+            className="flex flex-col gap-3 border-b border-danger-100 bg-danger-50 p-4 text-xs font-semibold text-danger-700 sm:flex-row sm:items-center sm:justify-between"
+          >
+            <span className="flex items-center gap-2">
+              <AlertCircle size={16} /> {error}
+            </span>
+            <Button variant="outline" size="sm" onClick={fetchFailed}>
+              Try again
+            </Button>
+          </div>
+        )}
+
         <div className="divide-y divide-ivory-50">
-           {loading ? (
-             <div className="p-20 text-center text-warm-400 font-bold animate-pulse">Scanning failure logs...</div>
-           ) : logs.length === 0 ? (
-             <div className="p-20 text-center text-warm-400 font-bold italic">No active failures detected. Excellent!</div>
-           ) : logs.map((log) => (
-             <div key={log.id} className="p-8 flex items-center justify-between group hover:bg-danger-50/5 transition-all">
-                <div className="flex items-start gap-6">
-                   <div className="w-12 h-12 bg-danger-50 rounded-2xl flex items-center justify-center text-danger-500 shrink-0">
-                      <XCircle size={24} />
-                   </div>
-                   <div>
-                      <div className="flex items-center gap-3 mb-1">
-                        <h3 className="text-base font-semibold text-charcoal-900">{log.notification?.title}</h3>
-                        <span className="px-2 py-0.5 bg-warm-100 text-warm-500 text-[11px] font-semibold uppercase rounded">{log.channel}</span>
+          {loading ? (
+            <div className="flex items-center justify-center gap-3 p-16 text-sm font-medium text-warm-500">
+              <Loader2 className="h-5 w-5 animate-spin text-forest-700" /> Scanning failure logs…
+            </div>
+          ) : logs.length === 0 ? (
+            <div className="p-6 sm:p-10">
+              <EmptyState
+                icon={<XCircle className="h-8 w-8" />}
+                title="No active failures"
+                description="Every recent message was accepted by its delivery provider."
+                actionButton={
+                  <Link
+                    href="/communications/delivery"
+                    className="inline-flex items-center gap-2 rounded-xl bg-forest-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-forest-800"
+                  >
+                    View delivery logs
+                  </Link>
+                }
+              />
+            </div>
+          ) : (
+            logs.map((log) => {
+              const recipient = log.notification?.user;
+              const recipientLabel = recipient
+                ? `${recipient.firstName ?? ''} ${recipient.lastName ?? ''}`.trim() ||
+                  recipient.email ||
+                  log.notification?.userId
+                : log.notification?.userId;
+              return (
+                <div
+                  key={log.id}
+                  className="flex flex-col gap-4 p-5 transition-all hover:bg-danger-50/5 sm:flex-row sm:items-center sm:justify-between sm:p-6"
+                >
+                  <div className="flex items-start gap-5">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-danger-50 text-danger-500">
+                      <XCircle size={22} />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="mb-1 flex flex-wrap items-center gap-3">
+                        <h3 className="text-base font-semibold text-charcoal-900">
+                          {log.notification?.title ?? 'Notification'}
+                        </h3>
+                        <span className="rounded bg-warm-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-warm-500">
+                          {log.channel}
+                        </span>
                       </div>
-                      <p className="text-xs text-danger-600 font-bold mb-3 flex items-center gap-1">
+                      <p className="mb-2 flex items-center gap-1 text-xs font-bold text-danger-600">
                         <AlertCircle size={12} /> {log.errorMessage || 'Provider rejected message'}
                       </p>
-                      <div className="flex items-center gap-4 text-[11px] font-bold text-warm-400 uppercase">
-                         <span className="flex items-center gap-1"><Clock size={12} /> {new Date(log.createdAt).toLocaleString()}</span>
-                         <span>Recipient: {log.notification?.userId}</span>
-                         <span>Attempts: {log.attemptCount}</span>
+                      <div className="flex flex-wrap items-center gap-4 text-[11px] font-bold uppercase text-warm-400">
+                        <span className="flex items-center gap-1">
+                          <Clock size={12} />{' '}
+                          {log.createdAt ? new Date(log.createdAt).toLocaleString() : '—'}
+                        </span>
+                        <span>Recipient: {recipientLabel}</span>
+                        <span>Attempts: {log.attemptCount ?? 0}</span>
                       </div>
-                   </div>
+                    </div>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    isLoading={retryingId === log.id}
+                    disabled={Boolean(retryingId)}
+                    onClick={() => handleRetry(log.id)}
+                    leftIcon={<RefreshCcw size={14} />}
+                    className="shrink-0 self-start sm:self-auto"
+                  >
+                    Retry
+                  </Button>
                 </div>
-                <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                   <button
-                     onClick={() => handleRetry(log.id)}
-                     className="p-3 bg-card border border-warm-100 rounded-xl text-forest-700 hover:bg-forest-700 hover:text-white transition-all shadow-sm"
-                   >
-                     <RefreshCcw size={18} />
-                   </button>
-                   <button className="p-3 bg-card border border-warm-100 rounded-xl text-warm-400 hover:text-danger-600 transition-all shadow-sm">
-                     <Trash2 size={18} />
-                   </button>
-                </div>
-             </div>
-           ))}
+              );
+            })
+          )}
         </div>
       </div>
     </div>

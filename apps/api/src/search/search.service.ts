@@ -82,21 +82,25 @@ export class SearchService {
     }
 
     // Server-side validation and application of filters (Objective 26)
-    if (filters) {
-      Object.entries(filters).forEach(([key, value]) => {
-          // In this implementation, we map filters to metadata JSON field
-          // PostgreSQL supports efficient JSONB filtering
-          where.metadata = {
-              ...(where.metadata || {}),
-              path: [key],
-              equals: value
-          };
-      });
+    if (filters && typeof filters === 'object') {
+      const metadataFilters: any[] = [];
+      for (const [key, value] of Object.entries(filters)) {
+        if (!key || value === undefined || value === null || value === '') continue;
+        // In this implementation, we map filters to the metadata JSON field.
+        metadataFilters.push({ metadata: { path: [key], equals: value } });
+      }
+      if (metadataFilters.length > 0) where.AND = metadataFilters;
     }
+
+    const sortableFields = new Set(['title', 'entityType', 'updatedAt', 'createdAt']);
+    const orderBy: any =
+      sortBy && sortableFields.has(sortBy)
+        ? { [sortBy]: sortOrder === 'desc' ? 'desc' : 'asc' }
+        : { updatedAt: 'desc' };
 
     let results = await this.prisma.searchIndex.findMany({
       where,
-      orderBy: sortBy ? { [sortBy]: sortOrder || 'asc' } : { updatedAt: 'desc' },
+      orderBy,
       take: 100,
     });
 

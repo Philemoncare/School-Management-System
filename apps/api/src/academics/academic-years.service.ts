@@ -69,7 +69,7 @@ export class AcademicYearsService {
   async findAll(schoolId: string) {
     return this.prisma.academicYear.findMany({
       where: { schoolId },
-      orderBy: { startDate: 'desc' },
+      orderBy: [{ isCurrent: 'desc' }, { startDate: 'desc' }],
       include: {
         _count: {
           select: { terms: true, enrollments: true },

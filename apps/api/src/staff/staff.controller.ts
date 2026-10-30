@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { StaffService } from './staff.service';
 import { PaginationDto } from '../common/dto/pagination.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -7,6 +7,7 @@ import { TenantGuard } from '../auth/guards/tenant.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { ActiveSchool } from '../auth/decorators/active-school.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { CreateStaffDto, UpdateStaffDto } from './dto/create-staff.dto';
 
 @UseGuards(JwtAuthGuard, RolesGuard, TenantGuard)
 @Controller('staff')
@@ -17,35 +18,36 @@ export class StaffController {
   @Post()
   create(
     @ActiveSchool() schoolId: string,
-    @Body() dto: any,
-    @CurrentUser() user: any
+    @Body() dto: CreateStaffDto,
+    @CurrentUser() user: any,
   ) {
     return this.staffService.create(schoolId, dto, user.id);
   }
 
   @Roles('SCHOOL_ADMIN', 'PRINCIPAL', 'HR_OFFICER', 'RECEPTIONIST')
   @Get()
-  findAll(
-    @ActiveSchool() schoolId: string,
-    @Query() pagination: PaginationDto
-  ) {
+  findAll(@ActiveSchool() schoolId: string, @Query() pagination: PaginationDto) {
     return this.staffService.findAll(schoolId, pagination);
   }
 
   @Get('me')
-  findMe(
-    @ActiveSchool() schoolId: string,
-    @CurrentUser() user: any
-  ) {
+  findMe(@ActiveSchool() schoolId: string, @CurrentUser() user: any) {
     return this.staffService.findMe(schoolId, user.id);
+  }
+  @Roles('SCHOOL_ADMIN', 'PRINCIPAL', 'HR_OFFICER')
+  @Get(':id')
+  findOne(@ActiveSchool() schoolId: string, @Param('id') id: string) {
+    return this.staffService.findOne(schoolId, id);
   }
 
   @Roles('SCHOOL_ADMIN', 'PRINCIPAL', 'HR_OFFICER')
-  @Get(':id')
-  findOne(
+  @Patch(':id')
+  update(
     @ActiveSchool() schoolId: string,
-    @Param('id') id: string
+    @Param('id') id: string,
+    @Body() dto: UpdateStaffDto,
+    @CurrentUser() user: any,
   ) {
-    return this.staffService.findOne(schoolId, id);
+    return this.staffService.update(schoolId, id, dto, user.id);
   }
 }

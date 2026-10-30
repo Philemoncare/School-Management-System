@@ -37,6 +37,9 @@ export default function SchoolDetailPage() {
   const [error, setError] = useState('');
   const [editOpen, setEditOpen] = useState(false);
   const [planOpen, setPlanOpen] = useState(false);
+  const [smsTopUpOpen, setSmsTopUpOpen] = useState(false);
+  const [smsTopUp, setSmsTopUp] = useState({ amount: '', reason: '' });
+  const [smsSaving, setSmsSaving] = useState(false);
   const [editForm, setEditForm] = useState<any>({});
   const [planForm, setPlanForm] = useState({ planId: '', status: 'ACTIVE' });
   const [saving, setSaving] = useState(false);
@@ -135,6 +138,30 @@ export default function SchoolDetailPage() {
       setError(err.message || 'Unable to assign subscription');
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function topUpSmsCredits(e: React.FormEvent) {
+    e.preventDefault();
+    setSmsSaving(true);
+    setError('');
+    try {
+      await apiFetch('/super-admin/sms-credits/topup', {
+        method: 'POST',
+        body: JSON.stringify({
+          schoolId: id,
+          amount: parseFloat(smsTopUp.amount),
+          reason: smsTopUp.reason || 'SMS credit top-up from school detail page',
+        }),
+      });
+      setSmsTopUpOpen(false);
+      setSmsTopUp({ amount: '', reason: '' });
+      setMessage('SMS credits topped up successfully.');
+      await loadDetail();
+    } catch (err: any) {
+      setError(err.message || 'Failed to top up SMS credits');
+    } finally {
+      setSmsSaving(false);
     }
   }
 
@@ -250,6 +277,49 @@ export default function SchoolDetailPage() {
                 <p className="mt-1 text-xs text-muted-foreground">Assign a plan to unlock paid platform features.</p>
               </div>
             )}
+
+            {/* SMS Credit Balance */}
+            <div className="mt-6 pt-6 border-t border-warm-100">
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-xs font-bold text-warm-400 uppercase tracking-wide">SMS Credit Balance</h4>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    setSmsTopUp({ amount: '', reason: '' });
+                    setSmsTopUpOpen(true);
+                  }}
+                  className={`text-xs ${
+                    school.smsCreditBalance === 0
+                      ? 'bg-terracotta-500 text-primary-foreground hover:bg-terracotta-600'
+                      : 'bg-forest-500 text-primary-foreground hover:bg-forest-600'
+                  }`}
+                >
+                  {school.smsCreditBalance === 0 ? 'Purchase Credits' : 'Top Up'}
+                </Button>
+              </div>
+              <div className="flex items-center gap-4">
+                <span className="text-3xl font-bold text-charcoal-900">{school.smsCreditBalance.toLocaleString()}</span>
+                <span className="text-sm font-semibold text-muted-foreground">
+                  {school.currency} credits
+                </span>
+                {school.smsCreditBalance === 0 && (
+                  <span className="text-xs font-bold text-terracotta-600 bg-terracotta-50 px-2 py-1 rounded">
+                    No credits — SMS sending disabled
+                  </span>
+                )}
+                {school.smsCreditBalance > 0 && school.smsCreditBalance < 10 && (
+                  <span className="text-xs font-bold text-warning-600 bg-warning-50 px-2 py-1 rounded">
+                    Low balance
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-muted-foreground mt-2">
+                Each SMS sent deducts 1 credit. Manage all school SMS credits from{' '}
+                <Link href="/super-admin/sms-credits" className="text-forest-700 hover:underline font-semibold">
+                  SMS Credit Management
+                </Link>.
+              </p>
+            </div>
           </div>
 
           <div className="bg-card border border-warm-200 rounded-2xl p-5 sm:p-6 shadow-sm">
@@ -418,6 +488,35 @@ export default function SchoolDetailPage() {
             <option value="SUSPENDED">Suspended</option>
           </Select>
           {plans.length === 0 && <p className="text-xs text-warning-600">No plans exist yet. Create one in Platform Plans first.</p>}
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={smsTopUpOpen}
+        onClose={() => setSmsTopUpOpen(false)}
+        title="Top Up SMS Credits"
+        footerActions={
+          <>
+            <Button variant="outline" onClick={() => setSmsTopUpOpen(false)}>Cancel</Button>
+            <Button onClick={topUpSmsCredits} isLoading={smsSaving}>Confirm Top Up</Button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <Input
+            label="Amount (credits)"
+            type="number"
+            min="1"
+            value={smsTopUp.amount}
+            onChange={(e) => setSmsTopUp({ ...smsTopUp, amount: e.target.value })}
+            placeholder="e.g. 100"
+          />
+          <Input
+            label="Reason"
+            value={smsTopUp.reason}
+            onChange={(e) => setSmsTopUp({ ...smsTopUp, reason: e.target.value })}
+            placeholder="e.g. SMS token purchase Q1 2026"
+          />
         </div>
       </Modal>
     </div>

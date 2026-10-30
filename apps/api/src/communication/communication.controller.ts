@@ -70,6 +70,17 @@ export class CommunicationController {
     return this.communicationService.createAnnouncement(schoolId, user.id, dto);
   }
 
+  @Get('audience-preview')
+  @Roles('SCHOOL_ADMIN')
+  previewAudience(
+    @ActiveSchool() schoolId: string,
+    @Query('type') type: string,
+    @Query('classId') classId?: string,
+    @Query('sectionId') sectionId?: string,
+  ) {
+    return this.communicationService.previewAudience(schoolId, { type, classId, sectionId });
+  }
+
   @Get('delivery-logs')
   @Roles('SCHOOL_ADMIN')
   getDeliveryLogs(
@@ -77,8 +88,9 @@ export class CommunicationController {
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 20,
     @Query('status') status?: string,
+    @Query('search') search?: string,
   ) {
-    return this.communicationService.getDeliveryLogs(schoolId, { page, limit, status });
+    return this.communicationService.getDeliveryLogs(schoolId, { page, limit, status, search });
   }
 
   @Post('delivery-logs/:id/retry')
@@ -97,5 +109,15 @@ export class CommunicationController {
   @Roles('SCHOOL_ADMIN')
   sendCommunication(@ActiveSchool() schoolId: string, @Param('id') id: string) {
     return this.communicationService.triggerSend(schoolId, id);
+  }
+
+  @Post('send-direct')
+  @Roles('SCHOOL_ADMIN', 'PRINCIPAL', 'TEACHER', 'RECEPTIONIST', 'ACCOUNTANT')
+  sendDirectMessage(
+    @ActiveSchool() schoolId: string,
+    @CurrentUser() user: any,
+    @Body() dto: any,
+  ) {
+    return this.communicationService.sendDirectMessage(schoolId, user.id, dto);
   }
 }

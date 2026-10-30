@@ -15,4 +15,9 @@ export class SuperAdminDashboardController {
   getMetrics() {
     return this.superAdminService.getDashboardMetrics();
   }
+
+  @Get('operations')
+  getOperations() {
+    return this.superAdminService.getOperationsData();
+  }
 }

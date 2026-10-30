@@ -7,6 +7,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { CommunicationGateway } from '../communication/gateways/communication.gateway';
+import { NotificationsService } from '../notifications/notifications.service';
 import { CreateStudentDto } from './dto/create-student.dto';
 import { UpdateStudentDto } from './dto/update-student.dto';
 import { PaginationDto } from '../common/dto/pagination.dto';
@@ -27,6 +28,7 @@ export class StudentsService {
     private audit: AuditService,
     private gateway: CommunicationGateway,
     private settings: SettingsService,
+    private notifications: NotificationsService,
   ) {}
 
   /**
@@ -144,6 +146,15 @@ export class StudentsService {
         enrollmentId: created.enrollment?.id,
       },
     });
+
+    // Notify school administrators of the new student registration.
+    await this.notifications.send(
+      actorId,
+      'New student registered',
+      `${created.student.firstName} ${created.student.lastName} (${created.student.studentNumber}) has been registered${created.enrollment ? ` and enrolled in ${created.enrollment.class?.name || 'a class'}` : ''}.`,
+      'STUDENT_REGISTRATION',
+      schoolId,
+    );
 
     this.gateway.broadcastToSchool(schoolId, 'STUDENT_CREATED', created.student);
 

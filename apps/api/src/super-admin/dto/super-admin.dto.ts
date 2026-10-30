@@ -477,3 +477,33 @@ export class AssignPlatformRoleDto {
   @IsString()
   reason?: string;
 }
+
+export class TopUpSmsCreditDto {
+  @IsString()
+  schoolId: string;
+
+  @IsNumber()
+  @Min(0.01)
+  amount: number;
+
+  @IsString()
+  @MinLength(3)
+  reason: string;
+}
+
+export class SmsCreditDto {
+  @IsString()
+  schoolId: string;
+
+  @IsString()
+  schoolName: string;
+
+  @IsNumber()
+  smsCreditBalance: number;
+
+  @IsString()
+  currency: string;
+
+  @IsString()
+  status: string;
+}

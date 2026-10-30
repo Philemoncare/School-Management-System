@@ -2,6 +2,7 @@ import { Injectable, ConflictException, NotFoundException } from '@nestjs/common
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { CreateClassDto, UpdateClassDto } from './dto/class.dto';
+import { nextClassLevel, sortClasses } from './class-order';
 
 @Injectable()
 export class ClassesService {
@@ -16,8 +17,18 @@ export class ClassesService {
     });
     if (existing) throw new ConflictException('Class code already exists');
 
+    const level =
+      dto.level && dto.level > 0
+        ? dto.level
+        : nextClassLevel(
+            await this.prisma.class.findMany({
+              where: { schoolId },
+              select: { level: true },
+            }),
+          );
+
     const clazz = await this.prisma.class.create({
-      data: { ...dto, schoolId },
+      data: { ...dto, level, schoolId },
     });
 
     await this.audit.log({
@@ -33,13 +44,14 @@ export class ClassesService {
   }
 
   async findAll(schoolId: string) {
-    return this.prisma.class.findMany({
+    const classes = await this.prisma.class.findMany({
       where: { schoolId },
-      orderBy: { level: 'asc' },
+      orderBy: [{ level: 'asc' }, { name: 'asc' }],
       include: {
         _count: { select: { sections: true, enrollments: true } },
       },
     });
+    return sortClasses(classes);
   }
 
   async findOne(schoolId: string, id: string) {

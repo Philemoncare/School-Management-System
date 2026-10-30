@@ -22,6 +22,7 @@ import {
   User,
   Users,
 } from 'lucide-react';
+import { Select } from '@/components/ui/input';
 
 interface Department {
   id: string;
@@ -368,18 +369,13 @@ function DepartmentModal({
           <label htmlFor="department-head" className="block text-xs font-semibold text-charcoal-800">
             Head of department
           </label>
-          <select
+          <Select
             id="department-head"
-            className="w-full rounded-lg border border-warm-300 bg-card p-2.5 text-sm text-charcoal-900 focus:border-forest-600 focus:outline-none focus:ring-2 focus:ring-forest-600/20"
+            placeholder="No head of department"
             value={form.head}
+            options={headOptions}
             onChange={(event) => setForm({ ...form, head: event.target.value })}
-          >
-            {headOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+          />
         </div>
         <div className="space-y-1.5">
           <label

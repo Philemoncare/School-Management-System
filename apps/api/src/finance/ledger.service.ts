@@ -39,11 +39,32 @@ export class LedgerService {
   }
 
   async getLedger(schoolId: string, filters: any = {}) {
+    const where: any = { schoolId };
+    for (const key of ['studentId', 'transactionType', 'direction', 'referenceType', 'referenceId'] as const) {
+      const value = filters?.[key];
+      if (typeof value === 'string' && value.trim()) where[key] = value.trim();
+    }
+
+    const from = typeof filters?.from === 'string' ? filters.from.trim() : '';
+    const to = typeof filters?.to === 'string' ? filters.to.trim() : '';
+    if (from || to) {
+      where.createdAt = {};
+      if (from) {
+        const start = new Date(from);
+        if (!Number.isNaN(start.getTime())) where.createdAt.gte = start;
+      }
+      if (to) {
+        const end = new Date(to);
+        if (!Number.isNaN(end.getTime())) {
+          end.setDate(end.getDate() + 1);
+          where.createdAt.lt = end;
+        }
+      }
+      if (Object.keys(where.createdAt).length === 0) delete where.createdAt;
+    }
+
     return this.prisma.ledgerEntry.findMany({
-      where: {
-        schoolId,
-        ...filters,
-      },
+      where,
       include: {
         student: {
           select: {

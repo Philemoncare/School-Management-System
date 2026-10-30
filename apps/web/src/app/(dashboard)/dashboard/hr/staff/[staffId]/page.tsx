@@ -26,6 +26,7 @@ import {
   CalendarClock,
   Plus,
   ExternalLink,
+  PencilLine,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -64,6 +65,7 @@ export default function StaffProfilePage() {
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState<TabId>('employment');
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
 
   const loadProfile = useCallback(async () => {
     setLoading(true);
@@ -213,15 +215,39 @@ export default function StaffProfilePage() {
             </div>
 
             {activeTab === 'employment' && (
-              <div className="grid grid-cols-1 gap-6 rounded-xl border border-warm-100 bg-ivory-50 p-5 sm:grid-cols-2 sm:p-6">
-                <ProfileField label="Employee ID" value={profile?.employeeId || 'Not assigned'} />
-                <ProfileField label="Employment status" value={String(profile?.status ?? '—').replace(/_/g, ' ')} />
-                <ProfileField label="Department" value={profile?.department?.name || 'Unassigned'} />
-                <ProfileField label="Position" value={profile?.position?.name || 'Unassigned'} />
-                <ProfileField label="Designation" value={profile?.designation || profile?.specialization || '—'} />
-                <ProfileField label="Record created" value={formatDate(profile?.createdAt)} />
-                <ProfileField label="Account email" value={profile?.user?.email || 'No login account'} />
-                <ProfileField label="Account status" value={profile?.user ? (profile.user.isActive ? 'Active' : 'Disabled') : 'No login account'} />
+              <div className="space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <h3 className="text-[11px] font-semibold uppercase tracking-wide text-warm-500">
+                    Employment details
+                  </h3>
+                  {canManage && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setEditOpen(true)}
+                      leftIcon={<PencilLine size={14} />}
+                    >
+                      Edit details
+                    </Button>
+                  )}
+                </div>
+                <div className="grid grid-cols-1 gap-6 rounded-xl border border-warm-100 bg-ivory-50 p-5 sm:grid-cols-2 sm:p-6">
+                  <ProfileField label="Employee ID" value={profile?.employeeId || 'Not assigned'} />
+                  <ProfileField label="Employment status" value={String(profile?.status ?? '—').replace(/_/g, ' ')} />
+                  <ProfileField label="Department" value={profile?.department?.name || 'Unassigned'} />
+                  <ProfileField label="Position" value={profile?.position?.name || 'Unassigned'} />
+                  <ProfileField
+                    label={data.entityType === 'TEACHER' ? 'Specialisation' : 'Designation'}
+                    value={
+                      (data.entityType === 'TEACHER'
+                        ? profile?.specialization
+                        : profile?.designation) || '—'
+                    }
+                  />
+                  <ProfileField label="Record created" value={formatDate(profile?.createdAt)} />
+                  <ProfileField label="Account email" value={profile?.user?.email || 'No login account'} />
+                  <ProfileField label="Account status" value={profile?.user ? (profile.user.isActive ? 'Active' : 'Disabled') : 'No login account'} />
+                </div>
               </div>
             )}
 
@@ -463,6 +489,19 @@ export default function StaffProfilePage() {
         </div>
       </div>
 
+      {editOpen && (
+        <EditEmploymentModal
+          entityType={data.entityType === 'TEACHER' ? 'TEACHER' : 'STAFF'}
+          record={profile}
+          onClose={() => setEditOpen(false)}
+          onSaved={() => {
+            setEditOpen(false);
+            showFeedback('SUCCESS', 'Employment details updated.');
+            loadProfile();
+          }}
+        />
+      )}
+
       {uploadOpen && (
         <UploadDocumentModal
           staffId={data.entityType === 'STAFF' ? profile.id : undefined}
@@ -497,6 +536,256 @@ function ProfileField({ label, value }: { label: string; value: string }) {
       <p className="text-[11px] font-semibold uppercase tracking-wide text-warm-400">{label}</p>
       <p className="text-sm font-bold text-warm-700">{value}</p>
     </div>
+  );
+}
+
+const EMPLOYMENT_STATUSES = [
+  { value: 'ACTIVE', label: 'Active' },
+  { value: 'SUSPENDED', label: 'Suspended' },
+  { value: 'INACTIVE', label: 'Inactive' },
+  { value: 'TERMINATED', label: 'Terminated' },
+  { value: 'RETIRED', label: 'Retired' },
+];
+
+function EditEmploymentModal({
+  entityType,
+  record,
+  onClose,
+  onSaved,
+}: {
+  entityType: 'STAFF' | 'TEACHER';
+  record: any;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [form, setForm] = useState({
+    firstName: record?.firstName ?? '',
+    middleName: record?.middleName ?? '',
+    lastName: record?.lastName ?? '',
+    employeeId: record?.employeeId ?? '',
+    title: (entityType === 'TEACHER' ? record?.specialization : record?.designation) ?? '',
+    departmentId: record?.departmentId ?? record?.department?.id ?? '',
+    positionId: record?.positionId ?? record?.position?.id ?? '',
+    status: record?.status ?? 'ACTIVE',
+  });
+  const [departments, setDepartments] = useState<any[]>([]);
+  const [positions, setPositions] = useState<any[]>([]);
+  const [optionsLoading, setOptionsLoading] = useState(true);
+  const [optionsError, setOptionsError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      setOptionsLoading(true);
+      setOptionsError('');
+      try {
+        const [departmentData, positionData] = await Promise.all([
+          apiFetch('/hr/departments'),
+          apiFetch('/hr/positions'),
+        ]);
+        if (cancelled) return;
+        setDepartments(Array.isArray(departmentData) ? departmentData : []);
+        setPositions(Array.isArray(positionData) ? positionData : []);
+      } catch (err: any) {
+        if (!cancelled) setOptionsError(err?.message || 'Could not load HR options.');
+      } finally {
+        if (!cancelled) setOptionsLoading(false);
+      }
+    }
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const departmentPositions = useMemo(() => {
+    if (!form.departmentId) return positions;
+    return positions.filter(
+      (position) => !position.departmentId || position.departmentId === form.departmentId,
+    );
+  }, [positions, form.departmentId]);
+
+  function changeDepartment(nextDepartmentId: string) {
+    setForm((previous) => {
+      const currentPosition = positions.find((position) => position.id === previous.positionId);
+      const positionStillValid =
+        !currentPosition ||
+        !nextDepartmentId ||
+        !currentPosition.departmentId ||
+        currentPosition.departmentId === nextDepartmentId;
+      return {
+        ...previous,
+        departmentId: nextDepartmentId,
+        positionId: positionStillValid ? previous.positionId : '',
+      };
+    });
+  }
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    if (saving) return;
+
+    const errors: Record<string, string> = {};
+    if (!form.firstName.trim()) errors.firstName = 'First name is required.';
+    if (!form.lastName.trim()) errors.lastName = 'Last name is required.';
+    if (form.employeeId.trim() && !/^[A-Za-z0-9._-]{2,40}$/.test(form.employeeId.trim())) {
+      errors.employeeId = 'Use 2–40 letters, numbers, dots, hyphens or underscores.';
+    }
+    setFieldErrors(errors);
+    if (Object.keys(errors).length) {
+      showFeedback('WARNING', 'Please fix the highlighted fields.');
+      return;
+    }
+
+    setSaving(true);
+    setError('');
+    try {
+      const payload: Record<string, unknown> = {
+        firstName: form.firstName.trim(),
+        lastName: form.lastName.trim(),
+        status: form.status,
+        departmentId: form.departmentId,
+        positionId: form.positionId,
+      };
+      if (form.middleName.trim()) payload.middleName = form.middleName.trim();
+      if (form.employeeId.trim()) payload.employeeId = form.employeeId.trim();
+      if (entityType === 'TEACHER') {
+        payload.specialization = form.title.trim();
+      } else {
+        payload.designation = form.title.trim();
+      }
+
+      await apiFetch(entityType === 'TEACHER' ? `/teachers/${record.id}` : `/staff/${record.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      });
+      onSaved();
+    } catch (err: any) {
+      const message = err?.message || 'Could not update the employment details.';
+      setError(message);
+      showFeedback('ERROR', message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal
+      isOpen
+      onClose={onClose}
+      title="Edit employment details"
+      size="lg"
+      footerActions={
+        <>
+          <Button variant="outline" onClick={onClose} disabled={saving}>
+            Cancel
+          </Button>
+          <Button type="submit" form="edit-employment-form" isLoading={saving}>
+            Save changes
+          </Button>
+        </>
+      }
+    >
+      <form id="edit-employment-form" onSubmit={submit} className="space-y-4" noValidate>
+        {optionsError && (
+          <p role="alert" className="rounded-lg bg-danger-50 p-3 text-xs font-semibold text-danger-700">
+            {optionsError}
+          </p>
+        )}
+        {error && (
+          <p role="alert" className="rounded-lg bg-danger-50 p-3 text-xs font-semibold text-danger-700">
+            {error}
+          </p>
+        )}
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Input
+            label="First name *"
+            required
+            value={form.firstName}
+            error={fieldErrors.firstName}
+            onChange={(event) => setForm({ ...form, firstName: event.target.value })}
+          />
+          <Input
+            label="Last name *"
+            required
+            value={form.lastName}
+            error={fieldErrors.lastName}
+            onChange={(event) => setForm({ ...form, lastName: event.target.value })}
+          />
+          <Input
+            label="Middle name"
+            value={form.middleName}
+            onChange={(event) => setForm({ ...form, middleName: event.target.value })}
+          />
+          <Input
+            label="Employee ID"
+            value={form.employeeId}
+            error={fieldErrors.employeeId}
+            helperText="Leave blank to keep the existing staff number."
+            onChange={(event) => setForm({ ...form, employeeId: event.target.value })}
+          />
+          <Select
+            label="Department"
+            value={form.departmentId}
+            placeholder="No department"
+            loading={optionsLoading}
+            options={[
+              { value: '', label: 'No department' },
+              ...departments.map((department) => ({
+                value: department.id,
+                label: department.name,
+                description: department.code,
+              })),
+            ]}
+            emptyMessage="No departments yet. Add one from HR → Departments."
+            onChange={(event) => changeDepartment(event.target.value)}
+          />
+          <Select
+            label="Position"
+            value={form.positionId}
+            placeholder={
+              form.departmentId && departmentPositions.length === 0
+                ? 'No positions for this department'
+                : 'No position'
+            }
+            loading={optionsLoading}
+            disabled={
+              optionsLoading ||
+              (Boolean(form.departmentId) && departmentPositions.length === 0)
+            }
+            options={[
+              { value: '', label: 'No position' },
+              ...departmentPositions.map((position) => ({
+                value: position.id,
+                label: position.name,
+                description: position.department?.name,
+              })),
+            ]}
+            emptyMessage="No positions defined for this department."
+            onChange={(event) => setForm({ ...form, positionId: event.target.value })}
+          />
+          <Input
+            label={entityType === 'TEACHER' ? 'Specialisation' : 'Designation'}
+            value={form.title}
+            placeholder={
+              entityType === 'TEACHER' ? 'e.g. Mathematics' : 'e.g. Senior Physics Teacher'
+            }
+            onChange={(event) => setForm({ ...form, title: event.target.value })}
+          />
+          <Select
+            label="Employment status"
+            value={form.status}
+            options={EMPLOYMENT_STATUSES}
+            helperText="Only active employees can be assigned to classes or timetables."
+            onChange={(event) => setForm({ ...form, status: event.target.value })}
+          />
+        </div>
+      </form>
+    </Modal>
   );
 }
 

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Query, UseGuards, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -57,47 +57,51 @@ export class WorkflowController {
   @Roles('SCHOOL_ADMIN', 'SUPER_ADMIN')
   @Get('workflows/:id')
   async getWorkflow(@ActiveSchool() schoolId: string, @Param('id') id: string) {
-    return this.prisma.workflowInstance.findFirst({
+    const workflow = await this.prisma.workflowInstance.findFirst({
       where: { id, schoolId },
-      include: { steps: { orderBy: { order: 'asc' } } },
+      include: {
+        steps: { orderBy: { order: 'asc' } },
+      },
     });
+    if (!workflow) {
+      throw new NotFoundException('Workflow not found.');
+    }
+    return workflow;
   }
 
   @Roles('SCHOOL_ADMIN', 'SUPER_ADMIN')
   @Get('events')
-  async getEvents(@ActiveSchool() schoolId: string, @Query('type') type?: string) {
+  async getEvents(
+    @ActiveSchool() schoolId: string,
+    @Query('type') type?: string,
+    @Query('search') search?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const take = Math.min(200, Math.max(1, Number(limit) || 50));
+    const trimmedSearch = typeof search === 'string' ? search.trim() : '';
+
     return this.prisma.domainEvent.findMany({
       where: {
         schoolId,
-        eventType: type,
+        ...(type && type.trim() ? { eventType: type.trim() } : {}),
+        ...(trimmedSearch
+          ? {
+              OR: [
+                { eventType: { contains: trimmedSearch, mode: 'insensitive' as const } },
+                { resourceType: { contains: trimmedSearch, mode: 'insensitive' as const } },
+                { resourceId: { contains: trimmedSearch, mode: 'insensitive' as const } },
+                { correlationId: { contains: trimmedSearch, mode: 'insensitive' as const } },
+              ],
+            }
+          : {}),
       },
-      take: 50,
+      take,
       orderBy: { timestamp: 'desc' },
-    });
-  }
-
-  @Roles('SCHOOL_ADMIN', 'SUPER_ADMIN')
-  @Post('workflows/:id/retry')
-  async retryWorkflow(@ActiveSchool() schoolId: string, @Param('id') id: string) {
-    const workflow = await this.prisma.workflowInstance.findFirst({
-      where: { id, schoolId },
-      include: { steps: true }
-    });
-
-    if (!workflow) throw new Error('Workflow not found');
-
-    // Simple retry logic: set status back to RUNNING and reset failed steps
-    return this.prisma.workflowInstance.update({
-      where: { id },
-      data: {
-        status: 'RETRYING',
-        steps: {
-          updateMany: {
-            where: { status: 'FAILED' },
-            data: { status: 'PENDING' }
-          }
-        }
-      }
+      include: {
+        processingRecords: {
+          select: { id: true, handlerName: true, status: true, processedAt: true, retryCount: true, errorInfo: true },
+        },
+      },
     });
   }
 }

@@ -25,6 +25,7 @@ import {
   collectUserRoles,
   getActiveSupportGrantId,
   isPlatformAdmin,
+  isPlatformSuperAdmin,
 } from "@/lib/auth/roles";
 
 interface SidebarProps {
@@ -37,7 +38,7 @@ export function Sidebar({ isCollapsed = false, onClose }: SidebarProps) {
   const { user, activeSchoolId, logout } = useAuth();
 
   const userRoles = collectUserRoles(user, activeSchoolId);
-  const isSuperAdmin = isPlatformAdmin(userRoles);
+  const isSuperAdmin = isPlatformSuperAdmin(userRoles);
   const supportGrantId = getActiveSupportGrantId();
 
   const getNavSections = (): NavigationSection[] => {

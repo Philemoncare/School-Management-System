@@ -18,6 +18,7 @@ import { Roles } from "../auth/decorators/roles.decorator";
 import { PrismaService } from "../prisma/prisma.service";
 import { AuditService } from "../audit/audit.service";
 import { AuthService } from "../auth/auth.service";
+import { nextClassLevel, sortClasses } from "../academics/class-order";
 import { AccountState } from "@prisma/client";
 import { randomBytes } from "crypto";
 import * as argon2 from "argon2";
@@ -355,11 +356,12 @@ export class SchoolsMeController {
   @Get("classes")
   async getClasses(@Request() req: any) {
     const schoolId = this.extractSchoolId(req);
-    return this.prisma.class.findMany({
+    const classes = await this.prisma.class.findMany({
       where: { schoolId },
       include: { sections: true, _count: { select: { enrollments: true } } },
-      orderBy: { level: "asc" },
+      orderBy: [{ level: "asc" }, { name: "asc" }],
     });
+    return sortClasses(classes);
   }
 
   @Post("classes")
@@ -367,12 +369,17 @@ export class SchoolsMeController {
     const schoolId = this.extractSchoolId(req);
     const { name, code, level, sections } = body;
 
+    const existing = await this.prisma.class.findMany({
+      where: { schoolId },
+      select: { level: true },
+    });
+
     const newClass = await this.prisma.class.create({
       data: {
         schoolId,
         name,
         code: code || name.replace(/\s+/g, "").toUpperCase(),
-        level: level || 1,
+        level: level && level > 0 ? level : nextClassLevel(existing),
       },
     });
 

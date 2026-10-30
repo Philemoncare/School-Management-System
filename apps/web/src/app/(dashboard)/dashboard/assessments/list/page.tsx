@@ -358,6 +358,7 @@ function AssessmentFormModal({
   const [classes, setClasses] = useState<Option[]>([]);
   const [sections, setSections] = useState<Option[]>([]);
   const [subjects, setSubjects] = useState<Option[]>([]);
+  const [classSubjectIds, setClassSubjectIds] = useState<string[] | null>(null);
   const [optionsLoading, setOptionsLoading] = useState(!assessment);
 
   const [form, setForm] = useState({
@@ -436,15 +437,39 @@ function AssessmentFormModal({
   useEffect(() => {
     if (assessment) return;
     setSections([]);
-    setForm((previous) => ({ ...previous, sectionId: '' }));
+    setClassSubjectIds(null);
+    setForm((previous) => ({ ...previous, sectionId: '', subjectId: '' }));
     if (!form.classId) return;
-    apiFetch(`/sections/by-class/${form.classId}`)
-      .then((data) => {
-        setSections((Array.isArray(data) ? data : []).filter((section: any) => section.isActive !== false));
+    let cancelled = false;
+    Promise.all([
+      apiFetch(`/sections/by-class/${form.classId}`),
+      apiFetch(`/class-subjects/by-class/${form.classId}`),
+    ])
+      .then(([sectionData, assignmentData]) => {
+        if (cancelled) return;
+        setSections(
+          (Array.isArray(sectionData) ? sectionData : []).filter(
+            (section: any) => section.isActive !== false,
+          ),
+        );
+        const assignments: any[] = Array.isArray(assignmentData) ? assignmentData : [];
+        setClassSubjectIds(assignments.map((assignment) => assignment.subjectId));
       })
-      .catch(() => setSections([]));
+      .catch(() => {
+        if (cancelled) return;
+        setSections([]);
+        setClassSubjectIds(null);
+      });
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.classId]);
+
+  const availableSubjects =
+    classSubjectIds && classSubjectIds.length
+      ? subjects.filter((subject) => classSubjectIds.includes(subject.id))
+      : subjects;
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -579,7 +604,12 @@ function AssessmentFormModal({
                   label="Class *"
                   value={form.classId}
                   placeholder="Select class"
-                  options={classes.map((clazz) => ({ value: clazz.id, label: clazz.name }))}
+                  options={classes.map((clazz) => ({
+                    value: clazz.id,
+                    label: clazz.name,
+                    description: clazz.code,
+                    disabled: clazz.isActive === false,
+                  }))}
                   onChange={(event) => setForm({ ...form, classId: event.target.value })}
                 />
                 <Select
@@ -599,8 +629,24 @@ function AssessmentFormModal({
                 <Select
                   label="Subject *"
                   value={form.subjectId}
-                  placeholder="Select subject"
-                  options={subjects.map((subject) => ({ value: subject.id, label: `${subject.name} (${subject.code})` }))}
+                  placeholder={
+                    !form.classId
+                      ? 'Select a class first'
+                      : availableSubjects.length
+                        ? 'Select subject'
+                        : 'No subjects for this class'
+                  }
+                  disabled={!form.classId || availableSubjects.length === 0}
+                  options={availableSubjects.map((subject) => ({
+                    value: subject.id,
+                    label: subject.name,
+                    description: subject.code,
+                  }))}
+                  helperText={
+                    form.classId && classSubjectIds && classSubjectIds.length === 0
+                      ? 'This class has no assigned subjects yet — showing all active subjects.'
+                      : undefined
+                  }
                   onChange={(event) => setForm({ ...form, subjectId: event.target.value })}
                 />
               </>

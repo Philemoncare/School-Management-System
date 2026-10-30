@@ -32,6 +32,7 @@ export class SuperAdminSchoolsController {
     @Query('schoolType') schoolType?: string,
     @Query('from') from?: string,
     @Query('to') to?: string,
+    @Query('sort') sort?: string,
   ) {
     const statuses = status
       ? (status.split(',').filter(Boolean) as SchoolStatus[])
@@ -46,6 +47,7 @@ export class SuperAdminSchoolsController {
       schoolType,
       from,
       to,
+      sort: sort === 'name' ? 'name' : undefined,
     });
   }
 

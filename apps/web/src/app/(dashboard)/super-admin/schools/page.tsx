@@ -207,13 +207,13 @@ export default function SuperAdminSchools() {
               />
             </div>
             <Select
-              className="bg-card border border-warm-200 rounded-xl px-4 py-2.5 text-sm font-bold text-warm-700 shadow-sm"
+              label="Status"
               value={statusFilter}
+              placeholder="All Statuses"
               onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
-            >
-              <option value="">All Statuses</option>
-              {STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}
-            </Select>
+              options={[{ value: '', label: 'All Statuses' }].concat(STATUSES.map((status) => ({ value: status, label: status })))}
+              className="w-auto min-w-[160px]"
+            />
             <Button variant="outline" onClick={() => setShowFilters((value) => !value)} leftIcon={<Filter size={16} />}>
               Filters
             </Button>
@@ -221,14 +221,20 @@ export default function SuperAdminSchools() {
 
           {showFilters && (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 rounded-xl border border-warm-200 bg-card p-4">
-              <Select label="Region" value={region} onChange={(e) => { setRegion(e.target.value); setPage(1); }}>
-                <option value="">All regions</option>
-                {filters.regions?.map((item: string) => <option key={item} value={item}>{item}</option>)}
-              </Select>
-              <Select label="School type" value={schoolType} onChange={(e) => { setSchoolType(e.target.value); setPage(1); }}>
-                <option value="">All types</option>
-                {filters.schoolTypes?.map((item: string) => <option key={item} value={item}>{item}</option>)}
-              </Select>
+              <Select
+                label="Region"
+                value={region}
+                placeholder="All regions"
+                onChange={(e) => { setRegion(e.target.value); setPage(1); }}
+                options={[{ value: '', label: 'All regions' }].concat((filters.regions || []).map((item: string) => ({ value: item, label: item })))}
+              />
+              <Select
+                label="School type"
+                value={schoolType}
+                placeholder="All types"
+                onChange={(e) => { setSchoolType(e.target.value); setPage(1); }}
+                options={[{ value: '', label: 'All types' }].concat((filters.schoolTypes || []).map((item: string) => ({ value: item, label: item })))}
+              />
               <Input label="Created from" type="date" value={from} onChange={(e) => { setFrom(e.target.value); setPage(1); }} />
               <Input label="Created to" type="date" value={to} onChange={(e) => { setTo(e.target.value); setPage(1); }} />
               <div className="flex items-end">
@@ -376,12 +382,13 @@ export default function SuperAdminSchools() {
                 <Input label="Last name" value={provision.adminLastName} onChange={(e) => setProvision({ ...provision, adminLastName: e.target.value })} />
                 <Input label="Admin email" type="email" value={provision.adminEmail} onChange={(e) => setProvision({ ...provision, adminEmail: e.target.value })} />
                 <Input label="Admin password (optional)" type="password" value={provision.adminPassword} onChange={(e) => setProvision({ ...provision, adminPassword: e.target.value })} helperText="Leave blank to generate a one-time temporary password." />
-                <Select label="Initial plan (optional)" value={provision.planId} onChange={(e) => setProvision({ ...provision, planId: e.target.value })} className="sm:col-span-2">
-                  <option value="">No plan</option>
-                  {plans.filter((plan) => plan.status !== 'ARCHIVED').map((plan) => (
-                    <option key={plan.id} value={plan.id}>{plan.name}</option>
-                  ))}
-                </Select>
+                <Select
+                  label="Initial plan (optional)"
+                  value={provision.planId}
+                  placeholder="No plan"
+                  onChange={(e) => setProvision({ ...provision, planId: e.target.value })}
+                  options={[{ value: '', label: 'No plan' }].concat(plans.filter((plan) => plan.status !== 'ARCHIVED').map((plan) => ({ value: plan.id, label: plan.name })))}
+                />
               </div>
             </div>
           </div>

@@ -124,7 +124,27 @@ export default function TeacherSettingsPage() {
   }
 
   if (loading) return <div className="p-20 text-center"><Loader2 className="animate-spin mx-auto text-forest-700" size={40} /></div>;
-  if (!profile) return null;
+  if (!profile) {
+    return (
+      <div className="mx-auto max-w-xl space-y-4 p-6 sm:p-10">
+        <div
+          role="alert"
+          className="flex flex-col gap-3 rounded-2xl border border-danger-200 bg-danger-50 p-4 text-xs font-semibold text-danger-700"
+        >
+          <span className="flex items-center gap-2">
+            <AlertCircle size={16} /> {error || 'Your settings could not be loaded.'}
+          </span>
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="self-start rounded-xl border border-danger-300 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide"
+          >
+            Reload
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-8 max-w-5xl mx-auto space-y-10">

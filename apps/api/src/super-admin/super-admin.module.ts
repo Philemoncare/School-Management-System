@@ -17,13 +17,17 @@ import { LaunchReadinessController } from './controllers/launch-readiness.contro
 import { SuperAdminSupportAccessController } from './controllers/super-admin-support-access.controller';
 import { SuperAdminBackupsController } from './controllers/super-admin-backups.controller';
 import { MaintenanceStatusController } from './controllers/maintenance-status.controller';
+import { SuperAdminSmsCreditsController } from './controllers/super-admin-sms-credits.controller';
 import { SupportAccessService } from './services/support-access.service';
 import { BackupService } from './services/backup.service';
 import { DataIntegrityService } from '../common/services/data-integrity.service';
+import { SchoolMaintenanceController } from '../dev-mode/school-maintenance.controller';
+import { SmsModule } from '../sms/sms.module';
 
 @Module({
   imports: [
     AuthModule,
+    SmsModule,
     BullModule.registerQueue({
       name: 'notifications',
     }),
@@ -50,6 +54,8 @@ import { DataIntegrityService } from '../common/services/data-integrity.service'
     SuperAdminBackupsController,
     MaintenanceStatusController,
     LaunchReadinessController,
+    SuperAdminSmsCreditsController,
+    SchoolMaintenanceController,
   ],
 })
 export class SuperAdminModule {}

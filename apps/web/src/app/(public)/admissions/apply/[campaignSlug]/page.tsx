@@ -276,21 +276,36 @@ export default function PublicAdmissionPage() {
                   <InputField label="Date of birth *" type="date" required value={formData.dateOfBirth} onChange={(value: string) => setFormData({ ...formData, dateOfBirth: value })} />
                   <div>
                     <label className="block text-[11px] font-semibold text-warm-500 uppercase tracking-wide mb-2 ml-1">Gender *</label>
-                    <Select className="w-full bg-ivory-50 border border-warm-200 rounded-lg p-4 text-sm font-medium focus:ring-2 focus:ring-forest-600/20 transition-all outline-none" value={formData.gender} onChange={(e) => setFormData({ ...formData, gender: e.target.value })}>
-                      <option value="">Select gender</option>
-                      <option value="MALE">Male</option>
-                      <option value="FEMALE">Female</option>
-                      <option value="OTHER">Other</option>
-                    </Select>
+                    <Select
+                      label="Gender *"
+                      value={formData.gender}
+                      placeholder="Select gender"
+                      required
+                      options={[
+                        { value: '', label: 'Select gender' },
+                        { value: 'MALE', label: 'Male' },
+                        { value: 'FEMALE', label: 'Female' },
+                        { value: 'OTHER', label: 'Other' },
+                      ]}
+                      onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
+                    />
                   </div>
                   <div>
                     <label className="block text-[11px] font-semibold text-warm-500 uppercase tracking-wide mb-2 ml-1">Class applying for *</label>
-                    <Select className="w-full bg-ivory-50 border border-warm-200 rounded-lg p-4 text-sm font-medium focus:ring-2 focus:ring-forest-600/20 transition-all outline-none" value={formData.classId} onChange={(e) => setFormData({ ...formData, classId: e.target.value })}>
-                      <option value="">Select class</option>
-                      {campaign.classes.map((schoolClass) => (
-                        <option key={schoolClass.id} value={schoolClass.id}>{schoolClass.name}</option>
-                      ))}
-                    </Select>
+                    <Select
+                      label="Class applying for *"
+                      value={formData.classId}
+                      placeholder="Select class"
+                      required
+                      options={[
+                        { value: '', label: 'Select class' },
+                        ...campaign.classes.map((schoolClass) => ({
+                          value: schoolClass.id,
+                          label: schoolClass.name,
+                        })),
+                      ]}
+                      onChange={(e) => setFormData({ ...formData, classId: e.target.value })}
+                    />
                   </div>
                 </div>
                 {campaign.classes.length === 0 && (

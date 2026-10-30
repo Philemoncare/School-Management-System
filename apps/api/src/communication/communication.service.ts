@@ -6,13 +6,16 @@ import { AudienceResolverService, AudienceConfig } from './audience-resolver.ser
 import { InjectQueue } from '@nestjs/bullmq';
 import type { Queue } from 'bullmq';
 import { isRedisUnavailableError } from '../redis/redis-connection';
+import { EmailProvider } from './providers/email.provider';
+import { SmsProvider } from './providers/sms.provider';
 import {
   CommunicationChannel,
   NotificationPriority,
   NotificationStatus,
   CommunicationStatus,
   AudienceType,
-  AnnouncementStatus
+  AnnouncementStatus,
+  Prisma,
 } from '@prisma/client';
 
 @Injectable()
@@ -25,6 +28,8 @@ export class CommunicationService {
     private audienceResolver: AudienceResolverService,
     private gateway: CommunicationGateway,
     @InjectQueue('notifications') private notificationQueue: Queue,
+    private emailProvider: EmailProvider,
+    private smsProvider: SmsProvider,
   ) {}
 
   async getDashboardStats(schoolId: string) {
@@ -56,21 +61,109 @@ export class CommunicationService {
     };
   }
 
+  async previewAudience(
+    schoolId: string,
+    input: { type?: string; classId?: string; sectionId?: string },
+  ) {
+    const allowed = ['ALL', 'STUDENTS', 'PARENTS', 'TEACHERS', 'STAFF', 'CLASS'];
+    const type = String(input.type ?? '').toUpperCase();
+    if (!allowed.includes(type)) {
+      throw new BadRequestException('Select a supported audience type.');
+    }
+    if (type === 'CLASS') {
+      if (!input.classId) {
+        throw new BadRequestException('Select a class to preview the audience.');
+      }
+      const clazz = await this.prisma.class.findFirst({
+        where: { id: input.classId, schoolId },
+        select: { id: true },
+      });
+      if (!clazz) throw new BadRequestException('Select a class from this school.');
+      if (input.sectionId) {
+        const section = await this.prisma.section.findFirst({
+          where: { id: input.sectionId, classId: input.classId },
+          select: { id: true },
+        });
+        if (!section) throw new BadRequestException('Select a section that belongs to the class.');
+      }
+    }
+
+    const config: AudienceConfig = {
+      type: type as AudienceType,
+      ...(input.classId ? { classId: input.classId } : {}),
+      ...(input.sectionId ? { sectionId: input.sectionId } : {}),
+    } as AudienceConfig;
+
+    const userIds = await this.audienceResolver.resolve(schoolId, config);
+    return { count: userIds.length };
+  }
+
   async createCommunication(schoolId: string, authorId: string, dto: any) {
+    const title = typeof dto?.title === 'string' ? dto.title.trim() : '';
+    const content = typeof dto?.content === 'string' ? dto.content.trim() : '';
+    if (!title) throw new BadRequestException('A communication title is required.');
+    if (!content) throw new BadRequestException('Message content is required.');
+
+    const validChannels = Object.values(CommunicationChannel) as string[];
+    const channels = Array.isArray(dto?.channels)
+      ? Array.from(new Set(dto.channels.filter((channel: any) => validChannels.includes(String(channel)))))
+      : [];
+    if (channels.length === 0) {
+      throw new BadRequestException('Select at least one delivery channel.');
+    }
+
+    const audienceType = String(dto?.audienceConfig?.type ?? '').toUpperCase();
+    const validAudiences = ['ALL', 'STUDENTS', 'PARENTS', 'TEACHERS', 'STAFF', 'CLASS'];
+    if (!validAudiences.includes(audienceType)) {
+      throw new BadRequestException('Select a valid audience.');
+    }
+    if (audienceType === 'CLASS') {
+      if (!dto?.audienceConfig?.classId) {
+        throw new BadRequestException('Select the class that should receive this message.');
+      }
+      const clazz = await this.prisma.class.findFirst({
+        where: { id: dto.audienceConfig.classId, schoolId },
+        select: { id: true },
+      });
+      if (!clazz) throw new BadRequestException('Select a class from this school.');
+      if (dto.audienceConfig.sectionId) {
+        const section = await this.prisma.section.findFirst({
+          where: { id: dto.audienceConfig.sectionId, classId: dto.audienceConfig.classId },
+          select: { id: true },
+        });
+        if (!section) throw new BadRequestException('Select a section that belongs to the class.');
+      }
+    }
+
+    let scheduledFor: Date | null = null;
+    if (dto?.scheduledFor) {
+      const parsed = new Date(dto.scheduledFor);
+      if (Number.isNaN(parsed.getTime())) {
+        throw new BadRequestException('Enter a valid schedule date.');
+      }
+      if (parsed.getTime() <= Date.now()) {
+        throw new BadRequestException('The schedule date must be in the future.');
+      }
+      scheduledFor = parsed;
+    }
+
     return this.prisma.communication.create({
       data: {
         schoolId,
         authorId,
-        title: dto.title,
-        subject: dto.subject,
-        content: dto.content,
-        priority: dto.priority || NotificationPriority.NORMAL,
-        channels: dto.channels,
-        audienceConfig: dto.audienceConfig,
-        templateId: dto.templateId,
-        templateVersionId: dto.templateVersionId,
-        scheduledFor: dto.scheduledFor ? new Date(dto.scheduledFor) : null,
-        status: dto.scheduledFor ? CommunicationStatus.SCHEDULED : CommunicationStatus.DRAFT,
+        title,
+        subject: typeof dto?.subject === 'string' && dto.subject.trim() ? dto.subject.trim() : null,
+        content,
+        priority: dto?.priority || NotificationPriority.NORMAL,
+        channels: channels as CommunicationChannel[],
+        audienceConfig: {
+          ...dto.audienceConfig,
+          type: audienceType,
+        },
+        templateId: dto?.templateId,
+        templateVersionId: dto?.templateVersionId,
+        scheduledFor,
+        status: scheduledFor ? CommunicationStatus.SCHEDULED : CommunicationStatus.DRAFT,
       }
     });
   }
@@ -260,17 +353,41 @@ export class CommunicationService {
     const page = Math.max(1, Number(options.page) || 1);
     const limit = Math.min(100, Math.max(1, Number(options.limit) || 20));
     const skip = (page - 1) * limit;
-    const status = options.status;
+    const allowedStatuses = ['PENDING', 'SENT', 'DELIVERED', 'FAILED', 'BOUNCED'];
+    const status = allowedStatuses.includes(String(options.status))
+      ? String(options.status)
+      : undefined;
+    const search = typeof options.search === 'string' ? options.search.trim() : '';
 
     return this.prisma.notificationDelivery.findMany({
       where: {
-        notification: { schoolId },
-        status: status || undefined
+        notification: {
+          schoolId,
+          ...(search
+            ? {
+                OR: [
+                  { title: { contains: search, mode: 'insensitive' } },
+                  { user: { firstName: { contains: search, mode: 'insensitive' } } },
+                  { user: { lastName: { contains: search, mode: 'insensitive' } } },
+                  { user: { email: { contains: search, mode: 'insensitive' } } },
+                ],
+              }
+            : {}),
+        },
+        status: status as any,
       },
-      include: { notification: { select: { title: true, userId: true } } },
+      include: {
+        notification: {
+          select: {
+            title: true,
+            userId: true,
+            user: { select: { firstName: true, lastName: true, email: true } },
+          },
+        },
+      },
       orderBy: { lastAttemptAt: 'desc' },
       skip,
-      take: limit
+      take: limit,
     });
   }
 
@@ -439,6 +556,176 @@ export class CommunicationService {
     }
 
     return { notification };
+  }
+
+  /**
+   * Sends a direct SMS or Email message to a specific phone number or email
+   * address (e.g. from a student's guardian contact). Records the delivery
+   * attempt and routes through the configured provider.
+   */
+  async sendDirectMessage(schoolId: string, authorId: string, dto: any) {
+    const { to, channel, content, subject, recipientName, studentId } = dto;
+
+    const validChannels = ['SMS', 'EMAIL'] as const;
+    const ch = String(channel ?? '').toUpperCase();
+    if (!validChannels.includes(ch as any)) {
+      throw new BadRequestException('Channel must be SMS or EMAIL.');
+    }
+    if (!to || !to.trim()) {
+      throw new BadRequestException('A recipient address is required.');
+    }
+    if (!content || !content.trim()) {
+      throw new BadRequestException('Message content is required.');
+    }
+
+    // Basic recipient validation
+    if (ch === 'SMS') {
+      const phoneRegex = /^\+?[\d\s\-()]{7,}$/;
+      if (!phoneRegex.test(to.trim())) {
+        throw new BadRequestException('Enter a valid phone number.');
+      }
+
+      // Check SMS credit balance before sending
+      const school = await this.prisma.school.findUnique({
+        where: { id: schoolId },
+        select: { smsCreditBalance: true },
+      });
+      if (!school) {
+        throw new NotFoundException('School not found');
+      }
+      const currentBalance = Number(school.smsCreditBalance);
+      if (currentBalance < 1) {
+        throw new BadRequestException(
+          'Insufficient SMS credits. Please contact your platform administrator to purchase SMS tokens.'
+        );
+      }
+    } else {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(to.trim())) {
+        throw new BadRequestException('Enter a valid email address.');
+      }
+    }
+
+    // Create a notification record for the direct message
+    const notification = await this.prisma.notification.create({
+      data: {
+        schoolId,
+        userId: authorId,
+        notificationType: 'DIRECT_MESSAGE',
+        title: ch === 'EMAIL' ? (subject?.trim() || 'Message from SchooMA') : 'SMS Message',
+        content: content.trim(),
+        priority: NotificationPriority.NORMAL,
+        status: NotificationStatus.PENDING,
+      },
+    });
+
+    // Create the delivery record
+    const delivery = await this.prisma.notificationDelivery.create({
+      data: {
+        notificationId: notification.id,
+        channel: ch === 'SMS' ? CommunicationChannel.SMS : CommunicationChannel.EMAIL,
+        status: 'PENDING',
+      },
+    });
+
+    // Queue the delivery job for the notification processor to send
+    // If the queue (Redis) is unavailable, send directly via the provider
+    let deliveryResult: { success: boolean; reference?: string; error?: string };
+    try {
+      await this.notificationQueue.add('send-delivery', {
+        deliveryId: delivery.id,
+        channel: ch,
+        recipientId: authorId, // The sender is recorded as the "recipient" for tracking; actual delivery target is `to`
+        templateVersionId: null,
+        data: {},
+        manualContent: {
+          subject: ch === 'EMAIL' ? (subject?.trim() || 'Message from SchooMA') : undefined,
+          body: content.trim(),
+        },
+        // Store the actual target address for direct sends
+        directTarget: to.trim(),
+        directRecipientName: recipientName?.trim() || undefined,
+        directStudentId: studentId?.trim() || undefined,
+      }, {
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 5000 },
+      });
+
+      await this.prisma.notification.update({
+        where: { id: notification.id },
+        data: { status: NotificationStatus.SENT },
+      });
+
+      return { notificationId: notification.id, deliveryId: delivery.id, status: 'queued' };
+    } catch (queueError) {
+      this.logger.warn(`Unable to queue direct message ${delivery.id}: ${(queueError as Error).message}`);
+
+      // Fallback: send directly without the queue when Redis is unavailable
+      if (isRedisUnavailableError(queueError)) {
+        this.logger.log(`Falling back to direct send for delivery ${delivery.id} (Redis unavailable)`);
+
+        let result: { success: boolean; reference?: string; error?: string } = { success: false, reference: '', error: '' };
+
+        if (ch === CommunicationChannel.EMAIL) {
+          result = await this.emailProvider.send({
+            to: to.trim(),
+            subject: subject?.trim() || 'Message from SchooMA',
+            body: content.trim(),
+          });
+        } else if (ch === CommunicationChannel.SMS) {
+          result = await this.smsProvider.send({
+            to: to.trim(),
+            message: content.trim(),
+          });
+          if (result.success) {
+            await this.prisma.school.update({
+              where: { id: schoolId },
+              data: {
+                smsCreditBalance: {
+                  decrement: new Prisma.Decimal(1),
+                },
+              },
+            });
+          }
+        }
+
+        await this.prisma.notificationDelivery.update({
+          where: { id: delivery.id },
+          data: {
+            status: result.success ? 'DELIVERED' : 'FAILED',
+            providerRef: result.reference,
+            errorMessage: result.error,
+            deliveredAt: result.success ? new Date() : null,
+            failedAt: !result.success ? new Date() : null,
+          },
+        });
+
+        await this.prisma.notification.update({
+          where: { id: notification.id },
+          data: { status: result.success ? NotificationStatus.SENT : NotificationStatus.FAILED },
+        });
+
+        return {
+          notificationId: notification.id,
+          deliveryId: delivery.id,
+          status: result.success ? 'sent' : 'failed',
+          warning: result.success
+            ? 'Message sent directly (background queue was unavailable).'
+            : 'Message failed to send. Background queue is unavailable.',
+        };
+      }
+
+      // Non-Redis queue error - update delivery and rethrow
+      await this.prisma.notificationDelivery.update({
+        where: { id: delivery.id },
+        data: {
+          status: 'FAILED',
+          errorMessage: 'Background queue unavailable; message was not queued.',
+          failedAt: new Date(),
+        },
+      });
+      throw new ServiceUnavailableException('Messaging queue is temporarily unavailable. Your message was not sent.');
+    }
   }
 
   private getQueuePriority(priority: NotificationPriority): number {

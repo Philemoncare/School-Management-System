@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Calendar as CalendarIcon, Download, AlertCircle, Lock, Inbox, RefreshCw } from 'lucide-react';
+import { Select } from '@/components/ui/input';
 import { apiFetch, ApiError } from '@/lib/api/client';
 import { useAuth } from '@/context/auth-context';
 import { useChild } from '@/context/child-context';
@@ -121,16 +122,15 @@ export default function ParentAttendance() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <label htmlFor="attendance-status" className="sr-only">Filter by status</label>
-          <select
+          <Select
             id="attendance-status"
+            label="Filter by status"
             value={status}
+            placeholder="All statuses"
+            options={STATUS_OPTIONS.map((option) => ({ value: option, label: option === "ALL" ? "All statuses" : option }))}
             onChange={(event) => setStatus(event.target.value)}
-            className="h-9 rounded-lg border border-warm-300 bg-card px-3 text-xs font-semibold text-charcoal-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-forest-600/30"
-          >
-            {STATUS_OPTIONS.map((option) => (
-              <option key={option} value={option}>{option === 'ALL' ? 'All statuses' : option}</option>
-            ))}
-          </select>
+            className="w-auto min-w-[140px]"
+          />
           <Button variant="outline" size="sm" onClick={exportCsv} disabled={filtered.length === 0} leftIcon={<Download size={15} />}>
             Export CSV
           </Button>

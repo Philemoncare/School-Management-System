@@ -67,9 +67,23 @@ export class FinanceService {
     return structure;
   }
 
-  async findStructures(schoolId: string, filters: any) {
+  async findStructures(schoolId: string, filters: any = {}) {
+    const where: any = { schoolId };
+    for (const key of [
+      'academicYearId',
+      'termId',
+      'classId',
+      'sectionId',
+      'subjectId',
+      'feeCategoryId',
+      'status',
+    ] as const) {
+      const value = filters?.[key];
+      if (typeof value === 'string' && value.trim()) where[key] = value.trim();
+    }
+
     return this.prisma.feeStructure.findMany({
-      where: { schoolId, ...filters },
+      where,
       include: { feeCategory: true, academicYear: true, term: true, class: true },
       orderBy: { createdAt: 'desc' }
     });
@@ -226,13 +240,18 @@ export class FinanceService {
   }
 
   async getOutstandingBalances(schoolId: string, filters: any = {}) {
+    const where: any = {
+      schoolId,
+      balance: { gt: 0 },
+      status: { notIn: [InvoiceStatus.VOID, InvoiceStatus.CANCELLED] },
+    };
+    for (const key of ['studentId', 'classId', 'sectionId', 'academicYearId', 'termId'] as const) {
+      const value = filters?.[key];
+      if (typeof value === 'string' && value.trim()) where[key] = value.trim();
+    }
+
     return this.prisma.invoice.findMany({
-      where: {
-        schoolId,
-        balance: { gt: 0 },
-        status: { notIn: [InvoiceStatus.VOID, InvoiceStatus.CANCELLED] },
-        ...filters,
-      },
+      where,
       include: {
         student: {
           select: {
@@ -249,17 +268,22 @@ export class FinanceService {
   }
 
   async findAllReceipts(schoolId: string, filters: any = {}) {
-    const { search, ...rest } = filters;
+    const search = typeof filters?.search === 'string' ? filters.search.trim() : '';
+    const where: any = { schoolId };
+    for (const key of ['studentId', 'paymentMethod'] as const) {
+      const value = filters?.[key];
+      if (typeof value === 'string' && value.trim()) where[key] = value.trim();
+    }
+    if (search) {
+      where.OR = [
+        { receiptNumber: { contains: search, mode: 'insensitive' } },
+        { student: { firstName: { contains: search, mode: 'insensitive' } } },
+        { student: { lastName: { contains: search, mode: 'insensitive' } } },
+      ];
+    }
+
     return this.prisma.receipt.findMany({
-      where: {
-        schoolId,
-        ...rest,
-        OR: search ? [
-          { receiptNumber: { contains: search, mode: 'insensitive' } },
-          { student: { firstName: { contains: search, mode: 'insensitive' } } },
-          { student: { lastName: { contains: search, mode: 'insensitive' } } },
-        ] : undefined,
-      },
+      where,
       include: {
         student: { select: { firstName: true, lastName: true, studentNumber: true } },
       },

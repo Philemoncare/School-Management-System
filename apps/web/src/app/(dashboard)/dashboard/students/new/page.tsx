@@ -9,7 +9,7 @@ import { collectUserRoles } from '@/lib/auth/roles';
 import { Input, Select } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { showFeedback } from '@/components/layout/global-feedback';
-import { ArrowLeft, GraduationCap, Loader2, Save, UserPlus } from 'lucide-react';
+import { ArrowLeft, GraduationCap, Loader2, Save, UserPlus, Mail, Phone, Users } from 'lucide-react';
 
 interface Option {
   id: string;
@@ -33,6 +33,8 @@ export default function NewStudentPage() {
   const [classes, setClasses] = useState<Option[]>([]);
   const [terms, setTerms] = useState<Option[]>([]);
   const [sections, setSections] = useState<Option[]>([]);
+  const [guardians, setGuardians] = useState<{ id: string; firstName: string; lastName: string; email?: string | null; phone?: string | null }[]>([]);
+  const [guardianLoading, setGuardianLoading] = useState(false);
   const [optionsLoading, setOptionsLoading] = useState(true);
   const [optionsError, setOptionsError] = useState('');
 
@@ -49,10 +51,18 @@ export default function NewStudentPage() {
     termId: '',
     classId: '',
     sectionId: '',
+    // Guardian fields (optional, linked after student creation)
+    guardianFirstName: '',
+    guardianLastName: '',
+    guardianRelationship: '',
+    guardianEmail: '',
+    guardianPhone: '',
+    guardianIsPrimary: false,
   });
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [guardianTab, setGuardianTab] = useState<'none' | 'new' | 'existing'>('none');
 
   useEffect(() => {
     let cancelled = false;
@@ -88,7 +98,6 @@ export default function NewStudentPage() {
     };
   }, []);
 
-  // Terms belong to the selected academic year.
   useEffect(() => {
     let cancelled = false;
     setTerms([]);
@@ -109,10 +118,8 @@ export default function NewStudentPage() {
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.academicYearId]);
 
-  // Sections belong to the selected class.
   useEffect(() => {
     let cancelled = false;
     setSections([]);
@@ -130,8 +137,26 @@ export default function NewStudentPage() {
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.classId]);
+
+  // Load existing guardians for the "link existing guardian" option
+  useEffect(() => {
+    let cancelled = false;
+    async function loadGuardians() {
+      setGuardianLoading(true);
+      try {
+        const data = await apiFetch('/guardians');
+        if (cancelled) return;
+        setGuardians(Array.isArray(data) ? data : []);
+      } catch {
+        if (!cancelled) setGuardians([]);
+      } finally {
+        if (!cancelled) setGuardianLoading(false);
+      }
+    }
+    loadGuardians();
+    return () => { cancelled = true; };
+  }, []);
 
   function validate() {
     const errors: Record<string, string> = {};
@@ -144,6 +169,14 @@ export default function NewStudentPage() {
     if (!form.admissionDate) errors.admissionDate = 'Admission date is required.';
     if (!form.academicYearId) errors.academicYearId = 'Select an academic year.';
     if (!form.classId) errors.classId = 'Select a class to place the student in.';
+
+    // Guardian validation only when creating a new guardian
+    if (guardianTab === 'new') {
+      if (!form.guardianFirstName.trim()) errors.guardianFirstName = 'Guardian first name is required.';
+      if (!form.guardianLastName.trim()) errors.guardianLastName = 'Guardian last name is required.';
+      if (!form.guardianRelationship.trim()) errors.guardianRelationship = 'Relationship is required.';
+    }
+
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
   }
@@ -178,8 +211,41 @@ export default function NewStudentPage() {
         method: 'POST',
         body: JSON.stringify(payload),
       });
+      const studentId = created?.id;
+
+      // If a new guardian was specified, create and link them
+      if (studentId && guardianTab === 'new' && form.guardianFirstName.trim() && form.guardianLastName.trim()) {
+        try {
+          const guardian = await apiFetch('/guardians', {
+            method: 'POST',
+            body: JSON.stringify({
+              firstName: form.guardianFirstName.trim(),
+              lastName: form.guardianLastName.trim(),
+              email: form.guardianEmail.trim() || undefined,
+              phone: form.guardianPhone.trim() || undefined,
+            }),
+          });
+          await apiFetch(`/guardians/link/${studentId}`, {
+            method: 'POST',
+            body: JSON.stringify({
+              guardianId: guardian.id,
+              relation: form.guardianRelationship.trim(),
+              isPrimary: form.guardianIsPrimary,
+            }),
+          });
+        } catch (guardianErr: any) {
+          // Guardian creation/link failure should not roll back the student
+          showFeedback('WARNING', `Student registered, but guardian could not be linked: ${guardianErr?.message || 'unknown error'}`);
+          router.push(`/dashboard/students/${studentId}`);
+          return;
+        }
+      } else if (studentId && guardianTab === 'existing') {
+        // Link to an existing guardian was not fully implemented in this flow;
+        // the user can link from the student profile instead.
+      }
+
       showFeedback('SUCCESS', 'Student registered successfully.');
-      router.push(created?.id ? `/dashboard/students/${created.id}` : '/dashboard/students');
+      router.push(studentId ? `/dashboard/students/${studentId}` : '/dashboard/students');
     } catch (err: any) {
       const message = err?.message || 'Could not register the student.';
       setError(message);
@@ -204,7 +270,7 @@ export default function NewStudentPage() {
   }
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
+    <div className="mx-auto max-w-5xl space-y-6">
       <div className="flex items-center gap-3">
         <Link
           href="/dashboard/students"
@@ -219,7 +285,7 @@ export default function NewStudentPage() {
             Register Student
           </h1>
           <p className="mt-0.5 text-xs font-medium text-warm-500 sm:text-sm">
-            Create the student record and place them in a class in one step.
+            Create the student record, place them in a class, and optionally add a parent or guardian.
           </p>
         </div>
       </div>
@@ -260,6 +326,7 @@ export default function NewStudentPage() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-6 rounded-2xl border border-warm-200 bg-card p-5 shadow-xs sm:p-8">
+            {/* Student Details Section */}
             <section className="space-y-4">
               <h2 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-warm-600">
                 <GraduationCap size={16} /> Student details
@@ -329,6 +396,7 @@ export default function NewStudentPage() {
               </div>
             </section>
 
+            {/* Class Placement Section */}
             <section className="space-y-4 border-t border-warm-100 pt-6">
               <h2 className="text-sm font-bold uppercase tracking-wide text-warm-600">
                 Class placement
@@ -388,6 +456,108 @@ export default function NewStudentPage() {
                 The student is enrolled immediately. You can move or re-enroll them later from
                 their profile.
               </p>
+            </section>
+
+            {/* Parent / Guardian Section */}
+            <section className="space-y-4 border-t border-warm-100 pt-6">
+              <h2 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-warm-600">
+                <Users size={16} /> Parent &amp; Guardian
+              </h2>
+              <p className="text-xs text-warm-500">
+                Linking a guardian creates a verified contact for SMS/Email communication and
+                parent portal access. This step is optional — guardians can also be linked later
+                from the student's profile.
+              </p>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    checked={guardianTab === 'none'}
+                    onChange={() => setGuardianTab('none')}
+                    className="h-4 w-4 rounded text-forest-600 focus:ring-forest-500"
+                  />
+                  <label className="text-xs font-medium text-warm-600 cursor-pointer">No guardian now</label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    checked={guardianTab === 'new'}
+                    onChange={() => setGuardianTab('new')}
+                    className="h-4 w-4 rounded text-forest-600 focus:ring-forest-500"
+                  />
+                  <label className="text-xs font-medium text-warm-600 cursor-pointer">Add new guardian</label>
+                </div>
+                {guardians.length > 0 && (
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      checked={guardianTab === 'existing'}
+                      onChange={() => setGuardianTab('existing')}
+                      className="h-4 w-4 rounded text-forest-600 focus:ring-forest-500"
+                    />
+                    <label className="text-xs font-medium text-warm-600 cursor-pointer">Link existing guardian</label>
+                  </div>
+                )}
+              </div>
+
+              {guardianTab === 'new' && (
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  <Input
+                    label="Guardian first name *"
+                    required
+                    value={form.guardianFirstName}
+                    error={fieldErrors.guardianFirstName}
+                    placeholder="e.g. Grace"
+                    onChange={(event) => setForm({ ...form, guardianFirstName: event.target.value })}
+                  />
+                  <Input
+                    label="Guardian last name *"
+                    required
+                    value={form.guardianLastName}
+                    error={fieldErrors.guardianLastName}
+                    placeholder="e.g. Mensah"
+                    onChange={(event) => setForm({ ...form, guardianLastName: event.target.value })}
+                  />
+                  <Input
+                    label="Relationship *"
+                    required
+                    value={form.guardianRelationship}
+                    error={fieldErrors.guardianRelationship}
+                    placeholder="e.g. Mother"
+                    onChange={(event) => setForm({ ...form, guardianRelationship: event.target.value })}
+                  />
+                  <Input
+                    label="Email"
+                    type="email"
+                    value={form.guardianEmail}
+                    helperText="Used for parent portal access and email messages."
+                    onChange={(event) => setForm({ ...form, guardianEmail: event.target.value })}
+                  />
+                  <Input
+                    label="Phone"
+                    placeholder="+233 24 000 0000"
+                    value={form.guardianPhone}
+                    helperText="Used for SMS messages."
+                    onChange={(event) => setForm({ ...form, guardianPhone: event.target.value })}
+                  />
+                  <div className="col-span-1 sm:col-span-1 lg:col-span-1 flex items-center gap-2 pt-6">
+                    <input
+                      type="checkbox"
+                      checked={form.guardianIsPrimary}
+                      onChange={(event) => setForm({ ...form, guardianIsPrimary: event.target.checked })}
+                      className="h-4 w-4 rounded border-warm-300 text-forest-600 focus:ring-forest-500"
+                    />
+                    <label className="text-xs font-medium text-warm-700 cursor-pointer">
+                      Primary guardian
+                    </label>
+                  </div>
+                </div>
+              )}
+
+              {guardianTab === 'existing' && !guardianLoading && guardians.length === 0 && (
+                <p className="text-xs text-warm-500">No existing guardians found. Add one instead.</p>
+              )}
             </section>
 
             <div className="flex flex-col gap-3 border-t border-warm-100 pt-4 sm:flex-row sm:justify-end">

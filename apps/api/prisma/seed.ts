@@ -102,6 +102,56 @@ async function main() {
     }
   });
 
+  // 1b. SMS Packages
+  console.log('Seeding SMS Packages...');
+  const smsStarter = await prisma.smsPackage.upsert({
+    where: { code: 'SMS-STARTER' },
+    update: {},
+    create: {
+      name: 'Starter Pack',
+      code: 'SMS-STARTER',
+      description: 'Ideal for small schools getting started with SMS messaging.',
+      credits: 500,
+      price: 25.00,
+      currency: 'USD',
+      status: 'ACTIVE',
+      isFeatured: true,
+      displayOrder: 1,
+    },
+  });
+
+  const smsGrowth = await prisma.smsPackage.upsert({
+    where: { code: 'SMS-GROWTH' },
+    update: {},
+    create: {
+      name: 'Growth Pack',
+      code: 'SMS-GROWTH',
+      description: 'Best for growing schools with regular communication needs.',
+      credits: 2000,
+      price: 75.00,
+      currency: 'USD',
+      status: 'ACTIVE',
+      isFeatured: true,
+      displayOrder: 2,
+    },
+  });
+
+  const smsEnterprise = await prisma.smsPackage.upsert({
+    where: { code: 'SMS-ENTERPRISE' },
+    update: {},
+    create: {
+      name: 'Enterprise Pack',
+      code: 'SMS-ENTERPRISE',
+      description: 'High-volume messaging for large institutions.',
+      credits: 10000,
+      price: 300.00,
+      currency: 'USD',
+      status: 'ACTIVE',
+      isFeatured: false,
+      displayOrder: 3,
+    },
+  });
+
   // 2. Super Admin
   console.log('Seeding Super Admin...');
   const superAdmin = await prisma.user.upsert({
@@ -153,6 +203,7 @@ async function main() {
       status: SchoolStatus.ACTIVE,
       timezone: 'UTC',
       currency: 'USD',
+      smsCreditBalance: 1000,
     },
   });
 
@@ -171,6 +222,43 @@ async function main() {
       currentPeriodStart: now,
       currentPeriodEnd: nextMonth,
     }
+  });
+
+  // 3b. Demo School 2 (for tenant isolation testing)
+  console.log('Seeding Demo School 2...');
+  const demoSchoolB = await prisma.school.upsert({
+    where: { code: 'DEMO002' },
+    update: {},
+    create: {
+      name: 'Sunrise High School',
+      code: 'DEMO002',
+      slug: 'sunrise-high',
+      status: SchoolStatus.ACTIVE,
+      timezone: 'UTC',
+      currency: 'USD',
+      smsCreditBalance: 500,
+    },
+  });
+
+  await prisma.schoolSubscription.upsert({
+    where: { schoolId: demoSchoolB.id },
+    update: {},
+    create: {
+      schoolId: demoSchoolB.id,
+      planId: basicPlan.id,
+      pricingId: basicPricing.id,
+      status: SubscriptionStatus.ACTIVE,
+      currentPeriodStart: now,
+      currentPeriodEnd: nextMonth,
+    }
+  });
+
+  await prisma.schoolSetting.create({
+    data: {
+      schoolId: demoSchoolB.id,
+      key: 'region',
+      value: 'Northern',
+    },
   });
 
   // 4. Roles

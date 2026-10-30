@@ -18,6 +18,7 @@ model School {
   email                    String?
   timezone                 String                    @default("UTC")
   currency                 String                    @default("USD")
+  smsCreditBalance         Decimal                   @default(0) @db.Decimal(19, 4) @map("sms_credit_balance")
   status                   SchoolStatus              @default(ACTIVE)
   createdAt                DateTime                  @default(now()) @map("created_at")
   updatedAt                DateTime                  @updatedAt @map("updated_at")
@@ -87,6 +88,7 @@ model School {
   payments                 Payment[]
   platformInvoices         PlatformInvoice[]
   platformPayments         PlatformPayment[]
+  smsCreditPurchases       SmsCreditPurchase[]
   positions                Position[]
   PrivacyRequest           PrivacyRequest[]
   PromotionPolicy          PromotionPolicy[]
@@ -2265,6 +2267,42 @@ model SubscriptionCredit {
   @@map("subscription_credits")
 }
 
+model SmsPackage {
+  id            String   @id @default(uuid())
+  name          String   @unique
+  code          String   @unique
+  description   String?
+  credits       Int      @map("credits") // Number of SMS credits included
+  price         Decimal  @db.Decimal(19, 4)
+  currency      String   @default("USD")
+  status        SmsPackageStatus @default(ACTIVE) @map("status")
+  isFeatured    Boolean  @default(false) @map("is_featured")
+  displayOrder  Int      @default(0) @map("display_order")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  purchases     SmsCreditPurchase[]
+
+  @@map("sms_packages")
+}
+
+model SmsCreditPurchase {
+  id             String              @id @default(uuid())
+  schoolId       String              @map("school_id")
+  packageId      String              @map("package_id")
+  package        SmsPackage          @relation(fields: [packageId], references: [id])
+  credits        Int                 @map("credits")
+  amount         Decimal             @db.Decimal(19, 4)
+  currency       String              @default("USD")
+  status         PurchaseStatus      @default(PENDING) @map("status")
+  provider       String?             // e.g. 'platform', 'stripe'
+  externalReference String?          @map("external_reference")
+  purchasedAt    DateTime            @default(now()) @map("purchased_at")
+  completedAt    DateTime?           @map("completed_at")
+  school         School              @relation(fields: [schoolId], references: [id])
+
+  @@map("sms_credit_purchases")
+}
+
 model CommunicationUsage {
   id                 String               @id @default(uuid())
   schoolId           String               @map("school_id")
@@ -2298,6 +2336,20 @@ model MaintenanceWindow {
   schools          School[]             @relation("MaintenanceWindowToSchool")
 
   @@map("maintenance_windows")
+}
+
+enum SmsPackageStatus {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}
+
+enum PurchaseStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  CANCELLED
+  REFUNDED
 }
 
 enum SupportAccessStatus {
@@ -4961,6 +5013,7 @@ enum CreditSource {
   REFUND_CREDIT
   ADMIN_ADJUSTMENT
   PROMOTION
+  SMS_PURCHASE
 }
 
 enum MaintenanceStatus {
