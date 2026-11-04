@@ -399,6 +399,8 @@ model Teacher {
   firstName               String                    @map("first_name")
   middleName              String?                   @map("middle_name")
   lastName                String                    @map("last_name")
+  email                   String?                   @unique @map("email")
+  phone                   String?                   @map("phone")
   employeeId              String?                   @map("employee_id")
   specialization          String?
   status                  StaffStatus               @default(ACTIVE)
@@ -459,6 +461,27 @@ model Staff {
   status              StaffStatus               @default(ACTIVE)
   departmentId        String?                   @map("department_id")
   positionId          String?                   @map("position_id")
+
+  // Personal & contact details (part of the single standard staff record)
+  email               String?
+  phone               String?                   @map("primary_phone")
+  altPhone            String?                   @map("alt_phone")
+  address             String?
+  gender              String?
+  dateOfBirth         DateTime?                 @map("date_of_birth") @db.Date
+  photoUrl            String?                   @map("photo_url")
+  emergencyContactName        String?           @map("emergency_contact_name")
+  emergencyContactPhone       String?           @map("emergency_contact_phone")
+  emergencyContactRelationship String?          @map("emergency_contact_relationship")
+
+  // Employment details
+  employmentType      String?                   @map("employment_type")
+  appointmentDate     DateTime?                 @map("appointment_date") @db.Date
+  commencementDate    DateTime?                 @map("commencement_date") @db.Date
+  contractEndDate     DateTime?                 @map("contract_end_date") @db.Date
+  responsibilities    String?
+  supervisorStaffId   String?                   @map("supervisor_staff_id")
+
   createdAt           DateTime                  @default(now()) @map("created_at")
   updatedAt           DateTime                  @updatedAt @map("updated_at")
   AssetAssignment     AssetAssignment[]
@@ -474,6 +497,8 @@ model Staff {
   position            Position?                 @relation(fields: [positionId], references: [id])
   school              School                    @relation(fields: [schoolId], references: [id])
   user                User?                     @relation(fields: [userId], references: [id])
+  supervisorStaff     Staff?                    @relation("StaffSupervisor", fields: [supervisorStaffId], references: [id])
+  subordinates        Staff[]                   @relation("StaffSupervisor")
   staffAttendance     StaffAttendance[]
   certifications      StaffCertification[]
   documents           StaffDocument[]
