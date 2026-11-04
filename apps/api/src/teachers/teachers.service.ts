@@ -1,4 +1,11 @@
-import { Injectable, ConflictException, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  ConflictException,
+  NotFoundException,
+  BadRequestException,
+  forwardRef,
+  Inject,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { CreateTeacherDto } from './dto/create-teacher.dto';
@@ -6,8 +13,15 @@ import { UpdateTeacherDto } from './dto/update-teacher.dto';
 import { PaginationDto } from '../common/dto/pagination.dto';
 import { OutboxService } from '../workflow/events/outbox.service';
 import { DomainEvent } from '../workflow/events/domain-event';
-import * as argon2 from 'argon2';
-import { AccountState } from '@prisma/client';
+import { AccountState, InvitationStatus, Role } from '@prisma/client';
+import { EmailProvider } from '../communication/providers/email.provider';
+
+const INVITE_TTL_DAYS = 7;
+
+function hashToken(token: string) {
+  const { createHash } = require('node:crypto');
+  return createHash('sha256').update(token).digest('hex');
+}
 
 @Injectable()
 export class TeachersService {
@@ -15,6 +29,8 @@ export class TeachersService {
     private prisma: PrismaService,
     private audit: AuditService,
     private outbox: OutboxService,
+    @Inject(forwardRef(() => EmailProvider))
+    private emailProvider: EmailProvider,
   ) {}
 
   async create(schoolId: string, dto: CreateTeacherDto, actorId: string) {
@@ -32,39 +48,105 @@ export class TeachersService {
     });
     if (existingTeacher) throw new ConflictException('Employee ID already exists');
 
-    const existingUser = await this.prisma.user.findFirst({
-      where: { email: dto.email },
-    });
-    if (existingUser) throw new ConflictException('A user with this email already exists');
+    const email = dto.email.trim().toLowerCase();
 
-    const passwordHash = await argon2.hash(dto.email.slice(0, 8) + 'Teacher#2026', {
-      type: argon2.argon2id,
-      memoryCost: 65536,
-      timeCost: 3,
-      parallelism: 4,
+    const existingTeacherByEmail = await this.prisma.teacher.findFirst({
+      where: { schoolId, email },
     });
+    if (existingTeacherByEmail) {
+      throw new ConflictException('A teacher with this email already exists in this school.');
+    }
+
+    const existingUser = await this.prisma.user.findFirst({
+      where: { email },
+    });
+    if (existingUser) {
+      const existingMembership = await this.prisma.schoolMembership.findFirst({
+        where: { schoolId, userId: existingUser.id },
+      });
+      if (existingMembership) {
+        throw new ConflictException('A user with this email is already a member of this school.');
+      }
+    }
+
+    // Find the TEACHER role for this school
+    const teacherRole = await this.prisma.role.findFirst({
+      where: { name: 'TEACHER', schoolId },
+    });
+    if (!teacherRole) {
+      throw new NotFoundException('TEACHER role not found for this school. Please seed roles first.');
+    }
+
+    const token = require('node:crypto').randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + INVITE_TTL_DAYS * 24 * 60 * 60 * 1000);
 
     return this.prisma.$transaction(async (tx) => {
-      const user = await tx.user.create({
+      const teacher = await tx.teacher.create({
         data: {
-          email: dto.email,
-          phone: dto.phone || null,
-          passwordHash,
           firstName: dto.firstName,
+          middleName: dto.middleName || null,
           lastName: dto.lastName,
-          accountState: AccountState.ACTIVE,
-          emailVerified: new Date(),
+          email,
+          phone: dto.phone || null,
+          employeeId,
+          specialization: dto.specialization || null,
+          status: dto.status || 'ACTIVE',
+          departmentId: dto.departmentId || null,
+          positionId: dto.positionId || null,
+          dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : null,
+          gender: dto.gender || null,
+          address: dto.address || null,
+          nationalId: dto.nationalId || null,
+          dateOfJoining: dto.dateOfJoining ? new Date(dto.dateOfJoining) : null,
+          yearsOfExperience: dto.yearsOfExperience || null,
+          emergencyContactName: dto.emergencyContactName || null,
+          emergencyContactPhone: dto.emergencyContactPhone || null,
+          bankAccountName: dto.bankAccountName || null,
+          bankAccountNumber: dto.bankAccountNumber || null,
+          bankName: dto.bankName || null,
+          schoolId,
+          userId: null,
         },
       });
 
-      const teacher = await tx.teacher.create({
+      const invitation = await tx.invitation.create({
         data: {
-          ...dto,
-          employeeId,
           schoolId,
-          userId: user.id,
+          email,
+          roleId: teacherRole.id,
+          tokenHash: hashToken(token),
+          expiresAt,
+          invitedById: actorId,
+        },
+        select: {
+          id: true,
+          email: true,
+          status: true,
+          expiresAt: true,
+          role: { select: { id: true, name: true } },
         },
       });
+
+      const baseUrl = process.env.APP_URL || process.env.FRONTEND_URL || 'http://localhost:3000';
+      const inviteLink = `${baseUrl.replace(/\/$/, '')}/invite/accept?token=${token}`;
+
+      // Send invitation email
+      const delivery = await this.emailProvider
+        .send({
+          to: email,
+          subject: `You have been invited to join ${await this.getSchoolName(tx, schoolId)} as a Teacher`,
+          body: [
+            `You have been invited to join as a Teacher.`,
+            '',
+            `Accept the invitation and set your password: ${inviteLink}`,
+            '',
+            `This link expires on ${expiresAt.toDateString()}.`,
+          ].join('\n'),
+        })
+        .catch((error) => ({
+          success: false,
+          error: error instanceof Error ? error.message : 'Email delivery failed',
+        }));
 
       await this.audit.log({
         userId: actorId,
@@ -72,7 +154,12 @@ export class TeachersService {
         action: 'TEACHER_CREATED',
         module: 'TEACHERS',
         resourceId: teacher.id,
-        metadata: { employeeId: teacher.employeeId, email: dto.email },
+        metadata: {
+          employeeId: teacher.employeeId,
+          email,
+          invitationId: invitation.id,
+          inviteLink,
+        },
       }, tx);
 
       await this.outbox.dispatch(
@@ -80,15 +167,31 @@ export class TeachersService {
           'TEACHER_CREATED',
           'TEACHER',
           teacher.id,
-          { teacherId: teacher.id, employeeId: teacher.employeeId },
+          { teacherId: teacher.id, employeeId: teacher.employeeId, email },
           schoolId,
           actorId
         ),
         tx
       );
 
-      return teacher;
+      return {
+        teacher,
+        invitation: {
+          ...invitation,
+          inviteLink,
+          delivery,
+        },
+        message: 'Teacher record created. An invitation has been sent to the teacher\'s email address. They must accept the invitation to activate their account.',
+      };
     });
+  }
+
+  private async getSchoolName(tx: any, schoolId: string): Promise<string> {
+    const school = await tx.school.findUnique({
+      where: { id: schoolId },
+      select: { name: true },
+    });
+    return school?.name || 'this school';
   }
 
   async findAll(schoolId: string, pagination: PaginationDto) {

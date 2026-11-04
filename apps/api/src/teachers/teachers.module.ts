@@ -7,6 +7,9 @@ import { TeacherPortalService } from './teacher-portal.service';
 import { TeacherPortalController } from './teacher-portal.controller';
 import { TeacherTaskService } from './teacher-task.service';
 import { TeacherTaskController } from './teacher-task.controller';
+import { TeacherQualificationModule } from './teacher-qualification.module';
+import { TeacherCertificationModule } from './teacher-certification.module';
+import { TeacherDocumentModule } from './teacher-document.module';
 
 @Module({
   controllers: [
@@ -20,6 +23,11 @@ import { TeacherTaskController } from './teacher-task.controller';
     TeacherAssignmentsService,
     TeacherPortalService,
     TeacherTaskService,
+  ],
+  imports: [
+    TeacherQualificationModule,
+    TeacherCertificationModule,
+    TeacherDocumentModule,
   ],
   exports: [
     TeachersService,

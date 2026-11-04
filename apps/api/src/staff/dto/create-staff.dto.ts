@@ -1,4 +1,6 @@
 import {
+  IsDateString,
+  IsEmail,
   IsEnum,
   IsNotEmpty,
   IsOptional,
@@ -8,7 +10,87 @@ import {
 } from 'class-validator';
 import { StaffStatus } from '@prisma/client';
 
-export class CreateStaffDto {
+const GENDER_VALUES = ['MALE', 'FEMALE', 'OTHER', 'UNSPECIFIED'];
+const EMPLOYMENT_TYPES = ['FULL_TIME', 'PART_TIME', 'CONTRACT', 'CASUAL', 'INTERN', 'VOLUNTEER'];
+
+/** Shared personal/contact/employment fields for create + update. */
+class StaffDetailsDto {
+  @IsEmail()
+  @IsOptional()
+  email?: string;
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(40)
+  phone?: string;
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(40)
+  altPhone?: string;
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(300)
+  address?: string;
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(20)
+  gender?: string;
+
+  @IsDateString()
+  @IsOptional()
+  dateOfBirth?: string;
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(500)
+  photoUrl?: string;
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(120)
+  emergencyContactName?: string;
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(40)
+  emergencyContactPhone?: string;
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(80)
+  emergencyContactRelationship?: string;
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(40)
+  employmentType?: string;
+
+  @IsDateString()
+  @IsOptional()
+  appointmentDate?: string;
+
+  @IsDateString()
+  @IsOptional()
+  commencementDate?: string;
+
+  @IsDateString()
+  @IsOptional()
+  contractEndDate?: string;
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(2000)
+  responsibilities?: string;
+
+  @IsUUID()
+  @IsOptional()
+  supervisorStaffId?: string;
+}
+
+export class CreateStaffDto extends StaffDetailsDto {
   @IsString()
   @IsNotEmpty()
   @MaxLength(80)
@@ -47,7 +129,7 @@ export class CreateStaffDto {
   status?: StaffStatus;
 }
 
-export class UpdateStaffDto {
+export class UpdateStaffDto extends StaffDetailsDto {
   @IsString()
   @IsOptional()
   @MaxLength(80)
@@ -87,3 +169,5 @@ export class UpdateStaffDto {
   @IsOptional()
   status?: StaffStatus;
 }
+
+export { GENDER_VALUES, EMPLOYMENT_TYPES };
