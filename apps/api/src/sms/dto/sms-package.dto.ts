@@ -1,9 +1,9 @@
 import {
   IsArray,
   IsBoolean,
-  IsDecimal,
   IsEnum,
   IsInt,
+  IsNumber,
   IsOptional,
   IsPositive,
   IsString,
@@ -31,8 +31,13 @@ export class CreateSmsPackageDto {
   @Min(1)
   credits: number;
 
+  /**
+   * Money is sent as a JSON number. `@IsDecimal()` rejected every package
+   * because class-validator's decimal check only accepts strings, which made
+   * the whole SMS catalogue impossible to populate through the API.
+   */
   @IsPositive()
-  @IsDecimal()
+  @IsNumber()
   price: number;
 
   @IsOptional()
@@ -75,7 +80,7 @@ export class UpdateSmsPackageDto {
 
   @IsOptional()
   @IsPositive()
-  @IsDecimal()
+  @IsNumber()
   price?: number;
 
   @IsOptional()

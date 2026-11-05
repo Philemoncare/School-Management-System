@@ -27,6 +27,8 @@ const TARGETS = [
   ['SmsPackage', prisma.smsPackage],
   ['SmsCreditPurchase', prisma.smsCreditPurchase],
   ['SubscriptionCredit', prisma.subscriptionCredit],
+  ['SupportTicket', prisma.supportTicket],
+  ['SupportTicketMessage', prisma.supportTicketMessage],
   ['AuditLog', prisma.auditLog],
   ['SecurityEvent', prisma.securityEvent],
   ['UserSession', prisma.userSession],
@@ -71,6 +73,27 @@ try {
   for (const g of subs) console.log(`  ${String(g._count._all).padStart(7)}  ${g.status}`);
 } catch (e) {
   console.log('subscription breakdown failed:', e.message);
+}
+
+// The invariants the billing repairs are meant to hold. A non-zero orphan count
+// is the exact condition /super-admin/schools/backfill-subscriptions repairs.
+try {
+  const trialOrphans = await prisma.school.count({ where: { status: 'TRIAL', subscription: { is: null } } });
+  const activeOrphans = await prisma.school.count({ where: { status: 'ACTIVE', subscription: { is: null } } });
+  console.log('\n=== BILLING INTEGRITY ===');
+  console.log(`  ${String(trialOrphans).padStart(7)}  TRIAL tenants with no subscription (should be 0)`);
+  console.log(`  ${String(activeOrphans).padStart(7)}  ACTIVE tenants with no subscription (needs an operator to assign a plan)`);
+} catch (e) {
+  console.log('billing integrity check failed:', e.message);
+}
+
+try {
+  const tickets = await prisma.supportTicket.groupBy({ by: ['status'], _count: { _all: true } });
+  console.log('\n=== SUPPORT TICKETS BY STATUS ===');
+  if (!tickets.length) console.log('              0  (queue is empty)');
+  for (const g of tickets) console.log(`  ${String(g._count._all).padStart(7)}  ${g.status}`);
+} catch (e) {
+  console.log('ticket breakdown failed:', e.message);
 }
 
 try {

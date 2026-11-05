@@ -91,7 +91,6 @@ export const SUPER_ADMIN_NAV: NavigationSection[] = [
       { label: 'Registered Schools', href: '/super-admin/schools', icon: Building2 },
       { label: 'Registration Requests', href: '/super-admin/schools?status=PENDING', icon: ClipboardList },
       { label: 'School Administrators', href: '/super-admin/users', icon: Users },
-      { label: 'School Status & Onboarding', href: '/super-admin/schools', icon: Rocket },
     ]
   },
   {
@@ -99,7 +98,6 @@ export const SUPER_ADMIN_NAV: NavigationSection[] = [
     items: [
       { label: 'SMS Packages', href: '/super-admin/sms-packages', icon: Smartphone },
       { label: 'SMS Credit Ledger', href: '/super-admin/sms-credits', icon: Wallet },
-      { label: 'SMS Usage', href: '/super-admin/sms-credits', icon: Activity },
       { label: 'Payment Transactions', href: '/super-admin/payments', icon: CreditCard },
       { label: 'Subscription Plans', href: '/super-admin/plans', icon: PiggyBank },
       { label: 'Premium Features & Entitlements', href: '/super-admin/settings', icon: Settings },
@@ -108,12 +106,11 @@ export const SUPER_ADMIN_NAV: NavigationSection[] = [
   {
     title: 'Platform Services',
     items: [
-      { label: 'SMS Gateway', href: '/super-admin/settings', icon: Smartphone },
-      { label: 'Email Services', href: '/super-admin/settings', icon: Mail },
-      { label: 'Payment Integrations', href: '/super-admin/payments', icon: CreditCard },
-      { label: 'API Configuration', href: '/super-admin/settings', icon: Link },
-      { label: 'Service Monitoring', href: '/super-admin/monitoring', icon: Monitor },
-    ]
+      // Integration readiness (Arkesel, SMTP, payment providers) is rendered by
+      // the health panel itself, so this is one accurate entry rather than four
+      // labels pointing at pages that do not contain those controls.
+      { label: 'Integrations & API Status', href: '/super-admin/monitoring', icon: Link },
+    ],
   },
   {
     title: 'System Administration',
@@ -121,15 +118,12 @@ export const SUPER_ADMIN_NAV: NavigationSection[] = [
       { label: 'Maintenance', href: '/super-admin/maintenance', icon: Gavel },
       { label: 'Application Configuration', href: '/super-admin/settings', icon: Settings },
       { label: 'Developer Mode', href: '/super-admin/dev-mode', icon: Activity },
-      { label: 'Error Monitoring', href: '/super-admin/monitoring', icon: AlertCircle },
-      { label: 'Background Jobs', href: '/super-admin/monitoring', icon: Activity },
       { label: 'Backup & Recovery', href: '/super-admin/backups', icon: Database },
     ]
   },
   {
     title: 'Security and Audit',
     items: [
-      { label: 'Platform Users', href: '/super-admin/users', icon: Users },
       { label: 'Privileged Access', href: '/super-admin/support-access', icon: ShieldCheck },
       { label: 'Security Events', href: '/super-admin/security', icon: AlertCircle },
       { label: 'Audit Logs', href: '/super-admin/audit', icon: FileText },
@@ -139,6 +133,12 @@ export const SUPER_ADMIN_NAV: NavigationSection[] = [
     title: 'Communication',
     items: [
       { label: 'Announcements', href: '/super-admin/announcements', icon: Megaphone },
+    ]
+  },
+  {
+    title: 'Support',
+    items: [
+      { label: 'Support Tickets', href: '/super-admin/tickets', icon: LifeBuoy },
     ]
   }
 ];

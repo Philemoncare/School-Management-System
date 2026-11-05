@@ -109,6 +109,7 @@ model School {
   savedSearches            SavedSearch[]
   memberships              SchoolMembership[]
   supportAccessGrants      SupportAccessGrant[]
+  supportTickets           SupportTicket[]
   schoolSettings           SchoolSetting[]
   subscription             SchoolSubscription?
   searchHistory            SearchHistory[]
@@ -202,6 +203,9 @@ model User {
   memberships               SchoolMembership[]
   requestedSupportGrants    SupportAccessGrant[]        @relation("SupportGrantRequester")
   approvedSupportGrants     SupportAccessGrant[]        @relation("SupportGrantApprover")
+  reportedSupportTickets    SupportTicket[]             @relation("SupportTicketReporter")
+  assignedSupportTickets    SupportTicket[]             @relation("SupportTicketAssignee")
+  supportTicketMessages     SupportTicketMessage[]      @relation("SupportTicketMessageAuthor")
   createdPlatformBackups    PlatformBackup[]            @relation("PlatformBackupCreator")
   schoolSettingVersions     SchoolSettingVersion[]
   searchHistory             SearchHistory[]
@@ -2437,6 +2441,86 @@ model SupportAccessGrant {
   @@index([schoolId, status])
   @@index([requestedById, status])
   @@map("support_access_grants")
+}
+
+enum SupportTicketStatus {
+  OPEN
+  IN_PROGRESS
+  AWAITING_SCHOOL
+  RESOLVED
+  CLOSED
+}
+
+enum SupportTicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum SupportTicketCategory {
+  ACCESS
+  BILLING
+  SMS
+  DATA
+  FEATURE
+  BUG
+  OTHER
+}
+
+/// A support conversation raised against the platform. `schoolId` is part of
+/// every row so tenant isolation is enforceable at the query level, not just
+/// in the UI - a school may only ever read tickets where its own id matches.
+model SupportTicket {
+  id             String                @id @default(uuid())
+  /// Human-readable handle quoted in emails and in the school's own view.
+  reference        String              @unique
+  schoolId       String                @map("school_id")
+  openedById     String                @map("opened_by_id")
+  assignedToId   String?               @map("assigned_to_id")
+  category       SupportTicketCategory @default(OTHER)
+  subject        String
+  description    String
+  status         SupportTicketStatus   @default(OPEN)
+  priority       SupportTicketPriority @default(MEDIUM)
+  resolutionNote String?               @map("resolution_note")
+  resolvedAt     DateTime?             @map("resolved_at")
+  closedAt       DateTime?             @map("closed_at")
+  /// Maintained on every write so an operator can sort by real activity rather
+  /// than by creation date, which for a long-running ticket is meaningless.
+  lastActivityAt DateTime              @default(now()) @map("last_activity_at")
+  createdAt      DateTime              @default(now()) @map("created_at")
+  updatedAt      DateTime              @updatedAt @map("updated_at")
+  school         School                @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  openedBy       User                  @relation("SupportTicketReporter", fields: [openedById], references: [id])
+  assignedTo     User?                 @relation("SupportTicketAssignee", fields: [assignedToId], references: [id])
+  messages       SupportTicketMessage[]
+
+  @@index([status, priority])
+  @@index([schoolId, status])
+  @@index([assignedToId, status])
+  @@index([lastActivityAt])
+  @@map("support_tickets")
+}
+
+/// One entry in a ticket thread. `internal` rows are platform-agent notes: they
+/// are stored in the same thread for resolution history but are never returned
+/// to the school, and never trigger a notification.
+model SupportTicketMessage {
+  id           String             @id @default(uuid())
+  ticketId     String             @map("ticket_id")
+  authorId     String             @map("author_id")
+  body         String
+  internal     Boolean            @default(false)
+  /// Set when the message exists to record a transition, so the thread itself is
+  /// the audit trail of the ticket's lifecycle.
+  statusChange SupportTicketStatus? @map("status_change")
+  createdAt    DateTime           @default(now()) @map("created_at")
+  ticket       SupportTicket      @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author       User               @relation("SupportTicketMessageAuthor", fields: [authorId], references: [id])
+
+  @@index([ticketId, createdAt])
+  @@map("support_ticket_messages")
 }
 
 enum PlatformBackupStatus {

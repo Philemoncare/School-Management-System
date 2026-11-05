@@ -28,6 +28,7 @@ import { CommunicationModule } from "./communication/communication.module";
 import { MessagesModule } from "./messages/messages.module";
 import { SuperAdminModule } from "./super-admin/super-admin.module";
 import { SmsModule } from "./sms/sms.module";
+import { SupportModule } from "./support/support.module";
 import { DevModeModule } from "./dev-mode/dev-mode.module";
 import { HRModule } from "./hr/hr.module";
 import { SettingsModule } from "./settings/settings.module";
@@ -85,6 +86,7 @@ import { redisConnectionConfig } from "./redis/redis-connection";
     MessagesModule,
     SuperAdminModule,
     SmsModule,
+    SupportModule,
     DevModeModule,
     SettingsModule,
     SecurityModule,
