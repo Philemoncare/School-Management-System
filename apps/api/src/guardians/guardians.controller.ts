@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Patch, Delete, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Patch, Delete, UseGuards, Query } from '@nestjs/common';
 import { GuardiansService } from './guardians.service';
 import { CreateGuardianDto, LinkGuardianDto, UpdateLinkGuardianDto } from './dto/create-guardian.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -32,8 +32,13 @@ export class GuardiansController {
 
   @Roles('SCHOOL_ADMIN', 'PRINCIPAL', 'RECEPTIONIST')
   @Get()
-  findAll(@ActiveSchool() schoolId: string) {
-    return this.guardiansService.findAll(schoolId);
+  findAll(
+    @ActiveSchool() schoolId: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('search') search?: string,
+  ) {
+    return this.guardiansService.findAll(schoolId, { page: page ? parseInt(page, 10) : undefined, limit: limit ? parseInt(limit, 10) : undefined, search });
   }
 
   @Roles('SCHOOL_ADMIN', 'PRINCIPAL', 'TEACHER', 'PARENT')
@@ -66,5 +71,23 @@ export class GuardiansController {
     @CurrentUser() user: any
   ) {
     return this.guardiansService.updateLink(schoolId, studentId, guardianId, dto, user.id);
+  }
+
+  @Roles('SCHOOL_ADMIN', 'PRINCIPAL', 'RECEPTIONIST')
+  @Get(':id')
+  findOne(@ActiveSchool() schoolId: string, @Param('id') id: string) {
+    return this.guardiansService.findOne(id);
+  }
+
+  @Roles('SCHOOL_ADMIN', 'PRINCIPAL', 'RECEPTIONIST')
+  @Patch(':id')
+  update(@Param('id') id: string, @Body() dto: any, @CurrentUser() user: any) {
+    return this.guardiansService.update(id, dto, user.id);
+  }
+
+  @Roles('SCHOOL_ADMIN', 'PRINCIPAL', 'RECEPTIONIST')
+  @Delete(':id')
+  remove(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.guardiansService.remove(id, user.id);
   }
 }

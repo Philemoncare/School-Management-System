@@ -12,12 +12,14 @@ import { StaffLifecycleHandler } from './events/handlers/staff-lifecycle.handler
 import { ResultPublishedHandler } from './events/handlers/result-published.handler';
 import { FinanceModule } from '../finance/finance.module';
 import { WorkflowController } from './workflow.controller';
+import { redisConnectionConfig } from '../redis/redis-connection';
 
 @Global()
 @Module({
   imports: [
     BullModule.registerQueue({
       name: 'outbox',
+      connection: redisConnectionConfig(),
     }),
     FinanceModule,
   ],

@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { EmailOtpService } from './email-otp.service';
+import { OtpSmsThrottleService } from './otp-sms-throttle.service';
 import { SchoolRegistrationService } from './school-registration.service';
 import { UsersController } from './users.controller';
 import { InvitationsController } from './invitations.controller';
@@ -30,6 +31,7 @@ function getJwtSecret(): string {
   providers: [
     AuthService,
     EmailOtpService,
+    OtpSmsThrottleService,
     SchoolRegistrationService,
     LocalStrategy,
     JwtStrategy,

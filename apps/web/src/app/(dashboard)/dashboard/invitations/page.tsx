@@ -6,14 +6,14 @@ import { apiFetch } from '@/lib/api/client';
 import { useAuth } from '@/context/auth-context';
 import { collectUserRoles } from '@/lib/auth/roles';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Input, Select } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Modal } from '@/components/ui/modal';
 import {
   AlertCircle,
   CheckCircle2,
   Clock,
-  Email,
+  Mail,
   Loader2,
   Plus,
   RefreshCw,
@@ -293,7 +293,7 @@ export default function InvitationsPage() {
             <Button variant="outline" onClick={() => setShowInviteModal(false)}>
               Cancel
             </Button>
-            <Button onClick={handleInvite} isLoading={saving} leftIcon={<Email className="w-4 h-4" />}>
+            <Button onClick={handleInvite} isLoading={saving} leftIcon={<Mail className="w-4 h-4" />}>
               Send Invitation
             </Button>
           </>
@@ -311,10 +311,10 @@ export default function InvitationsPage() {
             value={inviteForm.email}
             onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })}
             placeholder="teacher@school.edu"
-            leftIcon={<Email className="w-4 h-4" />}
+            leftIcon={<Mail className="w-4 h-4" />}
           />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <select
+            <Select
               label="Select Role"
               value={inviteForm.roleId}
               onChange={(e) => {
@@ -332,7 +332,7 @@ export default function InvitationsPage() {
                   {r.name}
                 </option>
               ))}
-            </select>
+            </Select>
             <Input
               label="Or Enter Role Name"
               value={inviteForm.roleName}

@@ -23,6 +23,7 @@ import { BackupService } from './services/backup.service';
 import { DataIntegrityService } from '../common/services/data-integrity.service';
 import { SchoolMaintenanceController } from '../dev-mode/school-maintenance.controller';
 import { SmsModule } from '../sms/sms.module';
+import { redisConnectionConfig } from '../redis/redis-connection';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { SmsModule } from '../sms/sms.module';
     SmsModule,
     BullModule.registerQueue({
       name: 'notifications',
+      connection: redisConnectionConfig(),
     }),
   ],
   providers: [

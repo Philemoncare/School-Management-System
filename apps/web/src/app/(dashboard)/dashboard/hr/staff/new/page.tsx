@@ -3,9 +3,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Loader2, Save, Users } from 'lucide-react';
+import { ArrowLeft, Loader2, Save, Users, Mail, Briefcase, Phone } from 'lucide-react';
 import { apiFetch } from '@/lib/api/client';
 import { Input, Select } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { FormActions, FormError, FormGrid, FormNotice, FormSection } from '@/components/ui/form';
 import { showFeedback } from '@/components/layout/global-feedback';
@@ -25,11 +26,61 @@ interface Position {
 
 const STATUS_OPTIONS = [
   { value: 'ACTIVE', label: 'Active' },
+  { value: 'PROBATION', label: 'Probation' },
+  { value: 'ON_LEAVE', label: 'On leave' },
   { value: 'SUSPENDED', label: 'Suspended' },
-  { value: 'INACTIVE', label: 'Inactive' },
   { value: 'TERMINATED', label: 'Terminated' },
+  { value: 'RESIGNED', label: 'Resigned' },
   { value: 'RETIRED', label: 'Retired' },
+  { value: 'INACTIVE', label: 'Inactive' },
 ];
+
+const GENDER_OPTIONS = [
+  { value: '', label: 'Prefer not to say' },
+  { value: 'MALE', label: 'Male' },
+  { value: 'FEMALE', label: 'Female' },
+  { value: 'OTHER', label: 'Other' },
+  { value: 'UNSPECIFIED', label: 'Unspecified' },
+];
+
+const EMPLOYMENT_TYPE_OPTIONS = [
+  { value: '', label: 'Not specified' },
+  { value: 'FULL_TIME', label: 'Full-time' },
+  { value: 'PART_TIME', label: 'Part-time' },
+  { value: 'CONTRACT', label: 'Contract' },
+  { value: 'CASUAL', label: 'Casual' },
+  { value: 'INTERN', label: 'Intern' },
+  { value: 'VOLUNTEER', label: 'Volunteer' },
+];
+
+const EMPTY_FORM = {
+  firstName: '',
+  middleName: '',
+  lastName: '',
+  employeeId: '',
+  designation: '',
+  departmentId: '',
+  positionId: '',
+  status: 'ACTIVE',
+  // Contact & personal
+  email: '',
+  phone: '',
+  altPhone: '',
+  address: '',
+  gender: '',
+  dateOfBirth: '',
+  photoUrl: '',
+  // Employment
+  employmentType: '',
+  appointmentDate: '',
+  commencementDate: '',
+  contractEndDate: '',
+  responsibilities: '',
+  // Emergency contact
+  emergencyContactName: '',
+  emergencyContactPhone: '',
+  emergencyContactRelationship: '',
+};
 
 export default function NewStaffPage() {
   const router = useRouter();
@@ -42,16 +93,7 @@ export default function NewStaffPage() {
   const [optionsLoading, setOptionsLoading] = useState(true);
   const [optionsError, setOptionsError] = useState('');
 
-  const [form, setForm] = useState({
-    firstName: '',
-    middleName: '',
-    lastName: '',
-    employeeId: '',
-    designation: '',
-    departmentId: '',
-    positionId: '',
-    status: 'ACTIVE',
-  });
+  const [form, setForm] = useState({ ...EMPTY_FORM });
 
   useEffect(() => {
     let cancelled = false;
@@ -103,12 +145,32 @@ export default function NewStaffPage() {
     });
   }
 
+  function set<K extends keyof typeof EMPTY_FORM>(key: K, value: string) {
+    setForm((previous) => ({ ...previous, [key]: value }));
+  }
+
   function validate() {
     const errors: Record<string, string> = {};
     if (!form.firstName.trim()) errors.firstName = 'First name is required.';
     if (!form.lastName.trim()) errors.lastName = 'Last name is required.';
     if (form.employeeId.trim() && !/^[A-Za-z0-9._-]{2,40}$/.test(form.employeeId.trim())) {
       errors.employeeId = 'Use 2–40 letters, numbers, dots, hyphens or underscores.';
+    }
+    if (form.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
+      errors.email = 'Enter a valid email address.';
+    }
+    if (
+      form.phone.trim() &&
+      !/^[+()\d\s-]{6,20}$/.test(form.phone.trim())
+    ) {
+      errors.phone = 'Enter a valid phone number.';
+    }
+    if (
+      form.contractEndDate &&
+      form.commencementDate &&
+      form.contractEndDate < form.commencementDate
+    ) {
+      errors.contractEndDate = 'Contract end date must be on or after the commencement date.';
     }
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
@@ -119,22 +181,45 @@ export default function NewStaffPage() {
     if (saving) return;
     setError('');
     if (!validate()) {
-      showFeedback('WARNING', 'Please complete the required fields.');
+      showFeedback('WARNING', 'Please complete the required fields correctly.');
       return;
     }
 
     setSaving(true);
     try {
+      // Only send non-empty optional values. The backend normalises and stores
+      // every field on the staff record itself, so the profile shows exactly
+      // what was collected here.
       const payload: Record<string, unknown> = {
         firstName: form.firstName.trim(),
         lastName: form.lastName.trim(),
         status: form.status,
       };
-      if (form.middleName.trim()) payload.middleName = form.middleName.trim();
-      if (form.employeeId.trim()) payload.employeeId = form.employeeId.trim();
-      if (form.designation.trim()) payload.designation = form.designation.trim();
-      if (form.departmentId) payload.departmentId = form.departmentId;
-      if (form.positionId) payload.positionId = form.positionId;
+      const optionalStringKeys = [
+        'middleName',
+        'employeeId',
+        'designation',
+        'departmentId',
+        'positionId',
+        'email',
+        'phone',
+        'altPhone',
+        'address',
+        'gender',
+        'photoUrl',
+        'employmentType',
+        'emergencyContactName',
+        'emergencyContactPhone',
+        'emergencyContactRelationship',
+      ] as const;
+      for (const key of optionalStringKeys) {
+        const value = form[key].trim();
+        if (value) payload[key] = value;
+      }
+      for (const key of ['dateOfBirth', 'appointmentDate', 'commencementDate', 'contractEndDate'] as const) {
+        if (form[key]) payload[key] = new Date(`${form[key]}T00:00:00`).toISOString();
+      }
+      if (form.responsibilities.trim()) payload.responsibilities = form.responsibilities.trim();
 
       const created = await apiFetch('/staff', {
         method: 'POST',
@@ -179,9 +264,10 @@ export default function NewStaffPage() {
       {optionsError && <FormError message={optionsError} />}
       {error && <FormError message={error} />}
 
-      <FormNotice title="Portal access is managed separately">
-        This form creates the employment record. To give this employee a SchooMA login, invite
-        them from <Link href="/dashboard/users" className="underline">Users → Invitations</Link>.
+      <FormNotice title="Employment record — not a login account">
+        This form creates the employment record and stores the contact details
+        directly on it, so the staff profile always reflects what you enter here. Portal
+        access is managed separately from <Link href="/dashboard/users" className="underline">Users → Invitations</Link>.
       </FormNotice>
 
       <form
@@ -189,7 +275,7 @@ export default function NewStaffPage() {
         className="space-y-6 rounded-2xl border border-warm-200 bg-card p-5 shadow-xs sm:p-8"
         noValidate
       >
-        <FormSection title="Personal details">
+        <FormSection title="Personal details" icon={<Users size={16} />}>
           <FormGrid>
             <Input
               label="First name *"
@@ -197,7 +283,7 @@ export default function NewStaffPage() {
               placeholder="e.g. Kwame"
               value={form.firstName}
               error={fieldErrors.firstName}
-              onChange={(event) => setForm({ ...form, firstName: event.target.value })}
+              onChange={(event) => set('firstName', event.target.value)}
             />
             <Input
               label="Last name *"
@@ -205,20 +291,68 @@ export default function NewStaffPage() {
               placeholder="e.g. Appiah"
               value={form.lastName}
               error={fieldErrors.lastName}
-              onChange={(event) => setForm({ ...form, lastName: event.target.value })}
+              onChange={(event) => set('lastName', event.target.value)}
             />
             <Input
               label="Middle name"
               placeholder="Optional"
               value={form.middleName}
-              onChange={(event) => setForm({ ...form, middleName: event.target.value })}
+              onChange={(event) => set('middleName', event.target.value)}
             />
             <Select
-              label="Employment status"
-              value={form.status}
-              options={STATUS_OPTIONS}
-              onChange={(event) => setForm({ ...form, status: event.target.value })}
-              helperText="Only active employees can be assigned to classes or timetables."
+              label="Gender"
+              value={form.gender}
+              options={GENDER_OPTIONS}
+              onChange={(event) => set('gender', event.target.value)}
+            />
+            <Input
+              label="Date of birth"
+              type="date"
+              value={form.dateOfBirth}
+              onChange={(event) => set('dateOfBirth', event.target.value)}
+            />
+            <Input
+              label="Profile photo URL"
+              type="url"
+              placeholder="https://… (optional)"
+              value={form.photoUrl}
+              helperText="Paste a link to a stored photo, or add one later from the profile."
+              onChange={(event) => set('photoUrl', event.target.value)}
+            />
+          </FormGrid>
+        </FormSection>
+
+        <FormSection title="Contact details" icon={<Mail size={16} />}>
+          <FormGrid>
+            <Input
+              label="Email address"
+              type="email"
+              placeholder="name@school.edu"
+              value={form.email}
+              error={fieldErrors.email}
+              helperText="Stored on the staff record, independent of any login account."
+              onChange={(event) => set('email', event.target.value)}
+            />
+            <Input
+              label="Primary phone"
+              type="tel"
+              placeholder="+233 …"
+              value={form.phone}
+              error={fieldErrors.phone}
+              onChange={(event) => set('phone', event.target.value)}
+            />
+            <Input
+              label="Alternative phone"
+              type="tel"
+              placeholder="Optional"
+              value={form.altPhone}
+              onChange={(event) => set('altPhone', event.target.value)}
+            />
+            <Input
+              label="Residential address"
+              placeholder="Optional"
+              value={form.address}
+              onChange={(event) => set('address', event.target.value)}
             />
           </FormGrid>
         </FormSection>
@@ -226,6 +360,7 @@ export default function NewStaffPage() {
         <FormSection
           title="Employment"
           description="Departments and positions come from HR setup. Pick a department first to narrow the positions."
+          icon={<Briefcase size={16} />}
         >
           <FormGrid>
             <Select
@@ -265,7 +400,7 @@ export default function NewStaffPage() {
               loading={optionsLoading}
               disabled={optionsLoading || (Boolean(form.departmentId) && departmentPositions.length === 0)}
               emptyMessage="No positions defined for this department."
-              onChange={(event) => setForm({ ...form, positionId: event.target.value })}
+              onChange={(event) => set('positionId', event.target.value)}
             />
             <Input
               label="Employee ID"
@@ -273,21 +408,92 @@ export default function NewStaffPage() {
               value={form.employeeId}
               error={fieldErrors.employeeId}
               helperText="Leave blank to use the school's staff numbering rule."
-              onChange={(event) => setForm({ ...form, employeeId: event.target.value })}
+              onChange={(event) => set('employeeId', event.target.value)}
             />
             <Input
               label="Designation"
               placeholder="Optional, e.g. Senior Physics Teacher"
               value={form.designation}
               helperText="Defaults to the selected position."
-              onChange={(event) => setForm({ ...form, designation: event.target.value })}
+              onChange={(event) => set('designation', event.target.value)}
+            />
+            <Select
+              label="Employment type"
+              value={form.employmentType}
+              options={EMPLOYMENT_TYPE_OPTIONS}
+              onChange={(event) => set('employmentType', event.target.value)}
+            />
+            <Select
+              label="Employment status"
+              value={form.status}
+              options={STATUS_OPTIONS}
+              helperText="Independent from the login-account status."
+              onChange={(event) => set('status', event.target.value)}
+            />
+            <Input
+              label="Appointment date"
+              type="date"
+              value={form.appointmentDate}
+              onChange={(event) => set('appointmentDate', event.target.value)}
+            />
+            <Input
+              label="Commencement date"
+              type="date"
+              value={form.commencementDate}
+              onChange={(event) => set('commencementDate', event.target.value)}
+            />
+            <Input
+              label="Contract end date"
+              type="date"
+              value={form.contractEndDate}
+              error={fieldErrors.contractEndDate}
+              onChange={(event) => set('contractEndDate', event.target.value)}
             />
           </FormGrid>
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-semibold text-warm-500 uppercase tracking-wide">
+              Job responsibilities
+            </label>
+            <Textarea
+              rows={3}
+              placeholder="Optional"
+              value={form.responsibilities}
+              onChange={(event) => set('responsibilities', event.target.value)}
+            />
+          </div>
           {optionsLoading && (
             <p className="flex items-center gap-2 text-xs text-warm-500">
               <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading HR options…
             </p>
           )}
+        </FormSection>
+
+        <FormSection
+          title="Emergency contact"
+          description="Who we call if this staff member needs urgent assistance."
+          icon={<Phone size={16} />}
+        >
+          <FormGrid columns={3}>
+            <Input
+              label="Contact name"
+              placeholder="Optional"
+              value={form.emergencyContactName}
+              onChange={(event) => set('emergencyContactName', event.target.value)}
+            />
+            <Input
+              label="Contact phone"
+              type="tel"
+              placeholder="Optional"
+              value={form.emergencyContactPhone}
+              onChange={(event) => set('emergencyContactPhone', event.target.value)}
+            />
+            <Input
+              label="Relationship"
+              placeholder="e.g. Spouse"
+              value={form.emergencyContactRelationship}
+              onChange={(event) => set('emergencyContactRelationship', event.target.value)}
+            />
+          </FormGrid>
         </FormSection>
 
         <FormActions>

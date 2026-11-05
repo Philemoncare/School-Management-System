@@ -1,5 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ServiceUnconfiguredException } from '../exceptions/unsupported-feature.exception';
+import {
+  arkeselConfigGaps,
+  resolveArkeselConfig,
+} from '../utils/sms-gateway';
 
 export type IntegrationName = 'SMS' | 'EMAIL' | 'PAYMENTS' | 'STORAGE' | 'REDIS' | 'WHATSAPP';
 
@@ -16,20 +20,13 @@ export class IntegrationStatusService {
   private readonly logger = new Logger(IntegrationStatusService.name);
 
   checkSms(): IntegrationCheckResult {
-    const provider = process.env.SMS_PROVIDER || 'Hubtel / Arkesel';
-    const missing: string[] = [];
+    const config = resolveArkeselConfig();
+    const provider = process.env.SMS_PROVIDER || 'Arkesel';
+    const missing = arkeselConfigGaps(config);
 
-    const hasApiKey = Boolean(
-      process.env.SMS_API_KEY ||
-      process.env.HUBTEL_CLIENT_SECRET ||
-      process.env.ARKESEL_API_KEY ||
-      process.env.TWILIO_AUTH_TOKEN
-    );
-
-    if (!hasApiKey) {
-      missing.push('SMS_API_KEY');
-    }
-
+    // A gateway is only "configured" when the provider that CommunicationModule
+    // actually selected would accept a send. Key alone is not enough: without a
+    // registered sender ID Arkesel rejects every message.
     const configured = missing.length === 0;
 
     return {
@@ -38,8 +35,8 @@ export class IntegrationStatusService {
       provider,
       missingConfig: missing,
       message: configured
-        ? 'SMS gateway is active and configured.'
-        : 'SMS service is not configured. Please contact your school administrator.',
+        ? `SMS gateway is active via ${provider}${config.keySource === 'sandbox' ? ' (sandbox credentials - development sends only)' : ''}.`
+        : `SMS sending is not available: ${missing.join(', ')} ${missing.length === 1 ? 'is' : 'are'} not configured, so messages will not be delivered.`,
     };
   }
 

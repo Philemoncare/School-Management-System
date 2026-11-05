@@ -21,7 +21,7 @@ import {
   Settings,
   FileText,
 } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 
@@ -85,7 +85,6 @@ export default function TaskDetailPage() {
   const [task, setTask] = useState<TeacherTask | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  [, setSaving] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [editForm, setEditForm] = useState<any>(null);
 
@@ -298,7 +297,7 @@ export default function TaskDetailPage() {
           </Card>
 
           {/* Related Class/Subject */}
-          {task.class || task.section || task.subject && (
+          {(task.class || task.section || task.subject) && (
             <Card>
               <CardHeader>
                 <CardTitle className="text-sm font-semibold text-charcoal-900">

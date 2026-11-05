@@ -101,7 +101,7 @@ export function GlobalSearch() {
                 )}
              </div>
              <div className="p-3 bg-ivory-50 border-t border-warm-100 flex items-center justify-center">
-                <Link href="/dashboard/search/advanced" className="text-[11px] font-semibold text-forest-700 uppercase tracking-wide hover:underline" onClick={() => setIsOpen(false)}>
+                <Link href="/search/advanced" className="text-[11px] font-semibold text-forest-700 uppercase tracking-wide hover:underline" onClick={() => setIsOpen(false)}>
                     Go to Advanced Search
                 </Link>
              </div>

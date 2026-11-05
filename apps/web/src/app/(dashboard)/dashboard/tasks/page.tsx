@@ -6,9 +6,10 @@ import { apiFetch } from '@/lib/api/client';
 import { useAuth } from '@/context/auth-context';
 import { collectUserRoles } from '@/lib/auth/roles';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Input, Select } from '@/components/ui/input';
 import { Modal } from '@/components/ui/modal';
 import {
+  Activity,
   ClipboardList,
   Loader2,
   Plus,
@@ -509,7 +510,7 @@ export default function TeacherTasksPage() {
               }
               placeholder="e.g. Prepare Term 1 Exam Papers"
             />
-            <select
+            <Select
               label="Priority"
               value={createForm.priority}
               onChange={(e) =>
@@ -521,10 +522,10 @@ export default function TeacherTasksPage() {
               <option value="MEDIUM">Medium</option>
               <option value="HIGH">High</option>
               <option value="URGENT">Urgent</option>
-            </select>
+            </Select>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <select
+            <Select
               label="Category"
               value={createForm.category}
               onChange={(e) =>
@@ -537,8 +538,8 @@ export default function TeacherTasksPage() {
                   {cat}
                 </option>
               ))}
-            </select>
-            <select
+            </Select>
+            <Select
               label="Assign To *"
               value={createForm.assignedToId}
               onChange={(e) =>
@@ -552,7 +553,7 @@ export default function TeacherTasksPage() {
                   {t.firstName} {t.lastName} ({t.email})
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
           <Input
             label="Instructions"

@@ -24,7 +24,7 @@ export default function EmailPage() {
         <p className="text-sm text-warm-500">
           Only school administrators, principals, and receptionists can send emails.
         </p>
-        <Link href="/dashboard/communications/delivery" className="text-sm font-semibold text-forest-700 underline">
+        <Link href="/communications/delivery" className="text-sm font-semibold text-forest-700 underline">
           <ArrowLeft size={16} /> View message history
         </Link>
       </div>
@@ -124,7 +124,7 @@ export default function EmailPage() {
           </p>
         </div>
         <Link
-          href="/dashboard/communications/delivery"
+          href="/communications/delivery"
           className="inline-flex items-center justify-center gap-2 rounded-lg bg-forest-800 px-4 py-2.5 text-sm font-semibold text-ivory-50 shadow-xs transition-colors hover:bg-forest-900 sm:w-auto"
         >
           <ArrowLeft size={16} />

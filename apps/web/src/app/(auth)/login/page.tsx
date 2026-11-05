@@ -19,12 +19,77 @@ import { toast } from 'sonner';
 import { OtpCodeInput } from '@/components/auth/otp-code-input';
 import { useOtpTimer } from '@/components/auth/use-otp-timer';
 
+type OtpChannel = 'email' | 'sms';
+type OtpDelivery = 'sent' | 'pending' | 'failed' | 'skipped';
+
 type LoginChallenge = {
   token: string;
   email: string;
   codeLength: number;
-  emailDelivery: 'sent' | 'pending' | 'failed';
+  /** Which transport the current code was actually sent through. */
+  channel: OtpChannel;
+  emailDelivery: OtpDelivery;
+  smsDelivery: OtpDelivery;
+  /** Masked phone the code was texted to. Empty for the email channel. */
+  maskedTarget: string;
+  /** The account has a phone number, so the code can switch transport. */
+  canSwitchChannel: boolean;
 };
+
+function readDelivery(value: unknown): OtpDelivery {
+  return value === 'sent' || value === 'pending' || value === 'failed' || value === 'skipped'
+    ? value
+    : 'pending';
+}
+
+/**
+ * The API answers the same envelope for both transports, so one reader keeps the
+ * UI honest about which channel carries the code instead of assuming email.
+ */
+function toChallenge(data: any): LoginChallenge {
+  const channel: OtpChannel = data.channel === 'sms' ? 'sms' : 'email';
+  return {
+    token: data.otp_token,
+    email: data.email,
+    codeLength: data.codeLength || 5,
+    channel,
+    emailDelivery: readDelivery(data.emailDelivery),
+    smsDelivery: readDelivery(data.smsDelivery),
+    maskedTarget: data.maskedTarget || '',
+    canSwitchChannel: Boolean(data.canSwitchChannel),
+  };
+}
+
+/** Where the current code went, in a form that is safe to show on screen. */
+function codeTarget(challenge: LoginChallenge): string {
+  return challenge.channel === 'sms'
+    ? `the number ${challenge.maskedTarget}`
+    : challenge.email;
+}
+
+/** Delivery of the transport actually used, never the one that was skipped. */
+function activeDelivery(challenge: LoginChallenge): OtpDelivery {
+  return challenge.channel === 'sms' ? challenge.smsDelivery : challenge.emailDelivery;
+}
+
+function codeSentMessage(challenge: LoginChallenge): string {
+  const target = codeTarget(challenge);
+  const delivery = activeDelivery(challenge);
+  if (delivery === 'sent') return `A ${challenge.codeLength}-digit code is on its way to ${target}.`;
+  if (delivery === 'pending') return `We are still sending the code to ${target}. Give it a moment.`;
+  return `We could not confirm the code reached ${target}.`;
+}
+
+/**
+ * Announces what actually happened. A code whose delivery was not confirmed is
+ * never reported as sent, so the user is not told to look for a message that may
+ * never arrive.
+ */
+function announceCode(challenge: LoginChallenge) {
+  const message = codeSentMessage(challenge);
+  if (activeDelivery(challenge) === 'failed') toast.warning(message);
+  else toast.success(message);
+}
 
 export default function LoginPage() {
   const { login, user, activeSchoolId } = useAuth();
@@ -65,6 +130,36 @@ export default function LoginPage() {
         : getRoleLanding(data.user, schoolId);
   }
 
+  async function handleSubmitOTP() {
+    if (isLoading) return;
+    if (!challenge) return;
+    if (otpCode.length !== challenge.codeLength) {
+      setOtpError(
+        `Enter the ${challenge.codeLength}-digit code sent to ${codeTarget(challenge)}.`,
+      );
+      return;
+    }
+
+    setIsLoading(true);
+    setOtpError('');
+    try {
+      const data = await apiFetch('/auth/login/otp', {
+        method: 'POST',
+        body: JSON.stringify({ otpToken: challenge.token, code: otpCode }),
+      });
+
+      if (data.access_token) {
+        completeSignIn(data);
+      }
+    } catch (err: any) {
+      const message =
+        err.message || 'We could not sign you in. Check your details and try again.';
+      setOtpError(message);
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setIsLoading(true);
@@ -74,69 +169,47 @@ export default function LoginPage() {
 
     try {
       if (challenge) {
-        if (otpCode.length !== challenge.codeLength) {
-          setOtpError(`Enter the ${challenge.codeLength}-digit code from your email.`);
-          return;
-        }
-
-        const data = await apiFetch('/auth/login/otp', {
-          method: 'POST',
-          body: JSON.stringify({ otpToken: challenge.token, code: otpCode }),
-        });
-
-        if (data.access_token) {
-          completeSignIn(data);
-        }
+        await handleSubmitOTP();
       } else {
         const result = await login(email, password);
         if (result?.otpRequired) {
-          setChallenge({
-            token: result.otp_token,
-            email: result.email,
-            codeLength: result.codeLength || 5,
-            emailDelivery: result.emailDelivery || 'sent',
-          });
+          const next = toChallenge(result);
+          setChallenge(next);
           setOtpCode('');
           otpTimer.reset();
-          toast.success('We sent a 5-digit sign-in code to your email.');
+          announceCode(next);
         }
       }
     } catch (err: any) {
       const message =
         err.message || 'We could not sign you in. Check your details and try again.';
-      if (challenge) {
-        setOtpError(message);
-      } else {
-        setError(message);
-        setVerificationRequired(
-          err?.code === 'EMAIL_VERIFICATION_REQUIRED' ||
-            /verify your email/i.test(message),
-        );
-      }
+      setError(message);
+      setVerificationRequired(
+        err?.code === 'EMAIL_VERIFICATION_REQUIRED' ||
+          /verify your email/i.test(message),
+      );
     } finally {
       setIsLoading(false);
     }
   }
 
-  async function resendCode() {
+  async function requestCode(channel: OtpChannel) {
     if (!challenge || resending) return;
     setResending(true);
     setOtpError('');
     try {
       const data = await apiFetch('/auth/login/resend', {
         method: 'POST',
-        body: JSON.stringify({ otpToken: challenge.token }),
+        body: JSON.stringify({ otpToken: challenge.token, channel }),
       });
-      setChallenge({
-        token: data.otp_token,
-        email: data.email,
-        codeLength: data.codeLength || 5,
-        emailDelivery: data.emailDelivery || 'sent',
-      });
+      const next = toChallenge(data);
+      setChallenge(next);
       setOtpCode('');
       otpTimer.reset();
-      toast.success('A new sign-in code has been sent.');
+      announceCode(next);
     } catch (err: any) {
+      // A 429 from the per-number text limit lands here, so the user is told the
+      // real reason instead of being left guessing why no message arrived.
       setOtpError(err.message || 'We could not resend the code. Please try again.');
     } finally {
       setResending(false);
@@ -144,33 +217,45 @@ export default function LoginPage() {
   }
 
   if (challenge) {
+    const viaSms = challenge.channel === 'sms';
+    const delivery = activeDelivery(challenge);
+    const target = codeTarget(challenge);
+    const otherChannel: OtpChannel = viaSms ? 'email' : 'sms';
     return (
       <div className="w-full space-y-5 animate-in fade-in duration-300">
         <div className="space-y-1.5">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-forest-700">
-            Email verification
+            {viaSms ? 'Text message verification' : 'Email verification'}
           </p>
           <h2 className="text-2xl font-semibold leading-tight text-charcoal-950">
-            Enter the code sent to your email
+            {viaSms
+              ? 'Enter the code we texted you'
+              : 'Enter the code sent to your email'}
           </h2>
           <p className="text-xs leading-relaxed text-warm-600">
-            We sent a fresh 5-digit sign-in code to{' '}
-            <span className="font-semibold text-charcoal-900">{challenge.email}</span>. It
+            We sent a fresh {challenge.codeLength}-digit sign-in code to{' '}
+            <span className="font-semibold text-charcoal-900">{target}</span>. It
             expires in 5 minutes.
           </p>
         </div>
 
-        {challenge.emailDelivery !== 'sent' && (
+        {delivery !== 'sent' && (
           <Alert
-            type={challenge.emailDelivery === 'failed' ? 'warning' : 'info'}
+            type={delivery === 'failed' ? 'warning' : 'info'}
             title={
-              challenge.emailDelivery === 'failed'
+              delivery === 'failed'
                 ? 'Code delivery was not confirmed'
                 : 'Your code is on the way'
             }
           >
-            {challenge.emailDelivery === 'failed'
-              ? 'Request a new code below. If it still does not arrive, check your spam folder or contact support.'
+            {delivery === 'failed'
+              ? viaSms
+                ? `The text message to ${target} was not confirmed.${
+                    challenge.canSwitchChannel
+                      ? ' You can ask for the code by email instead.'
+                      : ' Request a new code below or contact support.'
+                  }`
+                : 'Request a new code below. If it still does not arrive, check your spam folder or contact support.'
               : 'Give it a moment, then request a new code if it does not arrive.'}
           </Alert>
         )}
@@ -181,6 +266,12 @@ export default function LoginPage() {
             onChange={(value) => {
               setOtpCode(value);
               setOtpError('');
+            }}
+            onComplete={(code) => {
+              setOtpCode(code);
+              setOtpError('');
+              // Auto-submit when all digits are entered
+              void handleSubmitOTP();
             }}
             length={challenge.codeLength}
             disabled={isLoading}
@@ -198,7 +289,7 @@ export default function LoginPage() {
             </span>
             <button
               type="button"
-              onClick={resendCode}
+              onClick={() => requestCode(challenge.channel)}
               disabled={resending || !otpTimer.canResend}
               className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-forest-800 transition-colors hover:text-terracotta-600 disabled:cursor-not-allowed disabled:text-warm-400"
             >
@@ -210,6 +301,19 @@ export default function LoginPage() {
                   : `Resend in ${otpTimer.resendIn}s`}
             </button>
           </div>
+
+          {challenge.canSwitchChannel && (
+            <button
+              type="button"
+              onClick={() => requestCode(otherChannel)}
+              disabled={resending}
+              className="w-full py-1 text-[11px] font-bold uppercase tracking-wide text-warm-500 transition-colors hover:text-forest-800 disabled:cursor-not-allowed disabled:text-warm-400"
+            >
+              {viaSms
+                ? 'Send the code by email instead'
+                : 'Send the code by text instead'}
+            </button>
+          )}
 
           <Button
             type="submit"
@@ -238,7 +342,8 @@ export default function LoginPage() {
         </form>
 
         <p className="text-center text-[11px] font-medium text-warm-500">
-          Every sign-in requires your password and a single-use email code.
+          Every sign-in requires your password and a single-use{' '}
+          {viaSms ? 'text message' : 'email'} code.
         </p>
       </div>
     );

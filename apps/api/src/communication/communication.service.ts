@@ -8,6 +8,8 @@ import type { Queue } from 'bullmq';
 import { isRedisUnavailableError } from '../redis/redis-connection';
 import { EmailProvider } from './providers/email.provider';
 import { SmsProvider } from './providers/sms.provider';
+import { SmsService } from '../sms/sms.service';
+import { smsSegmentCount } from '../common/utils/sms-segments';
 import {
   CommunicationChannel,
   NotificationPriority,
@@ -30,6 +32,7 @@ export class CommunicationService {
     @InjectQueue('notifications') private notificationQueue: Queue,
     private emailProvider: EmailProvider,
     private smsProvider: SmsProvider,
+    private smsService: SmsService,
   ) {}
 
   async getDashboardStats(schoolId: string) {
@@ -200,9 +203,18 @@ export class CommunicationService {
       skipDuplicates: true,
     });
 
-    // 3. Queue jobs for each recipient and channel
-    // In a production app, we would use a bulk job processor
+    // 3. Queue jobs for each recipient and channel.
+    // The communication must NOT be reported as SENT here: at this point the
+    // messages are only enqueued. We publish the total job count and move to
+    // SENDING; the NotificationProcessor advances it to SENT / PARTIALLY_SENT /
+    // FAILED once every job has actually settled with a provider.
+    const totalJobs = userIds.length * comm.channels.length;
     try {
+      await this.prisma.communication.update({
+        where: { id: communicationId },
+        data: { totalJobs, status: CommunicationStatus.SENDING },
+      });
+
       for (const userId of userIds) {
         for (const channel of comm.channels) {
           await this.notificationQueue.add('process-communication', {
@@ -233,12 +245,15 @@ export class CommunicationService {
       throw error;
     }
 
-    await this.prisma.communication.update({
-      where: { id: communicationId },
-      data: { status: CommunicationStatus.SENT, sentAt: new Date() }
-    });
+    // Edge case: nothing to send. Finalize as SENT immediately (zero jobs).
+    if (totalJobs === 0) {
+      await this.prisma.communication.update({
+        where: { id: communicationId },
+        data: { status: CommunicationStatus.SENT, sentAt: new Date() },
+      });
+    }
 
-    return { recipientCount: userIds.length };
+    return { recipientCount: userIds.length, totalJobs };
   }
 
   async getCommunications(schoolId: string, options: any) {
@@ -630,7 +645,6 @@ export class CommunicationService {
 
     // Queue the delivery job for the notification processor to send
     // If the queue (Redis) is unavailable, send directly via the provider
-    let deliveryResult: { success: boolean; reference?: string; error?: string };
     try {
       await this.notificationQueue.add('send-delivery', {
         deliveryId: delivery.id,
@@ -664,7 +678,12 @@ export class CommunicationService {
       if (isRedisUnavailableError(queueError)) {
         this.logger.log(`Falling back to direct send for delivery ${delivery.id} (Redis unavailable)`);
 
-        let result: { success: boolean; reference?: string; error?: string } = { success: false, reference: '', error: '' };
+        let result: { success: boolean; reference?: string; error?: string; code?: string } = {
+          success: false,
+          reference: '',
+          error: '',
+        };
+        let smsSegments = 0;
 
         if (ch === CommunicationChannel.EMAIL) {
           result = await this.emailProvider.send({
@@ -673,32 +692,42 @@ export class CommunicationService {
             body: content.trim(),
           });
         } else if (ch === CommunicationChannel.SMS) {
+          smsSegments = smsSegmentCount(content.trim()).segments;
           result = await this.smsProvider.send({
             to: to.trim(),
             message: content.trim(),
           });
-          if (result.success) {
-            await this.prisma.school.update({
-              where: { id: schoolId },
-              data: {
-                smsCreditBalance: {
-                  decrement: new Prisma.Decimal(1),
-                },
-              },
-            });
-          }
         }
+
+        // Provider success is acceptance, not confirmed delivery. SMS/EMAIL are
+        // recorded as SENT; DELIVERED is reserved for a provider receipt.
+        const finalStatus = !result.success
+          ? 'FAILED'
+          : 'SENT';
 
         await this.prisma.notificationDelivery.update({
           where: { id: delivery.id },
           data: {
-            status: result.success ? 'DELIVERED' : 'FAILED',
+            status: finalStatus as any,
             providerRef: result.reference,
+            errorCode: result.code ?? null,
             errorMessage: result.error,
-            deliveredAt: result.success ? new Date() : null,
+            sentAt: result.success ? new Date() : null,
             failedAt: !result.success ? new Date() : null,
+            ...(ch === CommunicationChannel.SMS ? { smsSegments, smsCreditsCost: smsSegments } : {}),
           },
         });
+
+        // Charge segment credits only for a provider-accepted SMS, through the
+        // audited, idempotent ledger.
+        if (ch === CommunicationChannel.SMS && result.success) {
+          await this.smsService.chargeSmsDelivery({
+            schoolId,
+            credits: smsSegments,
+            deliveryId: delivery.id,
+            segments: smsSegments,
+          });
+        }
 
         await this.prisma.notification.update({
           where: { id: notification.id },

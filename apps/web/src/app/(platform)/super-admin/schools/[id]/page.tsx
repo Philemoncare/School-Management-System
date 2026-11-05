@@ -70,7 +70,13 @@ export default function SchoolDetailPage() {
         schoolType: data.schoolType || '',
       });
       if (data.subscription) {
-        setPlanForm({ planId: data.subscription.planId, status: data.subscription.status });
+        // Coerced because these feed `value={planForm.…}` directly. A missing
+        // property would make the select uncontrolled until the user touches it,
+        // which is the switch React refuses to do silently.
+        setPlanForm({
+          planId: data.subscription.planId ?? '',
+          status: data.subscription.status ?? '',
+        });
       }
     } catch (err: any) {
       setError(err.message || 'Unable to load school');

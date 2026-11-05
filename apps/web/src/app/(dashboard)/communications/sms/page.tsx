@@ -24,7 +24,7 @@ export default function SmsPage() {
         <p className="text-sm text-warm-500">
           Only school administrators, principals, and receptionists can send SMS messages.
         </p>
-        <Link href="/dashboard/communications/delivery" className="text-sm font-semibold text-forest-700 underline">
+        <Link href="/communications/delivery" className="text-sm font-semibold text-forest-700 underline">
           <ArrowLeft size={16} /> View message history
         </Link>
       </div>
@@ -41,6 +41,16 @@ export default function SmsPage() {
     recipient: '', // phone number or group name
     message: '',
   });
+
+  // GSM-7 vs UCS-2 segment accounting so the character count, segment count
+  // and estimated credit cost match what the backend will charge.
+  const GSM7_ALLOWED =
+    "@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞ ÆæßÉ !\"#¤%&'()*+,-./0123456789:;<=>?¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ§¿abcdefghijklmnopqrstuvwxyzäöñüà|^€{}[]~\\";
+  const isGsm7 = [...form.message].every((ch) => GSM7_ALLOWED.includes(ch));
+  const charLimit = isGsm7 ? 160 : 70;
+  const multiLimit = isGsm7 ? 153 : 67;
+  const len = form.message.length;
+  const segments = len === 0 ? 0 : len <= charLimit ? 1 : Math.ceil(len / multiLimit);
 
   useEffect(() => {
     // Check SMS configuration status
@@ -85,7 +95,7 @@ export default function SmsPage() {
           recipientName: form.recipientType === 'INDIVIDUAL' ? 'Recipient' : undefined,
         }),
       });
-      setSuccess('SMS message queued for delivery. You can track its status in Message History.');
+      setSuccess('SMS accepted and queued. Its status (sent → delivered) is tracked in Message History.');
       setForm({ ...form, message: '' });
     } catch (err: any) {
       if (err instanceof ApiError) {
@@ -115,12 +125,13 @@ export default function SmsPage() {
             SMS Messages
           </h1>
           <p className="mt-0.5 text-xs font-medium text-warm-500 sm:text-sm">
-            Send SMS messages to guardians, staff, or other contacts. Messages are delivered
-            through your school&rsquo;s configured SMS provider and delivery status is tracked.
+            Send SMS messages to guardians, staff, or other contacts. Messages are handed to your
+            school&rsquo;s configured SMS provider; delivery is confirmed only when the provider
+            reports it back.
           </p>
         </div>
         <Link
-          href="/dashboard/communications/delivery"
+          href="/communications/delivery"
           className="inline-flex items-center justify-center gap-2 rounded-lg bg-forest-800 px-4 py-2.5 text-sm font-semibold text-ivory-50 shadow-xs transition-colors hover:bg-forest-900 sm:w-auto"
         >
           <ArrowLeft size={16} />
@@ -197,11 +208,14 @@ export default function SmsPage() {
                 value={form.message}
                 onChange={(e) => setForm({ ...form, message: e.target.value })}
                 className="w-full resize-none rounded-xl border border-warm-300 bg-card px-4 py-3 text-sm text-charcoal-900 outline-none transition-colors focus-visible:border-forest-600 focus-visible:ring-2 focus-visible:ring-forest-600/15"
-                maxLength={160}
               />
-              <div className="flex justify-end">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-[11px] font-medium text-warm-500">
+                  {isGsm7 ? 'Standard text (GSM-7)' : 'Special characters (Unicode) — smaller limit'}
+                </span>
                 <span className="text-[10px] text-warm-400">
-                  {form.message.length} / 160 characters
+                  {len} characters · {segments} SMS segment{segments === 1 ? '' : 's'} ·{' '}
+                  ~{segments} credit{segments === 1 ? '' : 's'}
                 </span>
               </div>
             </div>
@@ -245,7 +259,8 @@ export default function SmsPage() {
           <div className="rounded-lg border border-warm-100 bg-ivory-50 p-4">
             <span className="text-emerald-600 text-xs font-bold uppercase">Delivered</span>
             <p className="mt-1 text-xs text-warm-600">
-              The provider confirms the message reached the recipient.
+              The provider has reported back that the message reached the recipient. This is only
+              shown once a delivery receipt is received — it is never assumed from a successful send.
             </p>
           </div>
         </div>

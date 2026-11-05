@@ -46,10 +46,27 @@ interface SchoolBalance {
   smsCreditBalance: number;
 }
 
+/**
+ * The platform's own credit wallet at the SMS gateway. Distinct from a school's
+ * `smsCreditBalance`, which is what schools spend when they send messages.
+ */
+interface GatewayBalance {
+  configured: boolean;
+  balance?: number;
+  accountName?: string;
+  country?: string;
+  keySource?: string;
+  error?: string;
+}
+
+/** Below this the platform cannot honour school sends, so warn early. */
+const LOW_GATEWAY_CREDITS = 100;
+
 export default function SmsPackagesPage() {
   const [tab, setTab] = useState<Tab>('packages');
   const [packages, setPackages] = useState<SmsPackage[]>([]);
   const [balances, setBalances] = useState<SchoolBalance[]>([]);
+  const [gateway, setGateway] = useState<GatewayBalance | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState('');
@@ -76,12 +93,15 @@ export default function SmsPackagesPage() {
     setLoading(true);
     setError('');
     try {
-      const [pkgs, bals] = await Promise.all([
+      const [pkgs, bals, gw] = await Promise.all([
         apiFetch('/super-admin/sms-packages'),
         apiFetch('/super-admin/sms-packages/balances'),
+        // Supplementary: an unreachable gateway must not blank the whole page.
+        apiFetch('/super-admin/sms-packages/provider-balance').catch(() => null),
       ]);
       setPackages(pkgs || []);
       setBalances(bals || []);
+      setGateway(gw || null);
     } catch (err: any) {
       setError(err.message || 'Unable to load SMS data');
     } finally {
@@ -239,6 +259,53 @@ export default function SmsPackagesPage() {
       </div>
 
       {error && <div className="rounded-xl border border-danger-200 bg-danger-50 px-4 py-3 text-sm font-semibold text-danger-700">{error}</div>}
+
+      {gateway && (
+        <div
+          className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border px-5 py-4 ${
+            !gateway.configured || gateway.error
+              ? 'border-danger-200 bg-danger-50'
+              : (gateway.balance ?? 0) <= LOW_GATEWAY_CREDITS
+                ? 'border-warm-300 bg-ivory-50'
+                : 'border-forest-200 bg-forest-50'
+          }`}
+        >
+          <div>
+            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-charcoal-900">
+              <Smartphone size={14} className={gateway.configured && !gateway.error ? 'text-forest-700' : 'text-danger-600'} />
+              Gateway wallet
+            </div>
+            {!gateway.configured ? (
+              <p className="mt-1 text-xs font-semibold text-danger-700">
+                No SMS gateway is configured, so school messages will fail rather than send.
+              </p>
+            ) : gateway.error ? (
+              <p className="mt-1 text-xs font-semibold text-danger-700">{gateway.error}</p>
+            ) : (
+              <p className="mt-1 text-xs text-warm-600">
+                {(gateway.balance ?? 0).toLocaleString()} credits remain at the provider
+                {gateway.accountName ? ` (${gateway.accountName}${gateway.country ? `, ${gateway.country}` : ''})` : ''}.
+                Schools spend their own credit balance; this pool is what the platform pays the provider with.
+              </p>
+            )}
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {gateway.keySource === 'sandbox' && (
+              <Badge variant="warning" className="text-[10px] font-semibold">
+                Sandbox credentials
+              </Badge>
+            )}
+            {gateway.configured && !gateway.error && (gateway.balance ?? 0) <= LOW_GATEWAY_CREDITS && (
+              <Badge variant="error" className="text-[10px] font-semibold">
+                Top up required
+              </Badge>
+            )}
+            <Button variant="ghost" size="sm" onClick={loadData} disabled={loading}>
+              Refresh
+            </Button>
+          </div>
+        </div>
+      )}
 
       {tab === 'packages' ? (
         <div className="overflow-hidden rounded-2xl border border-warm-200 bg-card shadow-sm">

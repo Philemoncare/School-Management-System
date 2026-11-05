@@ -39,6 +39,12 @@ export default function StaffDirectory() {
       .catch(() => setDepartments([]));
   }, []);
 
+  // Honour a deep-linked employee type filter (e.g. /dashboard/hr/staff?type=TEACHER).
+  useEffect(() => {
+    const requested = new URLSearchParams(window.location.search).get('type');
+    if (requested === 'TEACHER' || requested === 'STAFF') setType(requested);
+  }, []);
+
   const loadStaff = useCallback(async () => {
     setLoading(true);
     setError('');

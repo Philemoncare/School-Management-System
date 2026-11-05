@@ -90,19 +90,32 @@ describe('Unsupported Feature Handling System', () => {
     });
 
     it('should assert configuration and throw ServiceUnconfiguredException when missing', () => {
-      // Force missing env
-      const originalKey = process.env.SMS_API_KEY;
-      delete process.env.SMS_API_KEY;
-      delete process.env.HUBTEL_CLIENT_SECRET;
-      delete process.env.ARKESEL_API_KEY;
-      delete process.env.TWILIO_AUTH_TOKEN;
+      // Clear every credential the SMS gateway resolution can pick up, and
+      // restore it afterwards, so the assertion holds regardless of what a
+      // developer has in their local .env.
+      const smsEnvKeys = [
+        'SMS_API_KEY',
+        'ARKESEL_API_KEY',
+        'ARKESEL_SANDBOX_API_KEY',
+        'ARKESEL_SENDER_ID',
+        'SMS_SENDER_ID',
+        'HUBTEL_CLIENT_SECRET',
+        'TWILIO_AUTH_TOKEN',
+      ];
+      const saved: Record<string, string | undefined> = {};
+      for (const key of smsEnvKeys) {
+        saved[key] = process.env[key];
+        delete process.env[key];
+      }
 
-      expect(() => {
-        integrationService.assertConfigured('SMS', 'Bulk SMS Broadcast');
-      }).toThrow(ServiceUnconfiguredException);
-
-      if (originalKey) {
-        process.env.SMS_API_KEY = originalKey;
+      try {
+        expect(() => {
+          integrationService.assertConfigured('SMS', 'Bulk SMS Broadcast');
+        }).toThrow(ServiceUnconfiguredException);
+      } finally {
+        for (const key of smsEnvKeys) {
+          if (saved[key] !== undefined) process.env[key] = saved[key];
+        }
       }
     });
   });

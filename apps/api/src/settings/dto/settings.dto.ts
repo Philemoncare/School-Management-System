@@ -1,8 +1,9 @@
-import { IsString, IsNotEmpty, IsOptional, IsJSON, IsObject, IsBoolean, IsArray } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsJSON, IsObject, IsBoolean, IsArray, IsDefined } from 'class-validator';
 
 export class UpdateSettingDto {
-  @IsObject()
-  @IsNotEmpty()
+  // `value` is persisted into a Json column, so any JSON payload is valid:
+  // objects, arrays, strings, numbers and booleans. Presence is still required.
+  @IsDefined()
   value: any;
 
   @IsString()

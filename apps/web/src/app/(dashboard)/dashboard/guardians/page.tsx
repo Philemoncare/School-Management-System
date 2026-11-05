@@ -22,6 +22,8 @@ import {
   Mail,
   Phone,
   AlertCircle,
+  Edit3,
+  Trash2,
 } from 'lucide-react';
 
 const PAGE_SIZE = 20;
@@ -100,11 +102,11 @@ export default function GuardiansPage() {
         </div>
         {canManage && (
           <Link
-            href="/dashboard/students/new"
+            href="/dashboard/guardians/new"
             className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-forest-800 px-4 py-2.5 text-sm font-semibold text-ivory-50 shadow-xs transition-colors hover:bg-forest-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-forest-600/30 sm:w-auto"
           >
             <Plus size={16} />
-            Register Student
+            Add Guardian
           </Link>
         )}
       </div>
@@ -154,16 +156,16 @@ export default function GuardiansPage() {
           description={
             search
               ? `No guardian matches "${search}". Try a different name or contact.`
-              : 'Guardians are created when students are registered. Link a guardian from a student profile to add one here.'
+              : 'No guardians have been registered yet. Add a guardian and link them to students.'
           }
           actionButton={
             canManage && !search ? (
               <Link
-                href="/dashboard/students/new"
+                href="/dashboard/guardians/new"
                 className="inline-flex items-center gap-2 rounded-lg bg-forest-800 px-4 py-2.5 text-sm font-semibold text-ivory-50 hover:bg-forest-900"
               >
                 <Plus size={16} />
-                Register Student
+                Add Guardian
               </Link>
             ) : undefined
           }
@@ -232,11 +234,22 @@ export default function GuardiansPage() {
                       </td>
                       <td className="whitespace-nowrap px-4 py-3.5 text-right text-xs font-bold sm:px-6">
                         <Link
-                          href={`/dashboard/students`}
+                          href={`/dashboard/guardians/${guardian.id}`}
                           className="text-forest-700 underline-offset-4 hover:text-forest-950 hover:underline"
                         >
-                          View linked students
+                          View Details
                         </Link>
+                        {canManage && (
+                          <>
+                            <br />
+                            <Link
+                              href={`/dashboard/guardians/${guardian.id}?edit=1`}
+                              className="text-xs text-danger-600 hover:text-danger-800 hover:underline"
+                            >
+                              Edit
+                            </Link>
+                          </>
+                        )}
                       </td>
                     </tr>
                   );

@@ -9,11 +9,16 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { SmsService } from './sms.service';
+import { SmsProvider } from '../communication/providers/sms.provider';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
-import { PLATFORM_SUPER_ROLES, PLATFORM_OPERATOR_ROLES } from '../auth/platform-roles';
+import {
+  PLATFORM_SUPER_ROLES,
+  PLATFORM_OPERATOR_ROLES,
+  PLATFORM_READ_ROLES,
+} from '../auth/platform-roles';
 import {
   CreateSmsPackageDto,
   UpdateSmsPackageDto,
@@ -22,12 +27,34 @@ import {
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('super-admin/sms-packages')
 export class SmsController {
-  constructor(private readonly smsService: SmsService) {}
+  constructor(
+    private readonly smsService: SmsService,
+    private readonly smsProvider: SmsProvider,
+  ) {}
 
   @Get()
   @Roles(...PLATFORM_OPERATOR_ROLES)
   getPackages() {
     return this.smsService.getSmsPackages();
+  }
+
+  // Static segments must be declared before @Get(':id'); Nest matches routes
+  // in declaration order, so a later "balances" would be captured as the
+  // package id "balances" and answer 404.
+  @Get('balances')
+  @Roles(...PLATFORM_OPERATOR_ROLES)
+  getAllBalances() {
+    return this.smsService.getAllSmsBalances();
+  }
+
+  /**
+   * The platform's own credit wallet at the SMS gateway. This is not any
+   * school's balance; schools are billed from their own credit balance.
+   */
+  @Get('provider-balance')
+  @Roles(...PLATFORM_READ_ROLES)
+  getProviderBalance() {
+    return this.smsProvider.getBalance();
   }
 
   @Get(':id')
@@ -59,12 +86,6 @@ export class SmsController {
   @Roles(...PLATFORM_SUPER_ROLES)
   archivePackage(@Param('id') id: string, @CurrentUser() user: any) {
     return this.smsService.archiveSmsPackage(id, user.id);
-  }
-
-  @Get('balances')
-  @Roles(...PLATFORM_OPERATOR_ROLES)
-  getAllBalances() {
-    return this.smsService.getAllSmsBalances();
   }
 
   @Post('topup')

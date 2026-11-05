@@ -107,10 +107,12 @@ export class SchoolRegistrationService {
 
     const existingUser = await this.prisma.user.findUnique({
       where: { email: adminEmail },
-      select: { id: true },
+      select: { id: true, accountState: true, emailVerified: true },
     });
     if (existingUser) {
-      throw new ConflictException('An account with this email address already exists.');
+      throw new ConflictException(
+        'This email address is already registered. Please sign in using your existing account or use the password recovery option if you have forgotten your password.',
+      );
     }
 
     const identifiers = await this.generateSchoolIdentifiers(schoolName);
@@ -364,7 +366,7 @@ export class SchoolRegistrationService {
         error.code === 'P2002'
       ) {
         throw new ConflictException(
-          'A school or administrator account with these details already exists.',
+          'This email address is already registered. Please sign in using your existing account or use the password recovery option if you have forgotten your password.',
         );
       }
       throw error;

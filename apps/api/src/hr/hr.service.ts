@@ -13,6 +13,7 @@ import {
   CreateStaffDocumentDto
 } from './dto/hr.dto';
 import { StaffStatus, LeaveRequestStatus, StaffAttendanceStatus } from '@prisma/client';
+import { computeStaffCompletion, deriveAccountStatus } from '../staff/staff-profile.util';
 
 @Injectable()
 export class HRService {
@@ -690,6 +691,7 @@ export class HRService {
       include: {
         department: true,
         position: true,
+        supervisorStaff: { select: { id: true, firstName: true, lastName: true } },
         user: { select: { id: true, email: true, phone: true, isActive: true } },
       },
     });
@@ -747,6 +749,8 @@ export class HRService {
     return {
       entityType,
       profile: staff ?? teacher,
+      completion: computeStaffCompletion(staff ?? teacher),
+      accountStatus: deriveAccountStatus(staff ?? teacher),
       qualifications,
       documents,
       attendance,

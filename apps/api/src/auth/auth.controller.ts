@@ -103,13 +103,17 @@ export class AuthController {
   }
 
   @Public()
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post("login/resend")
-  async resendLoginOtp(@Body() dto: ResendLoginOtpDto, @Request() req: any) {
+  async resendLoginOtp(
+    @Body() dto: ResendLoginOtpDto,
+    @Request() req: any,
+  ) {
     return this.authService.resendLoginOtp(dto.otpToken, {
       ip: req.ip,
       userAgent: req.headers["user-agent"],
       deviceId: req.headers["x-device-id"],
-    });
+    }, dto.channel);
   }
 
   /**

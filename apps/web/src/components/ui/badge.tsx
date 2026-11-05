@@ -3,7 +3,7 @@
 import React, { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
-type BadgeVariant = "info" | "success" | "warning" | "error" | "neutral" | "brand" | "outline" | "secondary" | "destructive";
+type BadgeVariant = "default" | "info" | "success" | "warning" | "error" | "neutral" | "brand" | "outline" | "secondary" | "destructive";
 
 interface BadgeProps {
   children: ReactNode;
@@ -13,6 +13,7 @@ interface BadgeProps {
 
 export function Badge({ children, variant = "neutral", className }: BadgeProps) {
   const variants = {
+    default: "bg-forest-700 text-ivory-100 border-transparent",
     info: "bg-sage-100 text-forest-800 border-sage-300",
     success: "bg-success-50 text-success-700 border-success-200",
     warning: "bg-warning-50 text-warning-800 border-warning-200",

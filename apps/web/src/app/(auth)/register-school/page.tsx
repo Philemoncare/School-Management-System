@@ -5,6 +5,7 @@ import Link from 'next/link';
 import {
   ArrowLeft,
   ArrowRight,
+  AlertCircle,
   Building2,
   CheckCircle2,
   ChevronDown,
@@ -148,6 +149,7 @@ export default function RegisterSchoolPage() {
   const [verifying, setVerifying] = useState(false);
   const [resending, setResending] = useState(false);
   const [verified, setVerified] = useState(false);
+  const [duplicateEmailError, setDuplicateEmailError] = useState<string | null>(null);
   const otpTimer = useOtpTimer();
 
   const score = useMemo(() => passwordScore(form.admin.password), [form.admin.password]);
@@ -271,9 +273,12 @@ export default function RegisterSchoolPage() {
       otpTimer.reset();
     } catch (error) {
       if (error instanceof ApiError) {
-        showApiError(error.message);
         if (error.status === 409) {
+          setDuplicateEmailError(error.message);
+          setApiError('');
           setStep(2);
+        } else {
+          showApiError(error.message);
         }
       } else {
         showApiError('We could not create the school workspace. Please try again.');
@@ -301,6 +306,10 @@ export default function RegisterSchoolPage() {
         }),
       });
       setVerified(true);
+      // Auto-progress: redirect to dashboard after successful verification
+      if (typeof window !== 'undefined') {
+        window.location.href = '/dashboard';
+      }
     } catch (error) {
       setVerificationError(
         error instanceof ApiError
@@ -391,6 +400,11 @@ export default function RegisterSchoolPage() {
                 onChange={(value) => {
                   setVerificationCode(value);
                   setVerificationError('');
+                }}
+                onComplete={(code) => {
+                  setVerificationCode(code);
+                  setVerificationError('');
+                  void verifyCode();
                 }}
                 length={result.verificationCodeLength || 5}
                 disabled={verifying}
@@ -585,6 +599,48 @@ export default function RegisterSchoolPage() {
         <Alert type="error" title="Could not create the workspace">
           {apiError}
         </Alert>
+      )}
+
+      {duplicateEmailError && (
+        <div className="rounded-xl border border-danger-200 bg-danger-50 p-6 mb-6">
+          <div className="flex items-start gap-3">
+            <span className="flex shrink-0 items-center justify-center rounded-full bg-danger-100 text-danger-600 mt-0.5">
+              <AlertCircle className="h-5 w-5" />
+            </span>
+            <div>
+              <h3 className="text-base font-semibold text-danger-800">
+                This email address is already registered
+              </h3>
+              <p className="mt-1 text-sm text-danger-700">
+                {duplicateEmailError}
+              </p>
+            </div>
+          </div>
+          <div className="mt-4 space-y-3">
+            <Button
+              variant="primary"
+              size="lg"
+              className="w-full"
+              onClick={() => {
+                setDuplicateEmailError(null);
+                window.location.href = '/login';
+              }}
+            >
+              Sign In to your existing account
+            </Button>
+            <Button
+              variant="outline"
+              size="lg"
+              className="w-full"
+              onClick={() => {
+                setDuplicateEmailError(null);
+                window.location.href = '/forgot-password';
+              }}
+            >
+              Forgot Password?
+            </Button>
+          </div>
+        </div>
       )}
 
       <form

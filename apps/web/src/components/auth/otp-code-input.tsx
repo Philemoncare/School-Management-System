@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 interface OtpCodeInputProps {
   value: string;
   onChange: (value: string) => void;
+  onComplete?: (value: string) => void;
   length?: number;
   disabled?: boolean;
   autoFocus?: boolean;
@@ -16,6 +17,7 @@ interface OtpCodeInputProps {
 export function OtpCodeInput({
   value,
   onChange,
+  onComplete,
   length = 5,
   disabled = false,
   autoFocus = false,
@@ -52,6 +54,11 @@ export function OtpCodeInput({
 
     const nextIndex = Math.min(length - 1, index + cleaned.length);
     focusInput(nextIndex);
+
+    // Auto-submit when all digits are filled
+    if (onComplete && next.join('').slice(0, length).length === length) {
+      onComplete(next.join('').slice(0, length));
+    }
   };
 
   const handleKeyDown = (index: number, event: React.KeyboardEvent<HTMLInputElement>) => {

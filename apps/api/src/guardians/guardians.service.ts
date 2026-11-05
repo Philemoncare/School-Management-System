@@ -1,7 +1,13 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { CreateGuardianDto, LinkGuardianDto, UpdateLinkGuardianDto } from './dto/create-guardian.dto';
+
+interface GuardianFilter {
+  page?: number;
+  limit?: number;
+  search?: string;
+}
 
 @Injectable()
 export class GuardiansService {
@@ -11,8 +17,21 @@ export class GuardiansService {
   ) {}
 
   async create(dto: CreateGuardianDto, actorId: string) {
+    const email = dto.email?.trim().toLowerCase();
+    
+    // Check for duplicate email
+    if (email) {
+      const existing = await this.prisma.guardian.findFirst({ where: { email } });
+      if (existing) {
+        throw new ConflictException('A guardian with this email address already exists.');
+      }
+    }
+
     const guardian = await this.prisma.guardian.create({
-      data: dto,
+      data: {
+        ...dto,
+        email,
+      },
     });
 
     await this.audit.log({
@@ -31,6 +50,20 @@ export class GuardiansService {
       where: { id: studentId, schoolId },
     });
     if (!student) throw new NotFoundException('Student not found in this school');
+
+    // Verify guardian exists
+    const guardian = await this.prisma.guardian.findUnique({
+      where: { id: dto.guardianId },
+    });
+    if (!guardian) throw new NotFoundException('Guardian not found');
+
+    // Check for existing link
+    const existingLink = await this.prisma.studentGuardian.findFirst({
+      where: { studentId, guardianId: dto.guardianId },
+    });
+    if (existingLink) {
+      throw new ConflictException('This guardian is already linked to this student.');
+    }
 
     const link = await this.prisma.studentGuardian.create({
       data: {
@@ -61,7 +94,8 @@ export class GuardiansService {
       },
       include: {
         guardian: true
-      }
+      },
+      orderBy: [{ isPrimary: 'desc' }, { relation: 'asc' }],
     });
   }
 
@@ -137,21 +171,126 @@ export class GuardiansService {
     return updated;
   }
 
-  async findAll(schoolId: string) {
-    return this.prisma.guardian.findMany({
-      where: {
+  async findAll(schoolId: string, filter: GuardianFilter = {}) {
+    const page = filter.page ?? 1;
+    const limit = filter.limit ?? 20;
+    const skip = (page - 1) * limit;
+
+    const where: any = {
+      students: {
+        some: {
+          student: { schoolId }
+        }
+      }
+    };
+
+    if (filter.search) {
+      where.OR = [
+        { firstName: { contains: filter.search, mode: 'insensitive' } },
+        { lastName: { contains: filter.search, mode: 'insensitive' } },
+        { email: { contains: filter.search, mode: 'insensitive' } },
+        { phone: { contains: filter.search, mode: 'insensitive' } },
+      ];
+    }
+
+    const [items, total] = await Promise.all([
+      this.prisma.guardian.findMany({
+        where,
+        include: {
+          _count: {
+            select: { students: true }
+          }
+        },
+        skip,
+        take: limit,
+        orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
+      }),
+      this.prisma.guardian.count({ where }),
+    ]);
+
+    return {
+      items,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  }
+
+  async findOne(id: string) {
+    const guardian = await this.prisma.guardian.findUnique({
+      where: { id },
+      include: {
         students: {
-          some: {
-            student: { schoolId }
+          include: {
+            student: true
           }
         }
-      },
-      include: {
-        _count: {
-          select: { students: true }
-        }
-      },
-      orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
+      }
     });
+    if (!guardian) throw new NotFoundException('Guardian not found');
+    return guardian;
+  }
+
+  async update(id: string, dto: any, actorId: string) {
+    const guardian = await this.prisma.guardian.findUnique({
+      where: { id },
+    });
+    if (!guardian) throw new NotFoundException('Guardian not found');
+
+    // Check for duplicate email if changing
+    if (dto.email && dto.email.toLowerCase() !== guardian.email?.toLowerCase()) {
+      const existing = await this.prisma.guardian.findFirst({ where: { email: dto.email.toLowerCase() } });
+      if (existing) {
+        throw new ConflictException('A guardian with this email address already exists.');
+      }
+    }
+
+    const updated = await this.prisma.guardian.update({
+      where: { id },
+      data: {
+        ...(dto.firstName !== undefined ? { firstName: dto.firstName.trim() } : {}),
+        ...(dto.lastName !== undefined ? { lastName: dto.lastName.trim() } : {}),
+        ...(dto.email !== undefined ? { email: dto.email.trim().toLowerCase() || null } : {}),
+        ...(dto.phone !== undefined ? { phone: dto.phone.trim() || null } : {}),
+        ...(dto.address !== undefined ? { address: dto.address.trim() || null } : {}),
+      },
+    });
+
+    await this.audit.log({
+      userId: actorId,
+      action: 'GUARDIAN_UPDATED',
+      module: 'GUARDIANS',
+      resourceId: id,
+    });
+
+    return updated;
+  }
+
+  async remove(id: string, actorId: string) {
+    const guardian = await this.prisma.guardian.findUnique({
+      where: { id },
+      include: {
+        students: true
+      }
+    });
+    if (!guardian) throw new NotFoundException('Guardian not found');
+
+    if (guardian.students.length > 0) {
+      throw new ConflictException('Cannot delete guardian with linked students. Unlink from all students first.');
+    }
+
+    await this.prisma.guardian.delete({ where: { id } });
+
+    await this.audit.log({
+      userId: actorId,
+      action: 'GUARDIAN_DELETED',
+      module: 'GUARDIANS',
+      resourceId: id,
+    });
+
+    return { success: true };
   }
 }

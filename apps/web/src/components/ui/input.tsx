@@ -17,11 +17,23 @@ export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> 
   helperText?: string;
   leftIcon?: React.ReactNode;
   rightIcon?: React.ReactNode;
+  /** Render a multi-line <textarea> instead of an <input>. */
+  as?: "input" | "textarea";
+  /** Visible text rows when as="textarea". */
+  rows?: number;
 }
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(
-  ({ label, error, helperText, leftIcon, rightIcon, className, id, ...props }, ref) => {
+  ({ label, error, helperText, leftIcon, rightIcon, className, id, as, rows, type, ...props }, ref) => {
     const inputId = id || (label ? label.toLowerCase().replace(/\s+/g, "-") : undefined);
+    const controlClass = cn(
+      "flex w-full rounded-lg border border-warm-300 bg-card px-3.5 py-2 text-sm text-charcoal-900 outline-none transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-warm-400 focus-visible:border-forest-600 focus-visible:ring-2 focus-visible:ring-forest-600/15 disabled:cursor-not-allowed disabled:bg-warm-50 disabled:opacity-60",
+      as === "textarea" ? "min-h-[80px]" : "h-11 min-h-[44px]",
+      leftIcon && "pl-10",
+      rightIcon && "pr-10",
+      error && "border-danger-400 focus-visible:border-danger-500 focus-visible:ring-danger-500/15",
+      className
+    );
 
     return (
       <div className="w-full flex flex-col gap-1.5">
@@ -39,18 +51,23 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
               {leftIcon}
             </div>
           )}
-          <input
-            id={inputId}
-            ref={ref}
-            className={cn(
-              "flex h-11 min-h-[44px] w-full rounded-lg border border-warm-300 bg-card px-3.5 py-2 text-sm text-charcoal-900 outline-none transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-warm-400 focus-visible:border-forest-600 focus-visible:ring-2 focus-visible:ring-forest-600/15 disabled:cursor-not-allowed disabled:bg-warm-50 disabled:opacity-60",
-              leftIcon && "pl-10",
-              rightIcon && "pr-10",
-              error && "border-danger-400 focus-visible:border-danger-500 focus-visible:ring-danger-500/15",
-              className
-            )}
-            {...props}
-          />
+          {as === "textarea" ? (
+            <textarea
+              id={inputId}
+              ref={ref as unknown as React.Ref<HTMLTextAreaElement>}
+              rows={rows}
+              className={controlClass}
+              {...(props as unknown as React.TextareaHTMLAttributes<HTMLTextAreaElement>)}
+            />
+          ) : (
+            <input
+              id={inputId}
+              ref={ref}
+              type={type}
+              className={controlClass}
+              {...props}
+            />
+          )}
           {rightIcon && (
             <div className="absolute right-3.5 text-muted-foreground z-10">
               {rightIcon}

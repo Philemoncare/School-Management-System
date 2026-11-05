@@ -1433,8 +1433,14 @@ model NotificationDelivery {
   errorMessage   String?              @map("error_message")
   attemptCount   Int                  @default(0) @map("attempt_count")
   lastAttemptAt  DateTime?            @map("last_attempt_at")
+  sentAt         DateTime?            @map("sent_at")
   deliveredAt    DateTime?            @map("delivered_at")
   failedAt       DateTime?            @map("failed_at")
+  // SMS billing truthfulness: segment count, credits actually charged, and a
+  // marker so retries can never deduct twice. Left null for non-SMS channels.
+  smsSegments    Int?                 @map("sms_segments")
+  smsCreditsCost Int?                 @map("sms_credits_cost")
+  smsChargedAt   DateTime?            @map("sms_charged_at")
   notification   Notification         @relation(fields: [notificationId], references: [id])
 
   @@map("notification_deliveries")
@@ -1540,6 +1546,10 @@ model Communication {
   audienceConfig    Json                         @map("audience_config")
   scheduledFor      DateTime?                    @map("scheduled_for")
   sentAt            DateTime?                    @map("sent_at")
+  totalJobs         Int                          @default(0) @map("total_jobs")
+  processedJobs     Int                          @default(0) @map("processed_jobs")
+  succeededJobs     Int                          @default(0) @map("succeeded_jobs")
+  failedJobs        Int                          @default(0) @map("failed_jobs")
   createdAt         DateTime                     @default(now()) @map("created_at")
   updatedAt         DateTime                     @updatedAt @map("updated_at")
   approvals         CommunicationApproval[]

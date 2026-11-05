@@ -157,7 +157,7 @@ export const SCHOOL_NAV: NavigationSection[] = [
   {
     title: 'School Management',
     items: [
-      { label: 'School Profile', href: '/dashboard/settings', icon: Building2, roles: ['SCHOOL_ADMIN', 'ADMIN', 'PRINCIPAL'] },
+      { label: 'School Profile', href: '/settings/profile', icon: Building2, roles: ['SCHOOL_ADMIN', 'ADMIN', 'PRINCIPAL'] },
       { label: 'Academic Years & Terms', href: '/dashboard/academics/years', icon: Clock, roles: ['SCHOOL_ADMIN', 'ADMIN', 'PRINCIPAL'] },
       { label: 'Classes & Streams', href: '/dashboard/academics/classes', icon: Layers, roles: ['SCHOOL_ADMIN', 'ADMIN', 'PRINCIPAL'] },
       { label: 'Subjects', href: '/dashboard/academics/subjects', icon: Book, roles: ['SCHOOL_ADMIN', 'ADMIN', 'PRINCIPAL'] },
@@ -169,7 +169,7 @@ export const SCHOOL_NAV: NavigationSection[] = [
       { label: 'Students', href: '/dashboard/students', icon: GraduationCap, roles: ['SCHOOL_ADMIN', 'ADMIN', 'PRINCIPAL', 'TEACHER', 'ACCOUNTANT', 'HR'] },
       { label: 'Parents & Guardians', href: '/dashboard/guardians', icon: UserCircle, roles: ['SCHOOL_ADMIN', 'ADMIN', 'PRINCIPAL', 'RECEPTIONIST'] },
       { label: 'Teachers & Staff', href: '/dashboard/hr/staff', icon: Briefcase, roles: ['SCHOOL_ADMIN', 'ADMIN', 'PRINCIPAL', 'HR'] },
-      { label: 'Register Teacher', href: '/dashboard/teachers/new', icon: GraduationCap, roles: ['SCHOOL_ADMIN', 'PRINCIPAL', 'HR_OFFICER', 'RECEPTIONIST'] },
+      { label: 'Register Teacher', href: '/dashboard/hr/staff/new', icon: GraduationCap, roles: ['SCHOOL_ADMIN', 'PRINCIPAL', 'HR_OFFICER', 'RECEPTIONIST'] },
       { label: 'User Accounts', href: '/dashboard/users', icon: ShieldCheck, roles: ['SCHOOL_ADMIN', 'ADMIN'] },
     ]
   },
@@ -231,9 +231,9 @@ export const SCHOOL_NAV: NavigationSection[] = [
   {
     title: 'Administration & Settings',
     items: [
-      { label: 'School Settings Center', href: '/dashboard/settings', icon: Settings, roles: ['SCHOOL_ADMIN', 'ADMIN'] },
+      { label: 'School Settings Center', href: '/settings', icon: Settings, roles: ['SCHOOL_ADMIN', 'ADMIN', 'PRINCIPAL'] },
       { label: 'Roles & Permissions', href: '/dashboard/users', icon: Gavel, roles: ['SCHOOL_ADMIN', 'ADMIN'] },
-      { label: 'Notification Settings', href: '/dashboard/settings/features', icon: Bell, roles: ['SCHOOL_ADMIN', 'ADMIN'] },
+      { label: 'Feature Access', href: '/settings/features', icon: Bell, roles: ['SCHOOL_ADMIN', 'ADMIN'] },
       { label: 'School Activity History', href: '/dashboard/activity', icon: FileText, roles: ['SCHOOL_ADMIN', 'ADMIN'] },
     ]
   },

@@ -20,6 +20,8 @@ import {
   LOGIN_OTP_TOKEN_TTL,
   OTP_CODE_LENGTH,
   OTP_TTL_MS,
+  OtpChannel,
+  OtpDelivery,
 } from "./email-otp.service";
 import {
   Prisma,
@@ -181,9 +183,9 @@ export class AuthService {
     return this.issueLoginOtp(user, context);
   }
 
-  async resendLoginOtp(otpToken: string, context?: any) {
+  async resendLoginOtp(otpToken: string, context?: any, channel?: OtpChannel) {
     const user = await this.resolveLoginOtpToken(otpToken);
-    return this.issueLoginOtp(user, context);
+    return this.issueLoginOtp(user, context, channel);
   }
 
   async verifyLoginOtp(otpToken: string, code: string, context?: any) {
@@ -207,16 +209,50 @@ export class AuthService {
         );
       }
       throw new UnauthorizedException(
-        "That code is incorrect. Check your email and try again.",
+        "That code is incorrect. Check the code we sent you and try again.",
       );
     }
 
     return this.createAuthenticatedSession(user, context);
   }
 
-  private async issueLoginOtp(user: any, context?: any) {
+  /**
+   * Starts a sign-in challenge.
+   *
+   * `channel` selects the transport only - the code itself, its hashed storage,
+   * its expiry and its attempt lockout are identical either way, so a user who
+   * asks for a text message cannot bypass the email-side protections.
+   */
+  private async issueLoginOtp(
+    user: any,
+    context?: any,
+    channel: OtpChannel = "email",
+  ) {
+    if (channel === "sms" && !this.emailOtp.canDeliverViaSms(user)) {
+      throw new BadRequestException(
+        "This account has no phone number on file, so the sign-in code can only be sent by email.",
+      );
+    }
+
     const challenge = await this.emailOtp.issueChallenge(user.id, "LOGIN");
-    const delivery = await this.emailOtp.sendLoginCode(user, challenge.code);
+
+    // Only one transport is used per challenge. The other is reported as
+    // 'skipped', not 'failed': no email was ever attempted when the code went by
+    // text, and recording a failure would invent one that never happened.
+    let emailDelivery: OtpDelivery | "skipped" = "skipped";
+    let smsDelivery: OtpDelivery | "skipped" = "skipped";
+    let maskedTarget = "";
+
+    if (channel === "sms") {
+      const sent = await this.emailOtp.sendLoginCodeViaSms(user, challenge.code, {
+        ip: context?.ip,
+      });
+      smsDelivery = sent.smsDelivery;
+      maskedTarget = sent.maskedTarget;
+    } else {
+      const sent = await this.emailOtp.sendLoginCode(user, challenge.code);
+      emailDelivery = sent.emailDelivery;
+    }
 
     return {
       otpRequired: true,
@@ -224,9 +260,16 @@ export class AuthService {
         { sub: user.id, otp: true, purpose: "LOGIN_OTP" },
         { expiresIn: LOGIN_OTP_TOKEN_TTL },
       ),
+      channel,
       email: user.email,
-      emailSent: delivery.emailSent,
-      emailDelivery: delivery.emailDelivery,
+      emailSent: emailDelivery === "sent",
+      emailDelivery,
+      smsSent: smsDelivery === "sent",
+      smsDelivery,
+      maskedTarget,
+      // The other transport stays reachable: a fresh challenge deletes the
+      // previous code, so switching channels never leaves two live codes.
+      canSwitchChannel: this.emailOtp.canDeliverViaSms(user),
       codeLength: OTP_CODE_LENGTH,
       expiresInSeconds: Math.floor(OTP_TTL_MS / 1000),
     };
@@ -624,6 +667,21 @@ export class AuthService {
         where: { id: invite.id },
         data: { status: InvitationStatus.ACCEPTED },
       });
+
+      // 5. Link the user to a pending Teacher record if one exists for this email
+      const pendingTeacher = await tx.teacher.findFirst({
+        where: {
+          email: invite.email,
+          schoolId: invite.schoolId,
+          userId: null,
+        },
+      });
+      if (pendingTeacher) {
+        await tx.teacher.update({
+          where: { id: pendingTeacher.id },
+          data: { userId: user.id },
+        });
+      }
 
       await this.securityEventService.logEvent(
         {

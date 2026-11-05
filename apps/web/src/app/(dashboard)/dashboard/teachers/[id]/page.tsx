@@ -23,6 +23,12 @@ import {
   Save,
   User,
   Users,
+  FileText,
+  GraduationCap,
+  Award,
+  Trash2,
+  CheckCircle2,
+  Clock as ClockIcon,
 } from 'lucide-react';
 
 interface Teacher {
@@ -83,6 +89,19 @@ export default function TeacherProfilePage() {
 
   const [editOpen, setEditOpen] = useState(false);
 
+  const [qualifications, setQualifications] = useState<any[]>([]);
+  const [certifications, setCertifications] = useState<any[]>([]);
+  const [documents, setDocuments] = useState<any[]>([]);
+  const [qualOpen, setQualOpen] = useState(false);
+  const [certOpen, setCertOpen] = useState(false);
+  const [docOpen, setDocOpen] = useState(false);
+  const [qualForm, setQualForm] = useState({ institution: '', qualification: '', fieldOfStudy: '', startDate: '', completionDate: '', grade: '', verificationStatus: 'PENDING' as any });
+  const [certForm, setCertForm] = useState({ name: '', issuingOrganization: '', certificateNumber: '', issueDate: '', expiryDate: '', verificationStatus: 'PENDING' as any });
+  const [docForm, setDocForm] = useState({ title: '', documentType: 'GENERAL', fileUrl: '', storageKey: '', description: '' });
+  const [submittingQual, setSubmittingQual] = useState(false);
+  const [submittingCert, setSubmittingCert] = useState(false);
+  const [submittingDoc, setSubmittingDoc] = useState(false);
+
   const load = useCallback(async () => {
     if (!teacherId) return;
     setLoading(true);
@@ -98,9 +117,45 @@ export default function TeacherProfilePage() {
     }
   }, [teacherId]);
 
+  const loadQualifications = useCallback(async () => {
+    if (!teacherId) return;
+    try {
+      const result = await apiFetch(`/teachers/${teacherId}/qualifications`);
+      setQualifications(Array.isArray(result) ? result : []);
+    } catch {
+      // Non-fatal
+    }
+  }, [teacherId]);
+
+  const loadCertifications = useCallback(async () => {
+    if (!teacherId) return;
+    try {
+      const result = await apiFetch(`/teachers/${teacherId}/certifications`);
+      setCertifications(Array.isArray(result) ? result : []);
+    } catch {
+      // Non-fatal
+    }
+  }, [teacherId]);
+
+  const loadDocuments = useCallback(async () => {
+    if (!teacherId) return;
+    try {
+      const result = await apiFetch(`/teachers/${teacherId}/documents`);
+      setDocuments(Array.isArray(result) ? result : []);
+    } catch {
+      // Non-fatal
+    }
+  }, [teacherId]);
+
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    loadQualifications();
+    loadCertifications();
+    loadDocuments();
+  }, [loadQualifications, loadCertifications, loadDocuments, data]);
 
   if (loading && !data) {
     return (
@@ -256,7 +311,147 @@ export default function TeacherProfilePage() {
           </dd>
         </dl>
       </section>
-    </div>
+
+      {canManage && (
+        <section className="rounded-2xl border border-warm-200 bg-card p-5 shadow-xs sm:p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-bold text-charcoal-900 flex items-center gap-2">
+              <GraduationCap className="h-4 w-4 text-forest-700" />
+              Educational Qualifications
+            </h2>
+            <Button size="sm" onClick={() => { setQualForm({ institution: '', qualification: '', fieldOfStudy: '', startDate: '', completionDate: '', grade: '', verificationStatus: 'PENDING' }); setQualOpen(true); }} leftIcon={<Plus size={14} />}>
+              Add Qualification
+            </Button>
+          </div>
+          <div className="space-y-2">
+            {qualifications.length === 0 ? (
+              <p className="text-sm text-warm-500">No qualifications recorded.</p>
+            ) : (
+              qualifications.map((q) => (
+                <div key={q.id} className="flex items-start gap-3 p-3 rounded-lg border border-warm-100 bg-warm-50">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-forest-50 text-forest-700">
+                    <GraduationCap className="h-4 w-4" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-charcoal-900">{q.qualification}</p>
+                    <p className="text-[11px] text-warm-600">{q.institution}</p>
+                    <p className="text-[11px] text-warm-500">{q.fieldOfStudy} {q.completionDate ? `· Completed ${new Date(q.completionDate).toLocaleDateString()}` : ''}</p>
+                    <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded ${q.verificationStatus === 'VERIFIED' ? 'bg-success-100 text-success-800' : 'bg-warm-100 text-warm-700'}`}>
+                      {q.verificationStatus}
+                    </span>
+                  </div>
+                  <Button size="sm" variant="outline" onClick={() => () => {}} className="text-[11px] p-1.5">
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                </div>
+              ))
+            )}
+          </div>
+        </section>
+      )}
+
+      {canManage && (
+        <section className="rounded-2xl border border-warm-200 bg-card p-5 shadow-xs sm:p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-bold text-charcoal-900 flex items-center gap-2">
+              <Award className="h-4 w-4 text-forest-700" />
+              Professional Certifications
+            </h2>
+            <Button size="sm" onClick={() => { setCertForm({ name: '', issuingOrganization: '', certificateNumber: '', issueDate: '', expiryDate: '', verificationStatus: 'PENDING' }); setCertOpen(true); }} leftIcon={<Plus size={14} />}>
+              Add Certification
+            </Button>
+          </div>
+          <div className="space-y-2">
+            {certifications.length === 0 ? (
+              <p className="text-sm text-warm-500">No certifications recorded.</p>
+            ) : (
+              certifications.map((c) => (
+                <div key={c.id} className="flex items-start gap-3 p-3 rounded-lg border border-warm-100 bg-warm-50">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-forest-50 text-forest-700">
+                    <Award className="h-4 w-4" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-charcoal-900">{c.name}</p>
+                    <p className="text-[11px] text-warm-600">{c.issuingOrganization}</p>
+                    <p className="text-[11px] text-warm-500">{c.certificateNumber ? `Cert #${c.certificateNumber}` : ''} {c.expiryDate ? `· Expires ${new Date(c.expiryDate).toLocaleDateString()}` : ''}</p>
+                    <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded ${c.verificationStatus === 'VERIFIED' ? 'bg-success-100 text-success-800' : 'bg-warm-100 text-warm-700'}`}>
+                      {c.verificationStatus}
+                    </span>
+                  </div>
+                  <Button size="sm" variant="outline" onClick={() => () => {}} className="text-[11px] p-1.5">
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                </div>
+              ))
+            )}
+          </div>
+        </section>
+      )}
+
+      {canManage && (
+        <section className="rounded-2xl border border-warm-200 bg-card p-5 shadow-xs sm:p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-bold text-charcoal-900 flex items-center gap-2">
+              <FileText className="h-4 w-4 text-forest-700" />
+              Documents
+            </h2>
+            <Button size="sm" onClick={() => { setDocForm({ title: '', documentType: 'GENERAL', fileUrl: '', storageKey: '', description: '' }); setDocOpen(true); }} leftIcon={<Plus size={14} />}>
+              Add Document
+            </Button>
+          </div>
+          <div className="space-y-2">
+            {documents.length === 0 ? (
+              <p className="text-sm text-warm-500">No documents uploaded.</p>
+            ) : (
+              documents.map((d) => (
+                <div key={d.id} className="flex items-start gap-3 p-3 rounded-lg border border-warm-100 bg-warm-50">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-forest-50 text-forest-700">
+                    <FileText className="h-4 w-4" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-charcoal-900">{d.title}</p>
+                    <p className="text-[11px] text-warm-600">{d.documentType}</p>
+                    <p className="text-[11px] text-warm-500">{d.fileUrl}</p>
+                  </div>
+                  <Button size="sm" variant="outline" onClick={() => () => {}} className="text-[11px] p-1.5">
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                </div>
+              ))
+            )}
+          </div>
+        </section>
+      )}
+
+      <QualificationModal
+        teacherId={teacherId!}
+        isOpen={qualOpen}
+        onClose={() => setQualOpen(false)}
+        onSaved={loadQualifications}
+      />
+      <CertificationModal
+        teacherId={teacherId!}
+        isOpen={certOpen}
+        onClose={() => setCertOpen(false)}
+        onSaved={loadCertifications}
+      />
+      <DocumentModal
+        teacherId={teacherId!}
+        isOpen={docOpen}
+        onClose={() => setDocOpen(false)}
+        onSaved={loadDocuments}
+      />
+      {editOpen && (
+        <EditTeacherModal
+          teacher={data}
+          onClose={() => setEditOpen(false)}
+          onSaved={() => {
+            setEditOpen(false);
+            load();
+          }}
+        />
+      )}
+      </div>
   );
 }
 
@@ -531,6 +726,224 @@ function EditTeacherModal({
           >
             Save Changes
           </Button>
+        </FormActions>
+      </form>
+    </Modal>
+  );
+}
+
+function QualificationModal({
+  teacherId,
+  isOpen,
+  onClose,
+  onSaved,
+}: {
+  teacherId: string;
+  isOpen: boolean;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [form, setForm] = useState({ institution: '', qualification: '', fieldOfStudy: '', startDate: '', completionDate: '', grade: '', verificationStatus: 'PENDING' as any });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const VERIFICATION_OPTIONS = [
+    { value: 'PENDING', label: 'Pending' },
+    { value: 'VERIFIED', label: 'Verified' },
+    { value: 'REJECTED', label: 'Rejected' },
+  ];
+
+  async function handleSubmit(event: React.FormEvent) {
+    event.preventDefault();
+    if (saving) return;
+    setError('');
+    if (!form.institution.trim() || !form.qualification.trim() || !form.fieldOfStudy.trim() || !form.startDate) {
+      setError('Institution, qualification, field of study, and start date are required.');
+      return;
+    }
+    setSaving(true);
+    try {
+      await apiFetch(`/teachers/${teacherId}/qualifications`, {
+        method: 'POST',
+        body: JSON.stringify({
+          institution: form.institution.trim(),
+          qualification: form.qualification.trim(),
+          fieldOfStudy: form.fieldOfStudy.trim(),
+          startDate: form.startDate,
+          ...(form.completionDate ? { completionDate: form.completionDate } : {}),
+          ...(form.grade ? { grade: form.grade.trim() } : {}),
+          verificationStatus: form.verificationStatus,
+        }),
+      });
+      onClose();
+      onSaved();
+    } catch (err: any) {
+      setError(err?.message || 'Could not add qualification.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Add Educational Qualification" size="lg">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {error && <p role="alert" className="rounded-lg bg-danger-50 p-3 text-xs font-semibold text-danger-700">{error}</p>}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Input label="Institution *" required value={form.institution} onChange={(e) => setForm({ ...form, institution: e.target.value })} />
+          <Input label="Qualification *" required value={form.qualification} onChange={(e) => setForm({ ...form, qualification: e.target.value })} />
+          <Input label="Field of Study *" required value={form.fieldOfStudy} onChange={(e) => setForm({ ...form, fieldOfStudy: e.target.value })} />
+          <Input label="Start Date *" required type="date" value={form.startDate} onChange={(e) => setForm({ ...form, startDate: e.target.value })} />
+          <Input label="Completion Date" type="date" value={form.completionDate} onChange={(e) => setForm({ ...form, completionDate: e.target.value })} />
+          <Input label="Grade" value={form.grade} onChange={(e) => setForm({ ...form, grade: e.target.value })} />
+          <Select label="Verification Status" value={form.verificationStatus} options={VERIFICATION_OPTIONS} onChange={(e) => setForm({ ...form, verificationStatus: e.target.value })} />
+        </div>
+        <FormActions>
+          <Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
+          <Button type="submit" isLoading={saving} leftIcon={<Save size={16} />}>Add Qualification</Button>
+        </FormActions>
+      </form>
+    </Modal>
+  );
+}
+
+function CertificationModal({
+  teacherId,
+  isOpen,
+  onClose,
+  onSaved,
+}: {
+  teacherId: string;
+  isOpen: boolean;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [form, setForm] = useState({ name: '', issuingOrganization: '', certificateNumber: '', issueDate: '', expiryDate: '', verificationStatus: 'PENDING' as any });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const VERIFICATION_OPTIONS = [
+    { value: 'PENDING', label: 'Pending' },
+    { value: 'VERIFIED', label: 'Verified' },
+    { value: 'REJECTED', label: 'Rejected' },
+  ];
+
+  async function handleSubmit(event: React.FormEvent) {
+    event.preventDefault();
+    if (saving) return;
+    setError('');
+    if (!form.name.trim() || !form.issuingOrganization.trim() || !form.issueDate) {
+      setError('Certification name, issuing organization, and issue date are required.');
+      return;
+    }
+    setSaving(true);
+    try {
+      await apiFetch(`/teachers/${teacherId}/certifications`, {
+        method: 'POST',
+        body: JSON.stringify({
+          name: form.name.trim(),
+          issuingOrganization: form.issuingOrganization.trim(),
+          ...(form.certificateNumber ? { certificateNumber: form.certificateNumber.trim() } : {}),
+          issueDate: form.issueDate,
+          ...(form.expiryDate ? { expiryDate: form.expiryDate } : {}),
+          verificationStatus: form.verificationStatus,
+        }),
+      });
+      onClose();
+      onSaved();
+    } catch (err: any) {
+      setError(err?.message || 'Could not add certification.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Add Professional Certification" size="lg">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {error && <p role="alert" className="rounded-lg bg-danger-50 p-3 text-xs font-semibold text-danger-700">{error}</p>}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Input label="Certification Name *" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+          <Input label="Issuing Organization *" required value={form.issuingOrganization} onChange={(e) => setForm({ ...form, issuingOrganization: e.target.value })} />
+          <Input label="Certificate Number" value={form.certificateNumber} onChange={(e) => setForm({ ...form, certificateNumber: e.target.value })} />
+          <Input label="Issue Date *" required type="date" value={form.issueDate} onChange={(e) => setForm({ ...form, issueDate: e.target.value })} />
+          <Input label="Expiry Date" type="date" value={form.expiryDate} onChange={(e) => setForm({ ...form, expiryDate: e.target.value })} />
+          <Select label="Verification Status" value={form.verificationStatus} options={VERIFICATION_OPTIONS} onChange={(e) => setForm({ ...form, verificationStatus: e.target.value })} />
+        </div>
+        <FormActions>
+          <Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
+          <Button type="submit" isLoading={saving} leftIcon={<Save size={16} />}>Add Certification</Button>
+        </FormActions>
+      </form>
+    </Modal>
+  );
+}
+
+function DocumentModal({
+  teacherId,
+  isOpen,
+  onClose,
+  onSaved,
+}: {
+  teacherId: string;
+  isOpen: boolean;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [form, setForm] = useState({ title: '', documentType: 'GENERAL', fileUrl: '', storageKey: '', description: '' });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const DOCUMENT_TYPES = [
+    { value: 'GENERAL', label: 'General' },
+    { value: 'ID_CARD', label: 'ID Card' },
+    { value: 'CERTIFICATE', label: 'Certificate' },
+    { value: 'LICENSE', label: 'License' },
+    { value: 'CONTRACT', label: 'Contract' },
+  ];
+
+  async function handleSubmit(event: React.FormEvent) {
+    event.preventDefault();
+    if (saving) return;
+    setError('');
+    if (!form.title.trim() || !form.fileUrl.trim()) {
+      setError('Title and file URL are required.');
+      return;
+    }
+    setSaving(true);
+    try {
+      await apiFetch(`/teachers/${teacherId}/documents`, {
+        method: 'POST',
+        body: JSON.stringify({
+          title: form.title.trim(),
+          documentType: form.documentType,
+          fileUrl: form.fileUrl.trim(),
+          storageKey: form.storageKey.trim() || null,
+          description: form.description.trim() || null,
+        }),
+      });
+      onClose();
+      onSaved();
+    } catch (err: any) {
+      setError(err?.message || 'Could not add document.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Add Document" size="lg">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {error && <p role="alert" className="rounded-lg bg-danger-50 p-3 text-xs font-semibold text-danger-700">{error}</p>}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Input label="Document Title *" required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
+          <Select label="Document Type" value={form.documentType} options={DOCUMENT_TYPES} onChange={(e) => setForm({ ...form, documentType: e.target.value })} />
+          <Input label="File URL *" required value={form.fileUrl} onChange={(e) => setForm({ ...form, fileUrl: e.target.value })} helperText="URL to the uploaded document." />
+          <Input label="Storage Key" value={form.storageKey} onChange={(e) => setForm({ ...form, storageKey: e.target.value })} />
+          <Input label="Description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+        </div>
+        <FormActions>
+          <Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
+          <Button type="submit" isLoading={saving} leftIcon={<Save size={16} />}>Add Document</Button>
         </FormActions>
       </form>
     </Modal>

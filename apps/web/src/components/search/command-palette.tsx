@@ -184,7 +184,7 @@ export function CommandPalette() {
                 <span>Navigate</span>
               </div>
            </div>
-           <Link href="/dashboard/search/advanced" className="text-[11px] font-semibold text-forest-700 uppercase tracking-wide hover:underline" onClick={() => setIsOpen(false)}>
+           <Link href="/search/advanced" className="text-[11px] font-semibold text-forest-700 uppercase tracking-wide hover:underline" onClick={() => setIsOpen(false)}>
               Advanced Search
            </Link>
         </div>

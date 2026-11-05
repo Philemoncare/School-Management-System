@@ -8,11 +8,13 @@ import { ReportProcessor } from './processors/report.processor';
 import { ReportingCronService } from './reporting-cron.service';
 import { ReportingRealtimeHandler } from './handlers/reporting-realtime.handler';
 import { EventDispatcherService } from '../workflow/events/event-dispatcher.service';
+import { redisConnectionConfig } from '../redis/redis-connection';
 
 @Module({
   imports: [
     BullModule.registerQueue({
       name: 'reports',
+      connection: redisConnectionConfig(),
     }),
     AuditModule,
   ],

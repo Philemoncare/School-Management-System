@@ -387,7 +387,7 @@ function TaskCard({
                     if (status === 'SUBMITTED_FOR_REVIEW' || status === 'COMPLETED') {
                       setCompletionNote('');
                     }
-                    handleStatusChange(task.id, status);
+                    onStatusChange(task.id, status);
                   }}
                   className="w-full text-left text-xs"
                 >

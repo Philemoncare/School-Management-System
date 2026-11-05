@@ -123,8 +123,8 @@ function QuickLinksCard() {
       <div className="grid grid-cols-2 gap-2.5">
         <QuickLink label="Admit Student" href="/dashboard/students/new" color="bg-forest-500" />
         <QuickLink label="Mark Attendance" href="/dashboard/attendance" color="bg-forest-600" />
-        <QuickLink label="Issue Fee Invoice" href="/dashboard/finance/invoices/new" color="bg-terracotta-500" />
-        <QuickLink label="Post Assessment" href="/dashboard/assessments/new" color="bg-warning-500" />
+        <QuickLink label="Issue Fee Invoice" href="/accountant/billing/new" color="bg-terracotta-500" />
+        <QuickLink label="Post Assessment" href="/dashboard/assessments/list" color="bg-warning-500" />
       </div>
     </div>
   );

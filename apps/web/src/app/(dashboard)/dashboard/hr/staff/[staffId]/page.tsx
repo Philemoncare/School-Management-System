@@ -153,11 +153,31 @@ export default function StaffProfilePage() {
         <div className="space-y-6">
           <section className="rounded-xl border border-warm-200 bg-card p-5 shadow-sm sm:p-6">
             <div className="mb-6 flex h-20 w-20 items-center justify-center overflow-hidden rounded-3xl border-4 border-white bg-ivory-50 text-warm-200 shadow-xs">
-              <User size={56} />
+              {profile?.photoUrl ? (
+                <img src={profile.photoUrl} alt={displayName || 'Staff photo'} className="h-full w-full object-cover" />
+              ) : (
+                <User size={56} />
+              )}
             </div>
+            {data.completion && (
+              <div className="mb-5">
+                <div className="mb-1 flex items-center justify-between">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-warm-400">Profile completion</p>
+                  <p className="text-[11px] font-bold text-forest-700">{data.completion.percent}%</p>
+                </div>
+                <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                  <div className="h-full bg-forest-700" style={{ width: `${data.completion.percent}%` }} />
+                </div>
+                {!data.completion.complete && data.completion.missingFields?.length > 0 && (
+                  <p className="mt-2 text-[11px] font-medium text-warm-500">
+                    Missing: {data.completion.missingFields.join(', ')}
+                  </p>
+                )}
+              </div>
+            )}
             <div className="space-y-5">
-              <ContactItem icon={<Mail size={16} />} label="Email address" value={profile?.user?.email || 'Not on file'} />
-              <ContactItem icon={<Phone size={16} />} label="Phone number" value={profile?.user?.phone || 'Not on file'} />
+              <ContactItem icon={<Mail size={16} />} label="Email address" value={profile?.email || profile?.user?.email || 'Not on file'} />
+              <ContactItem icon={<Phone size={16} />} label="Phone number" value={profile?.phone || profile?.user?.phone || 'Not on file'} />
               <ContactItem icon={<Building size={16} />} label="Department" value={profile?.department?.name || 'Unassigned'} />
               <ContactItem icon={<ShieldCheck size={16} />} label="Staff number" value={profile?.employeeId || 'Not assigned'} />
             </div>
@@ -172,17 +192,20 @@ export default function StaffProfilePage() {
                   {summary.attendanceRate == null ? '—' : `${summary.attendanceRate}%`}
                 </p>
                 <p className="text-[10px] text-warm-400">
-                  {summary.attendanceRecords ?? 0} recent record{summary.attendanceRecords === 1 ? '' : 's'}
+                  {summary.attendanceRecords
+                    ? `${summary.attendanceRecords} recent record${summary.attendanceRecords === 1 ? '' : 's'}`
+                    : 'No attendance recorded'}
                 </p>
               </div>
               <div className="rounded-2xl border border-white/5 bg-white/5 p-3">
                 <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-warm-400">Leave used</p>
                 <p className="text-lg font-semibold">
-                  {summary.usedDays ?? 0}/{summary.entitledDays ?? 0}
+                  {data.leaveBalances?.length ? `${summary.usedDays ?? 0}/${summary.entitledDays ?? 0}` : '—'}
                 </p>
                 <p className="text-[10px] text-warm-400">
-                  {summary.pendingLeaveRequests ?? 0} pending request
-                  {(summary.pendingLeaveRequests ?? 0) === 1 ? '' : 's'}
+                  {data.leaveBalances?.length
+                    ? `${summary.pendingLeaveRequests ?? 0} pending request${(summary.pendingLeaveRequests ?? 0) === 1 ? '' : 's'}`
+                    : 'No leave balances set up'}
                 </p>
               </div>
             </div>
@@ -245,8 +268,21 @@ export default function StaffProfilePage() {
                     }
                   />
                   <ProfileField label="Record created" value={formatDate(profile?.createdAt)} />
+                  <ProfileField label="Employment type" value={profile?.employmentType ? String(profile.employmentType).replace(/_/g, ' ') : '—'} />
+                  <ProfileField label="Commencement date" value={formatDate(profile?.commencementDate)} />
+                  <ProfileField label="Staff email" value={profile?.email || 'Not on file'} />
+                  <ProfileField label="Staff phone" value={profile?.phone || 'Not on file'} />
                   <ProfileField label="Account email" value={profile?.user?.email || 'No login account'} />
-                  <ProfileField label="Account status" value={profile?.user ? (profile.user.isActive ? 'Active' : 'Disabled') : 'No login account'} />
+                  <ProfileField
+                    label="Account status"
+                    value={
+                      data.accountStatus === 'ACTIVE'
+                        ? 'Active'
+                        : data.accountStatus === 'SUSPENDED'
+                          ? 'Suspended'
+                          : 'No login account'
+                    }
+                  />
                 </div>
               </div>
             )}
@@ -547,6 +583,16 @@ const EMPLOYMENT_STATUSES = [
   { value: 'RETIRED', label: 'Retired' },
 ];
 
+const EMPLOYMENT_TYPE_OPTIONS = [
+  { value: '', label: 'Not specified' },
+  { value: 'FULL_TIME', label: 'Full-time' },
+  { value: 'PART_TIME', label: 'Part-time' },
+  { value: 'CONTRACT', label: 'Contract' },
+  { value: 'CASUAL', label: 'Casual' },
+  { value: 'INTERN', label: 'Intern' },
+  { value: 'VOLUNTEER', label: 'Volunteer' },
+];
+
 function EditEmploymentModal({
   entityType,
   record,
@@ -567,6 +613,11 @@ function EditEmploymentModal({
     departmentId: record?.departmentId ?? record?.department?.id ?? '',
     positionId: record?.positionId ?? record?.position?.id ?? '',
     status: record?.status ?? 'ACTIVE',
+    email: record?.email ?? '',
+    phone: record?.phone ?? '',
+    employmentType: record?.employmentType ?? '',
+    commencementDate: record?.commencementDate ? String(record.commencementDate).slice(0, 10) : '',
+    photoUrl: record?.photoUrl ?? '',
   });
   const [departments, setDepartments] = useState<any[]>([]);
   const [positions, setPositions] = useState<any[]>([]);
@@ -634,6 +685,9 @@ function EditEmploymentModal({
     if (form.employeeId.trim() && !/^[A-Za-z0-9._-]{2,40}$/.test(form.employeeId.trim())) {
       errors.employeeId = 'Use 2–40 letters, numbers, dots, hyphens or underscores.';
     }
+    if (entityType === 'STAFF' && form.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
+      errors.email = 'Enter a valid email address.';
+    }
     setFieldErrors(errors);
     if (Object.keys(errors).length) {
       showFeedback('WARNING', 'Please fix the highlighted fields.');
@@ -656,6 +710,14 @@ function EditEmploymentModal({
         payload.specialization = form.title.trim();
       } else {
         payload.designation = form.title.trim();
+        // Staff-only contact & employment completion fields. Empty values are
+        // omitted so we never send an empty string to a validated email field.
+        if (form.email.trim()) payload.email = form.email.trim();
+        if (form.phone.trim()) payload.phone = form.phone.trim();
+        if (form.employmentType) payload.employmentType = form.employmentType;
+        if (form.photoUrl.trim()) payload.photoUrl = form.photoUrl.trim();
+        if (form.commencementDate)
+          payload.commencementDate = new Date(`${form.commencementDate}T00:00:00`).toISOString();
       }
 
       await apiFetch(entityType === 'TEACHER' ? `/teachers/${record.id}` : `/staff/${record.id}`, {
@@ -783,6 +845,43 @@ function EditEmploymentModal({
             helperText="Only active employees can be assigned to classes or timetables."
             onChange={(event) => setForm({ ...form, status: event.target.value })}
           />
+          {entityType === 'STAFF' && (
+            <>
+              <Input
+                label="Email address"
+                type="email"
+                value={form.email}
+                error={fieldErrors.email}
+                helperText="Stored on the staff record, separate from the login account."
+                onChange={(event) => setForm({ ...form, email: event.target.value })}
+              />
+              <Input
+                label="Primary phone"
+                type="tel"
+                value={form.phone}
+                onChange={(event) => setForm({ ...form, phone: event.target.value })}
+              />
+              <Select
+                label="Employment type"
+                value={form.employmentType}
+                options={EMPLOYMENT_TYPE_OPTIONS}
+                onChange={(event) => setForm({ ...form, employmentType: event.target.value })}
+              />
+              <Input
+                label="Commencement date"
+                type="date"
+                value={form.commencementDate}
+                onChange={(event) => setForm({ ...form, commencementDate: event.target.value })}
+              />
+              <Input
+                label="Profile photo URL"
+                type="url"
+                placeholder="https://…"
+                value={form.photoUrl}
+                onChange={(event) => setForm({ ...form, photoUrl: event.target.value })}
+              />
+            </>
+          )}
         </div>
       </form>
     </Modal>

@@ -1,16 +1,28 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { DomainEvent } from './domain-event';
 import { Prisma } from '@prisma/client';
 import { InjectQueue } from '@nestjs/bullmq';
 import type { Queue } from 'bullmq';
 import { PrismaService } from '../../prisma/prisma.service';
+import { isRedisUnavailableError, logRedisUnavailable } from '../../redis/redis-connection';
+
+const logger = new Logger('OutboxService');
 
 @Injectable()
 export class OutboxService {
   constructor(
     private prisma: PrismaService,
     @InjectQueue('outbox') private outboxQueue: Queue,
-  ) {}
+  ) {
+    // Prevent Redis connection errors from crashing the process when Redis is offline
+    this.outboxQueue.on('error', (err) => {
+      if (isRedisUnavailableError(err)) {
+        logRedisUnavailable('Outbox queue');
+      } else {
+        logger.error('Outbox queue error', err.stack);
+      }
+    });
+  }
 
   async onModuleInit() {
     try {

@@ -1,8 +1,22 @@
 ﻿'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { apiFetch } from '@/lib/api/client';
-import { AlertCircle, Loader2, Zap, ShieldCheck, Info } from 'lucide-react';
+import {
+  SettingsError,
+  SettingsLoading,
+  SettingsPageHeader,
+  SettingsSection,
+} from '@/components/settings/settings-ui';
+import { Badge } from '@/components/ui/badge';
+import { Info, ShieldCheck, Zap } from 'lucide-react';
+
+/**
+ * Feature access (read-only).
+ *
+ * Feature flags are owned by the platform administrator, so this page only
+ * reports what the school may use. There is intentionally no write path here.
+ */
 
 const FEATURE_LABELS: Record<string, string> = {
   LIBRARY_MANAGEMENT: 'Library Module',
@@ -26,79 +40,75 @@ export default function FeatureSettings() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    apiFetch('/settings/features')
-      .then((data: any) => {
-        setFlags(Array.isArray(data) ? data : []);
-      })
-      .catch((err) => setError(err.message || 'Unable to load feature settings.'))
-      .finally(() => setLoading(false));
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const data = await apiFetch('/settings/features');
+      setFlags(Array.isArray(data) ? data : []);
+    } catch (err: any) {
+      setError(err?.message || 'Unable to load feature access.');
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="animate-spin text-forest-700" />
-      </div>
-    );
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  if (loading) return <SettingsLoading label="Loading feature access…" />;
+
+  if (error) {
+    return <SettingsError title="Unable to load feature access" message={error} onRetry={load} />;
   }
 
+  const enabledCount = flags.filter((f) => f.isEnabled).length;
+
   return (
-    <div>
-      <div className="mb-8">
-        <h2 className="text-xl font-semibold text-charcoal-900">Feature Access</h2>
-        <p className="text-warm-500 text-sm font-medium">
-          Features available to your school, controlled by the platform administrator.
+    <div className="max-w-5xl mx-auto space-y-8">
+      <SettingsPageHeader
+        title="Feature Access"
+        description="Features available to your school, controlled by the platform administrator."
+        actions={<Badge variant="neutral" className="text-[10px]">{enabledCount}/{flags.length} enabled</Badge>}
+      />
+
+      <SettingsSection
+        title="Platform-managed features"
+        description="Enablement is set by the SchooMA platform administrator."
+        icon={ShieldCheck}
+      >
+        <p className="text-sm text-warm-600">
+          This page is read-only. To request a change to your school's feature access, contact your
+          platform administrator.
         </p>
-      </div>
+      </SettingsSection>
 
-      <div className="bg-sage-50 border border-sage-100 rounded-xl p-6 mb-8 flex items-start gap-4">
-        <div className="w-10 h-10 rounded-xl bg-forest-700 flex items-center justify-center text-white shrink-0">
-          <ShieldCheck size={20} />
+      {flags.length === 0 ? (
+        <div className="rounded-xl border-2 border-dashed border-warm-200 bg-card p-12 text-center text-xs font-semibold text-warm-400">
+          No feature flags configured for your school.
         </div>
-        <div>
-          <h4 className="text-sm font-semibold text-forest-950">Platform-managed features</h4>
-          <p className="text-xs font-medium text-forest-800/70 mt-1 leading-relaxed">
-            Feature enablement is controlled by the SchooMA platform administrator.
-            Contact your platform admin to request changes to your school's feature access.
-          </p>
-        </div>
-      </div>
-
-      {error && (
-        <div className="mb-6 flex items-start gap-3 rounded-xl border border-danger-200 bg-danger-50 p-4 text-danger-700">
-          <AlertCircle size={18} className="shrink-0 mt-0.5" />
-          <p className="text-xs font-semibold">{error}</p>
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 gap-4">
-        {flags.length === 0 ? (
-          <div className="rounded-xl border-2 border-dashed border-warm-200 bg-card p-12 text-center text-xs font-semibold text-warm-400">
-            No feature flags configured for your school.
-          </div>
-        ) : (
-          flags.map((feature) => (
+      ) : (
+        <div className="grid grid-cols-1 gap-4">
+          {flags.map((feature) => (
             <div
               key={feature.name}
               className="flex items-center justify-between gap-6 p-6 bg-card border border-warm-100 rounded-xl"
             >
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-1">
+                  <Zap
+                    size={16}
+                    className={feature.isEnabled ? 'text-forest-700' : 'text-warm-300'}
+                  />
                   <h3 className="text-sm font-semibold text-charcoal-800">
                     {FEATURE_LABELS[feature.name] || feature.name}
                   </h3>
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
-                    feature.isEnabled
-                      ? 'bg-forest-100 text-forest-700'
-                      : 'bg-warm-100 text-warm-600'
-                  }`}>
+                  <Badge variant={feature.isEnabled ? 'success' : 'neutral'} className="text-[10px]">
                     {feature.isEnabled ? 'Enabled' : 'Disabled'}
-                  </span>
+                  </Badge>
                   {feature.hasOverride && (
-                    <span className="px-2 py-0.5 bg-sage-50 text-forest-700 text-[11px] font-semibold rounded uppercase tracking-wider">
-                      Custom
-                    </span>
+                    <Badge variant="info" className="text-[10px]">Custom</Badge>
                   )}
                 </div>
                 <p className="text-xs font-medium text-warm-400 max-w-md">
@@ -106,15 +116,15 @@ export default function FeatureSettings() {
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                <Info size={16} className="text-warm-400" />
+                <Info size={16} className="text-warm-400 shrink-0" />
                 <span className="text-xs text-warm-500">
                   {feature.isEnabled ? 'Available to your school' : 'Not available — contact platform admin'}
                 </span>
               </div>
             </div>
-          ))
-        )}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

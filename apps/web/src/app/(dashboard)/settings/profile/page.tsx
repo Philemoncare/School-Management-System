@@ -1,52 +1,125 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { apiFetch } from '@/lib/api/client';
-import { useAuth } from '@/context/auth-context';
-import { collectUserRoles } from '@/lib/auth/roles';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
-import { Building2, Mail, Phone, MapPin, Globe, Save, Globe as GlobeIcon } from 'lucide-react';
+import { Input, Select } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import {
+  SettingsError,
+  SettingsLoading,
+  SettingsNotice,
+  SettingsPageHeader,
+  SettingsSection,
+  useSettingsAccess,
+} from '@/components/settings/settings-ui';
+import { Building2, Mail, Globe, ShieldCheck } from 'lucide-react';
+
+/** Keys persisted in the SchoolSetting table (PATCH /schools/me stores extras as KV). */
+const EXTRA_KEYS = ['schoolType', 'schoolCategory', 'headteacherName', 'website'] as const;
+
+const TIMEZONES = [
+  'UTC',
+  'Africa/Accra',
+  'Africa/Lagos',
+  'Africa/Nairobi',
+  'America/New_York',
+];
+
+const CURRENCIES = ['USD', 'GHS', 'NGN', 'KES', 'EUR', 'GBP'];
+
+/**
+ * Shape the form starts in, before the school has loaded.
+ *
+ * Every control below is rendered with `value={form.<key>}`, so a missing key
+ * means React sees an undefined value and treats the field as uncontrolled. The
+ * moment the school arrives the same field gets a string, and React rejects that
+ * uncontrolled-to-controlled switch. Keeping the keys present with empty values
+ * means the input is controlled for its whole life.
+ */
+const EMPTY_FORM: Record<string, string> = EXTRA_KEYS.reduce(
+  (acc, key) => ({ ...acc, [key]: '' }),
+  { name: '', email: '', phone: '', address: '', timezone: 'UTC', currency: 'USD' },
+);
 
 export default function SchoolProfilePage() {
-  const { user } = useAuth();
-  const activeSchoolId = localStorage.getItem('schoolId');
-  const roles = user ? collectUserRoles(user, activeSchoolId || undefined) : [];
-  const canEdit = roles.some((r) => ['SCHOOL_ADMIN', 'ADMIN', 'PRINCIPAL'].includes(r));
+  const { canManage } = useSettingsAccess(['SCHOOL_ADMIN', 'ADMIN', 'PRINCIPAL']);
 
   const [school, setSchool] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
 
-  useEffect(() => {
-    apiFetch(`/schools/me`)
+  const load = useCallback(() => {
+    setLoading(true);
+    setLoadError('');
+    apiFetch('/schools/me')
       .then(setSchool)
-      .catch((err) => setError(err.message || 'Unable to load school profile'))
+      .catch((err) => setLoadError(err.message || 'Unable to load school profile'))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  /** Flatten SchoolSetting KV rows into initial form values. */
+  const initial = useMemo(() => {
+    const extras: Record<string, string> = {};
+    for (const key of EXTRA_KEYS) {
+      const row = school?.schoolSettings?.find((s: any) => s.key === key);
+      extras[key] = row?.value != null ? String(row.value) : '';
+    }
+    return extras;
+  }, [school]);
+
+  const [form, setForm] = useState<any>(EMPTY_FORM);
+  useEffect(() => {
+    if (!school) return;
+    setForm({
+      name: school.name || '',
+      email: school.email || '',
+      phone: school.phone || '',
+      address: school.address || '',
+      timezone: school.timezone || 'UTC',
+      currency: school.currency || 'USD',
+      ...initial,
+    });
+  }, [school, initial]);
+
+  const setField = (key: string) => (e: any) =>
+    setForm((prev: any) => ({ ...prev, [key]: e?.target ? e.target.value : e }));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setMessage('');
+    if (!form.name?.trim()) {
+      setError('School name is required.');
+      return;
+    }
+    if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
+      setError('Please enter a valid email address.');
+      return;
+    }
     setSaving(true);
     try {
-      const updated = await apiFetch(`/schools/me`, {
+      // Core fields update the School record; the rest are upserted by the
+      // API into SchoolSetting (key/value) rows for this school.
+      const updated = await apiFetch('/schools/me', {
         method: 'PATCH',
-        body: JSON.stringify({
-          name: school.name,
-          phone: school.phone,
-          email: school.email,
-          address: school.address,
-          timezone: school.timezone,
-          currency: school.currency,
-        }),
+        body: JSON.stringify(form),
       });
-      setSchool(updated);
+      setSchool((prev: any) => ({
+        ...prev,
+        ...updated,
+        schoolSettings: EXTRA_KEYS.map((key) => ({
+          key,
+          value: form[key] ?? '',
+        })),
+      }));
       setMessage('School profile saved successfully.');
     } catch (err: any) {
       setError(err.message || 'Unable to save school profile');
@@ -55,180 +128,198 @@ export default function SchoolProfilePage() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-ivory-50">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-forest-700"></div>
-      </div>
-    );
-  }
+  if (loading) return <SettingsLoading label="Loading school profile…" />;
+  if (loadError)
+    return <SettingsError title="Unable to load profile" message={loadError} onRetry={load} />;
 
-  if (error) {
-    return (
-      <div className="max-w-2xl mx-auto p-6">
-        <div className="rounded-xl border border-danger-200 bg-danger-50 p-6 text-center">
-          <h2 className="text-lg font-bold text-danger-800 mb-2">Unable to load profile</h2>
-          <p className="text-danger-700 mb-4">{error}</p>
-          <Button onClick={() => window.location.reload()}>Retry</Button>
-        </div>
-      </div>
-    );
-  }
+  const statusVariant =
+    school?.status === 'ACTIVE'
+      ? 'success'
+      : school?.status === 'SUSPENDED'
+        ? 'error'
+        : 'warning';
 
   return (
-    <div className="max-w-3xl mx-auto space-y-8 p-4 sm:p-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-charcoal-900">
-            School Profile
-          </h1>
-          <p className="text-warm-500 font-medium mt-1">
-            Manage your school's public identity and contact information.
-          </p>
-        </div>
-        {canEdit && (
-          <Button onClick={handleSubmit} isLoading={saving} leftIcon={<Save className="w-4 h-4" />}>
-            Save Changes
-          </Button>
-        )}
-      </div>
+    <div className="max-w-4xl mx-auto space-y-8">
+      <SettingsPageHeader
+        title="School Profile"
+        description="Manage your school's identity, contact details and regional settings."
+        actions={
+          canManage && (
+            <Button
+              onClick={handleSubmit}
+              isLoading={saving}
+              leftIcon={<ShieldCheck className="w-4 h-4" />}
+            >
+              Save Changes
+            </Button>
+          )
+        }
+      />
 
-      {error && (
-        <div className="rounded-xl border border-danger-200 bg-danger-50 p-4 text-sm font-semibold text-danger-700">
-          {error}
+      {!canManage && (
+        <div className="rounded-xl border border-warm-200 bg-ivory-50 p-4 text-sm font-medium text-warm-600">
+          You have view-only access. Ask a School Administrator to change these details.
         </div>
       )}
-      {message && (
-        <div className="rounded-xl border border-success-200 bg-success-50 p-4 text-sm font-semibold text-success-700">
-          {message}
-        </div>
-      )}
+      {error && <SettingsNotice kind="error" message={error} />}
+      {message && <SettingsNotice kind="success" message={message} />}
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Building2 className="w-5 h-5" /> Core Identity
-            </CardTitle>
-            <p className="text-xs text-warm-500">Fundamental identifiers for your school.</p>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Input
-                label="School Name *"
-                value={school?.name || ''}
-                disabled={!canEdit}
-                onChange={(e) => setSchool({ ...school, name: e.target.value })}
+        <SettingsSection
+          title="Core Identity"
+          description="How your school is identified across the platform."
+          icon={Building2}
+        >
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Input
+              label="School Name *"
+              value={form.name || ''}
+              disabled={!canManage}
+              onChange={setField('name')}
+            />
+            <Input label="Registration Code" value={school?.code || ''} disabled />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Input
+              label="School Type"
+              value={form.schoolType || ''}
+              disabled={!canManage}
+              onChange={setField('schoolType')}
+              placeholder="e.g. Private Basic School"
+            />
+            <Input
+              label="School Category"
+              value={form.schoolCategory || ''}
+              disabled={!canManage}
+              onChange={setField('schoolCategory')}
+              placeholder="e.g. K-12"
+            />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Input
+              label="Headteacher / Principal"
+              value={form.headteacherName || ''}
+              disabled={!canManage}
+              onChange={setField('headteacherName')}
+            />
+            <Input
+              label="School Website"
+              type="url"
+              value={form.website || ''}
+              disabled={!canManage}
+              onChange={setField('website')}
+              placeholder="https://www.example.edu"
+            />
+          </div>
+          {school?.logo && (
+            <div className="flex items-center gap-3 p-3 rounded-lg border border-warm-200 bg-ivory-50">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={school.logo}
+                alt="School logo"
+                className="w-12 h-12 rounded-lg object-contain bg-card border border-warm-200"
               />
-              <Input
-                label="Registration Code"
-                value={school?.code || ''}
-                disabled
-              />
+              <span className="text-xs font-semibold text-warm-500">Current school logo</span>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Input
-                label="School Type"
-                value={school?.schoolType || ''}
-                disabled={!canEdit}
-                onChange={(e) => setSchool({ ...school, schoolType: e.target.value })}
-                placeholder="e.g. Private, Public, Charter"
-              />
-              <Input
-                label="School Category"
-                value={school?.schoolCategory || ''}
-                disabled={!canEdit}
-                onChange={(e) => setSchool({ ...school, schoolCategory: e.target.value })}
-                placeholder="e.g. K-12, Higher Education"
-              />
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Input
-                label="Headteacher / Principal"
-                value={school?.headteacherName || ''}
-                disabled={!canEdit}
-                onChange={(e) => setSchool({ ...school, headteacherName: e.target.value })}
-              />
-              <Input
-                label="School Website"
-                type="url"
-                value={school?.website || ''}
-                disabled={!canEdit}
-                onChange={(e) => setSchool({ ...school, website: e.target.value })}
-                placeholder="https://www.example.edu"
-              />
-            </div>
-          </CardContent>
-        </Card>
+          )}
+        </SettingsSection>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Mail className="w-5 h-5" /> Contact Information
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Input
-                label="Public Email *"
-                type="email"
-                value={school?.email || ''}
-                disabled={!canEdit}
-                onChange={(e) => setSchool({ ...school, email: e.target.value })}
-              />
-              <Input
-                label="Primary Phone *"
-                value={school?.phone || ''}
-                disabled={!canEdit}
-                onChange={(e) => setSchool({ ...school, phone: e.target.value })}
-                placeholder="+1 (555) 000-0000"
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-[11px] font-bold uppercase text-warm-500">Physical Address</label>
-              <Input
-                as="textarea"
-                rows={3}
-                value={school?.address || ''}
-                disabled={!canEdit}
-                onChange={(e) => setSchool({ ...school, address: e.target.value })}
-                placeholder="Full physical address of the campus"
-              />
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Input
-                label="Timezone"
-                value={school?.timezone || 'UTC'}
-                disabled={!canEdit}
-                onChange={(e) => setSchool({ ...school, timezone: e.target.value })}
-              />
-              <Input
-                label="Currency"
-                value={school?.currency || 'USD'}
-                disabled={!canEdit}
-                onChange={(e) => setSchool({ ...school, currency: e.target.value })}
-              />
-            </div>
-          </CardContent>
-        </Card>
+        <SettingsSection
+          title="Contact Information"
+          description="The public contact details shown on receipts, invitations and reports."
+          icon={Mail}
+        >
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Input
+              label="Public Email"
+              type="email"
+              value={form.email || ''}
+              disabled={!canManage}
+              onChange={setField('email')}
+            />
+            <Input
+              label="Primary Phone"
+              value={form.phone || ''}
+              disabled={!canManage}
+              onChange={setField('phone')}
+              placeholder="+233 000 000 000"
+            />
+          </div>
+          <Input
+            label="Physical Address"
+            as="textarea"
+            rows={3}
+            value={form.address || ''}
+            disabled={!canManage}
+            onChange={setField('address')}
+            placeholder="Full physical address of the campus"
+          />
+        </SettingsSection>
 
-        <Separator />
+        <SettingsSection
+          title="Regional Settings"
+          description="Timezone and currency applied across the school workspace."
+          icon={Globe}
+        >
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Select
+              label="Timezone"
+              value={form.timezone || 'UTC'}
+              disabled={!canManage}
+              onChange={setField('timezone')}
+            >
+              {TIMEZONES.map((tz) => (
+                <option key={tz} value={tz}>
+                  {tz}
+                </option>
+              ))}
+            </Select>
+            <Select
+              label="Currency"
+              value={form.currency || 'USD'}
+              disabled={!canManage}
+              onChange={setField('currency')}
+            >
+              {CURRENCIES.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </Select>
+          </div>
+          <p className="text-[11px] text-warm-500">
+            Date and time formatting preferences are managed under Settings → Localization &amp;
+            Region.
+          </p>
+        </SettingsSection>
 
-        <div className="bg-sage-50 border border-sage-100 rounded-xl p-6">
-          <div className="flex items-start gap-3">
-            <GlobeIcon className="w-5 h-5 text-forest-700 mt-0.5" />
-            <div>
-              <h3 className="text-sm font-bold text-charcoal-900">Tenant Status</h3>
-              <p className="text-xs text-warm-500">
-                Your school workspace: {school?.slug || 'institution'}.edusphere.io
+        <SettingsSection
+          title="Workspace"
+          description="Read-only platform facts about your school's tenant."
+          icon={ShieldCheck}
+        >
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
+            <div className="p-3 rounded-lg border border-warm-200">
+              <p className="text-[10px] uppercase font-bold text-warm-400">Status</p>
+              <Badge variant={statusVariant} className="mt-1">
+                {school?.status || 'UNKNOWN'}
+              </Badge>
+            </div>
+            <div className="p-3 rounded-lg border border-warm-200">
+              <p className="text-[10px] uppercase font-bold text-warm-400">Workspace Slug</p>
+              <p className="mt-1 font-semibold text-charcoal-900 break-all">
+                {school?.slug || '—'}
+              </p>
+            </div>
+            <div className="p-3 rounded-lg border border-warm-200">
+              <p className="text-[10px] uppercase font-bold text-warm-400">Since</p>
+              <p className="mt-1 font-semibold text-charcoal-900">
+                {school?.createdAt ? new Date(school.createdAt).toLocaleDateString() : '—'}
               </p>
             </div>
           </div>
-          <div className="mt-4 flex items-center gap-2 px-3 py-2 rounded-xl bg-card/50 border border-warm-200 text-xs font-bold">
-            <div className="w-2 h-2 rounded-full bg-sage-400 animate-pulse" />
-            <span>Operational — All modules active</span>
-          </div>
-        </div>
+        </SettingsSection>
       </form>
     </div>
   );

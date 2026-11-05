@@ -23,8 +23,6 @@ import { cn } from "@/lib/utils";
 import { BrandLockup, BrandMark } from "@/components/brand/schoolma-logo";
 import {
   collectUserRoles,
-  getActiveSupportGrantId,
-  isPlatformAdmin,
   isPlatformSuperAdmin,
 } from "@/lib/auth/roles";
 
@@ -39,22 +37,13 @@ export function Sidebar({ isCollapsed = false, onClose }: SidebarProps) {
 
   const userRoles = collectUserRoles(user, activeSchoolId);
   const isSuperAdmin = isPlatformSuperAdmin(userRoles);
-  const supportGrantId = getActiveSupportGrantId();
 
   const getNavSections = (): NavigationSection[] => {
-    // Only actual platform super admins see the super admin portal — never school admins
+    // Platform super admins see ONLY the super admin portal — never school admin nav
     if (isSuperAdmin) return SUPER_ADMIN_NAV;
-    if (supportGrantId && !pathname.startsWith("/super-admin")) return SCHOOL_NAV;
-    if (pathname.startsWith("/teacher")) return TEACHER_NAV;
-    if (pathname.startsWith("/student")) return STUDENT_NAV;
-    if (pathname.startsWith("/parent")) return PARENT_NAV;
-    if (pathname.startsWith("/accountant")) return ACCOUNTANT_NAV;
-    if (pathname.startsWith("/librarian")) return LIBRARIAN_NAV;
-    if (pathname.startsWith("/hr")) return HR_NAV;
-    if (pathname.startsWith("/receptionist")) return RECEPTIONIST_NAV;
-    if (pathname.startsWith("/transport")) return TRANSPORT_NAV;
-    if (pathname.startsWith("/health")) return HEALTH_NAV;
 
+    // Role-based navigation for all other roles (school admins, teachers, parents, etc.)
+    // School admins never see super admin functions
     if (userRoles.includes("TEACHER")) return TEACHER_NAV;
     if (userRoles.includes("STUDENT")) return STUDENT_NAV;
     if (userRoles.includes("PARENT") || userRoles.includes("GUARDIAN")) return PARENT_NAV;
@@ -62,6 +51,7 @@ export function Sidebar({ isCollapsed = false, onClose }: SidebarProps) {
     if (userRoles.includes("LIBRARIAN")) return LIBRARIAN_NAV;
     if (userRoles.includes("HR")) return HR_NAV;
 
+    // Default: school-scoped admin nav (SCHOOL_ADMIN, PRINCIPAL, ACCOUNTANT, etc.)
     return SCHOOL_NAV;
   };
 
@@ -124,10 +114,15 @@ export function Sidebar({ isCollapsed = false, onClose }: SidebarProps) {
       <div className={cn("flex-1 overflow-y-auto py-4 space-y-5 scrollbar-thin", isCollapsed ? "px-2" : "px-3")}>
         {navSections.map((section, sIdx) => {
           const filteredItems = section.items.filter((item) => {
-          if (!item.roles || item.roles.length === 0) return true;
-          if (isSuperAdmin) return true;
-          return userRoles.some((r) => item.roles?.includes(r));
-        });
+            // Never expose super-admin-only routes to non-super-admins,
+            // even if they somehow appear in school-scoped nav sections
+            if (!isSuperAdmin && typeof item.href === "string" && item.href.startsWith("/super-admin")) {
+              return false;
+            }
+            if (!item.roles || item.roles.length === 0) return true;
+            if (isSuperAdmin) return true;
+            return userRoles.some((r) => item.roles?.includes(r));
+          });
 
           if (filteredItems.length === 0) return null;
 

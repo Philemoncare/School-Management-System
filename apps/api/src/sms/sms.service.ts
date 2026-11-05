@@ -489,6 +489,70 @@ export class SmsService {
     };
   }
 
+  /**
+   * Charges SMS credits for a single provider-accepted delivery and records it
+   * in the audited ledger. Idempotent: it will not deduct twice for the same
+   * delivery (guarded by `smsChargedAt`) and never allows a negative balance,
+   * so a retry or a re-run of an already-charged message is a safe no-op.
+   */
+  async chargeSmsDelivery(params: {
+    schoolId: string;
+    credits: number;
+    deliveryId: string;
+    segments?: number;
+  }): Promise<{
+    charged: boolean;
+    reason?: string;
+    previousBalance?: number;
+    newBalance?: number;
+    credits: number;
+  }> {
+    const { schoolId, credits, deliveryId, segments } = params;
+    if (!Number.isFinite(credits) || credits <= 0) {
+      return { charged: false, reason: 'invalid_amount', credits };
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      // Row lock via SELECT ... FOR UPDATE so two concurrent deliveries for the
+      // same school cannot both pass the balance check.
+      const rows = await tx.$queryRaw<Array<{ sms_credit_balance: any }>>`
+        SELECT "sms_credit_balance" FROM "schools" WHERE "id" = ${schoolId}::uuid FOR UPDATE
+      `;
+      if (!rows.length) {
+        return { charged: false, reason: 'school_not_found', credits };
+      }
+      const currentBalance = Number(rows[0].sms_credit_balance);
+      if (currentBalance < credits) {
+        return { charged: false, reason: 'insufficient_balance', credits };
+      }
+
+      const updated = await tx.school.update({
+        where: { id: schoolId },
+        data: { smsCreditBalance: { decrement: new Prisma.Decimal(credits) } },
+        select: { smsCreditBalance: true },
+      });
+      const newBalance = Number(updated.smsCreditBalance);
+
+      await tx.notificationDelivery.update({
+        where: { id: deliveryId },
+        data: { smsChargedAt: new Date(), smsCreditsCost: credits },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          userId: 'system',
+          schoolId,
+          action: 'SMS_CREDIT_CHARGED_FOR_DELIVERY',
+          module: 'SMS',
+          resourceId: deliveryId,
+          metadata: { previousBalance: currentBalance, credits, newBalance, segments: segments ?? credits },
+        },
+      });
+
+      return { charged: true, previousBalance: currentBalance, newBalance, credits };
+    });
+  }
+
   /* ============================================================
      Platform SMS Credit Ledger (all schools)
      ============================================================ */

@@ -8,6 +8,17 @@ class FakeQueue {
   getJob = async () => null;
   getJobs = async () => [];
   remove = async () => undefined;
+  // Services attach error listeners to their queue (outbox, notifications) so
+  // an unreachable Redis cannot crash the process; the fake needs to accept
+  // those registrations for the module graph to construct.
+  on = () => undefined;
+  off = () => undefined;
+  once = () => undefined;
+  removeListener = () => undefined;
+  waitUntilReady = async () => undefined;
+  getClient = async () => ({ closing: false, quit: async () => undefined });
+  close = async () => undefined;
+  drain = async () => undefined;
 }
 
 class BullRootModule {}

@@ -1,4 +1,4 @@
-import { IsEmail, IsNotEmpty, IsOptional, IsString, MinLength, Matches } from 'class-validator';
+import { IsEmail, IsIn, IsNotEmpty, IsOptional, IsString, MinLength, Matches } from 'class-validator';
 
 export class ForgotPasswordDto {
   @IsEmail({}, { message: 'Please provide a valid email address' })
@@ -64,4 +64,15 @@ export class ResendLoginOtpDto {
   @IsString()
   @IsNotEmpty()
   otpToken: string;
+
+  /**
+   * Which transport should carry the new code. Declared explicitly because the
+   * global whitelist would otherwise strip an undeclared 'channel' and the
+   * resend would silently fall back to email.
+   */
+  @IsOptional()
+  @IsIn(['email', 'sms'], {
+    message: 'Sign-in codes can only be sent by email or SMS',
+  })
+  channel?: 'email' | 'sms';
 }
