@@ -38,7 +38,8 @@ export default function SchoolDetailPage() {
   const [editOpen, setEditOpen] = useState(false);
   const [planOpen, setPlanOpen] = useState(false);
   const [smsTopUpOpen, setSmsTopUpOpen] = useState(false);
-  const [smsTopUp, setSmsTopUp] = useState({ amount: '', reason: '' });
+  const [smsTopUp, setSmsTopUp] = useState({ packageId: '', reason: '' });
+  const [smsPackages, setSmsPackages] = useState<any[]>([]);
   const [smsSaving, setSmsSaving] = useState(false);
   const [editForm, setEditForm] = useState<any>({});
   const [planForm, setPlanForm] = useState({ planId: '', status: 'ACTIVE' });
@@ -47,6 +48,11 @@ export default function SchoolDetailPage() {
   useEffect(() => {
     loadDetail();
     apiFetch('/super-admin/plans').then((data) => setPlans(Array.isArray(data) ? data : [])).catch(console.error);
+    // A credit grant has to reference a real package, so the catalogue is
+    // needed here too. Failure must not break the rest of the page.
+    apiFetch('/super-admin/sms-packages')
+      .then((data) => setSmsPackages((Array.isArray(data) ? data : []).filter((p: any) => p.status === 'ACTIVE')))
+      .catch(() => setSmsPackages([]));
   }, [id]);
 
   async function loadDetail() {
@@ -97,11 +103,23 @@ export default function SchoolDetailPage() {
     setBusy(`status-${status}`);
     setError('');
     try {
-      await apiFetch(`/super-admin/schools/${id}/status`, {
+      const result = await apiFetch(`/super-admin/schools/${id}/status`, {
         method: 'PATCH',
         body: JSON.stringify({ status, reason: reason || undefined }),
       });
-      setMessage(`School status updated to ${status}.`);
+      // Approval also opens the school's billing record. Say which way it went,
+      // because "approved" with no subscription is a different problem to solve.
+      const grant = result?.trialGrant;
+      if (grant?.kind === 'granted') {
+        setMessage(
+          `School approved and placed on the ${grant.subscription?.plan?.code || 'trial'} plan until ` +
+            `${grant.subscription?.trialEnd ? new Date(grant.subscription.trialEnd).toLocaleDateString() : 'an unspecified date'}.`,
+        );
+      } else if (grant?.kind === 'not_granted') {
+        setMessage(`School status updated to ${status}, but no trial subscription was created (${grant.reason}).`);
+      } else {
+        setMessage(`School status updated to ${status}.`);
+      }
       await loadDetail();
     } catch (err: any) {
       setError(err.message || 'Unable to update status');
@@ -149,23 +167,29 @@ export default function SchoolDetailPage() {
 
   async function topUpSmsCredits(e: React.FormEvent) {
     e.preventDefault();
+    if (!smsTopUp.packageId) {
+      setError('Choose an SMS package first - credits are defined by the package.');
+      return;
+    }
     setSmsSaving(true);
     setError('');
     try {
-      await apiFetch('/super-admin/sms-credits/topup', {
+      const result = await apiFetch('/super-admin/sms-credits/topup', {
         method: 'POST',
         body: JSON.stringify({
           schoolId: id,
-          amount: parseFloat(smsTopUp.amount),
-          reason: smsTopUp.reason || 'SMS credit top-up from school detail page',
+          packageId: smsTopUp.packageId,
+          reason: smsTopUp.reason || 'Credit grant from school detail page',
         }),
       });
       setSmsTopUpOpen(false);
-      setSmsTopUp({ amount: '', reason: '' });
-      setMessage('SMS credits topped up successfully.');
+      setSmsTopUp({ packageId: '', reason: '' });
+      setMessage(
+        `Granted ${result?.creditsAdded ?? 0} credits. New SMS balance: ${result?.newBalance ?? 0}.`,
+      );
       await loadDetail();
     } catch (err: any) {
-      setError(err.message || 'Failed to top up SMS credits');
+      setError(err.message || 'Failed to grant SMS credits');
     } finally {
       setSmsSaving(false);
     }
@@ -291,7 +315,7 @@ export default function SchoolDetailPage() {
                 <Button
                   size="sm"
                   onClick={() => {
-                    setSmsTopUp({ amount: '', reason: '' });
+                    setSmsTopUp({ packageId: '', reason: '' });
                     setSmsTopUpOpen(true);
                   }}
                   className={`text-xs ${
@@ -509,19 +533,29 @@ export default function SchoolDetailPage() {
         }
       >
         <div className="space-y-3">
-          <Input
-            label="Amount (credits)"
-            type="number"
-            min="1"
-            value={smsTopUp.amount}
-            onChange={(e) => setSmsTopUp({ ...smsTopUp, amount: e.target.value })}
-            placeholder="e.g. 100"
-          />
+          <Select
+            label="SMS package"
+            value={smsTopUp.packageId}
+            onChange={(e) => setSmsTopUp({ ...smsTopUp, packageId: e.target.value })}
+          >
+            <option value="">Select a package</option>
+            {smsPackages.map((pkg) => (
+              <option key={pkg.id} value={pkg.id}>
+                {pkg.name} ({pkg.code}) — {pkg.credits} credits @ {pkg.currency} {Number(pkg.price).toFixed(2)}
+              </option>
+            ))}
+          </Select>
+          {smsPackages.length === 0 && (
+            <p className="text-xs text-warning-600">
+              No active SMS packages exist. Create one under Platform SMS Packages before credits
+              can be granted.
+            </p>
+          )}
           <Input
             label="Reason"
             value={smsTopUp.reason}
             onChange={(e) => setSmsTopUp({ ...smsTopUp, reason: e.target.value })}
-            placeholder="e.g. SMS token purchase Q1 2026"
+            placeholder="e.g. Q1 2026 parent notice allocation"
           />
         </div>
       </Modal>

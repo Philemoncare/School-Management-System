@@ -395,7 +395,7 @@ export default function PlatformOperationsPage() {
                 </div>
               </a>
               <a
-                href="/super-admin/subscriptions"
+                href="/super-admin/schools?status=TRIAL"
                 className="flex items-center gap-3 p-3 rounded-xl border border-warm-200 hover:bg-warm-50 transition-colors"
               >
                 <Wallet size={16} className="text-warm-500" />

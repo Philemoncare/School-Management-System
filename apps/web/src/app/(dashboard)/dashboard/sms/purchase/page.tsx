@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { apiFetch } from '@/lib/api/client';
-import { CreditCard, Smartphone, ArrowRight, Loader2, CheckCircle2 } from 'lucide-react';
+import { CreditCard, Smartphone, ArrowRight, Loader2, CheckCircle2, Clock, Hourglass } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -31,9 +31,6 @@ export default function SmsPurchasePage() {
   useEffect(() => {
     loadData();
   }, []);
-
-  // unused variable suppressed by destructure with empty first element
-  void purchases;
 
   async function loadData() {
     setLoading(true);
@@ -92,12 +89,19 @@ export default function SmsPurchasePage() {
   if (purchaseResult) {
     return (
       <div className="flex flex-col items-center justify-center text-center py-20">
-        <div className="w-16 h-16 rounded-full bg-forest-100 flex items-center justify-center mb-4">
-          <CheckCircle2 className="w-8 h-8 text-forest-700" />
+        <div className="w-16 h-16 rounded-full bg-sage-50 flex items-center justify-center mb-4">
+          <Clock className="w-8 h-8 text-forest-700" />
         </div>
-        <h2 className="text-xl font-semibold text-charcoal-900">Purchase Complete</h2>
-        <p className="mt-2 text-warm-500">
-          {purchaseResult.credits} SMS credits have been added to your school balance.
+        <h2 className="text-xl font-semibold text-charcoal-900">Request submitted</h2>
+        <p className="mt-2 max-w-md text-warm-500">
+          Your request for{' '}
+          <strong className="text-charcoal-900">{purchaseResult.credits} SMS credits</strong> was
+          recorded as <strong className="text-charcoal-900">{purchaseResult.status}</strong>. No
+          credits have been added to your balance yet - they are delivered only after the platform
+          confirms the payment.
+        </p>
+        <p className="mt-2 text-xs text-warm-400">
+          Track this request in the purchase history below.
         </p>
         <Button
           onClick={() => {
@@ -238,6 +242,65 @@ export default function SmsPurchasePage() {
           </Card>
         </div>
       )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Hourglass className="w-5 h-5" /> Credit requests and grants
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="pt-6">
+          {purchases.length === 0 ? (
+            <p className="text-sm text-warm-400">
+              No SMS credits have been requested for this school yet.
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-warm-200 text-left">
+                <thead>
+                  <tr>
+                    <th className="pb-3 text-[11px] font-semibold uppercase text-warm-400">Package</th>
+                    <th className="pb-3 text-right text-[11px] font-semibold uppercase text-warm-400">Credits</th>
+                    <th className="pb-3 text-right text-[11px] font-semibold uppercase text-warm-400">Value</th>
+                    <th className="pb-3 text-[11px] font-semibold uppercase text-warm-400">Requested</th>
+                    <th className="pb-3 text-[11px] font-semibold uppercase text-warm-400">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-warm-100">
+                  {purchases.map((row) => (
+                    <tr key={row.id}>
+                      <td className="py-3 text-xs font-semibold text-charcoal-900">
+                        {row.package?.name || row.packageId}
+                      </td>
+                      <td className="py-3 text-right text-xs text-charcoal-900">{row.credits}</td>
+                      <td className="py-3 text-right text-xs text-charcoal-900">
+                        {row.currency} {Number(row.amount).toFixed(2)}
+                      </td>
+                      <td className="py-3 text-xs text-warm-500">
+                        {new Date(row.purchasedAt).toLocaleDateString()}
+                      </td>
+                      <td className="py-3">
+                        <Badge
+                          variant={row.status === 'COMPLETED' ? 'success' : 'outline'}
+                          className="text-[10px] font-semibold"
+                        >
+                          {row.status === 'PENDING'
+                            ? 'Awaiting payment confirmation'
+                            : row.status}
+                        </Badge>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="mt-4 text-[11px] text-warm-400">
+                Credits appear on your balance page only after a request is confirmed. Requests
+                cannot be confirmed from this screen.
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

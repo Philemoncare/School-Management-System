@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { apiFetch } from '@/lib/api/client';
 import {
   Smartphone,
@@ -201,26 +202,6 @@ export default function SmsPackagesPage() {
       await loadData();
     } catch (err: any) {
       setError(err.message || 'Unable to archive package');
-    } finally {
-      setBusy('');
-    }
-  }
-
-  async function topUpCredits(schoolId: string, schoolName: string) {
-    const credits = window.prompt(`Enter credits to add to ${schoolName}:`);
-    if (!credits || isNaN(Number(credits)) || Number(credits) < 1) return;
-    const reason = window.prompt('Reason for top-up:');
-    if (!reason) return;
-    setBusy(schoolId);
-    setError('');
-    try {
-      await apiFetch('/super-admin/sms-packages/topup', {
-        method: 'POST',
-        body: JSON.stringify({ schoolId, credits: Number(credits), reason }),
-      });
-      await loadData();
-    } catch (err: any) {
-      setError(err.message || 'Unable to top up credits');
     } finally {
       setBusy('');
     }
@@ -441,14 +422,14 @@ export default function SmsPackagesPage() {
                     {school.currency}
                   </td>
                   <td className="px-5 py-4 text-right text-[10px]">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => topUpCredits(school.id, school.name)}
-                      disabled={busy === school.id}
+                    {/* Grants live on the credit page, which picks a real package
+                        instead of accepting a typed-in credit count. */}
+                    <Link
+                      href="/super-admin/sms-credits"
+                      className="inline-flex items-center rounded-md border border-warm-300 px-2.5 py-1.5 text-[10px] font-semibold text-charcoal-900 hover:bg-ivory-100"
                     >
-                      {busy === school.id ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Top Up'}
-                    </Button>
+                      Grant credits
+                    </Link>
                   </td>
                 </tr>
               ))}

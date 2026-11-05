@@ -5,6 +5,7 @@ import {
   Patch,
   Body,
   Param,
+  Query,
   UseGuards,
   NotFoundException,
 } from '@nestjs/common';
@@ -22,6 +23,8 @@ import {
 import {
   CreateSmsPackageDto,
   UpdateSmsPackageDto,
+  GrantSmsCreditsDto,
+  ConfirmSmsPurchaseDto,
 } from './dto/sms-package.dto';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -57,6 +60,25 @@ export class SmsController {
     return this.smsProvider.getBalance();
   }
 
+  /**
+   * Cross-school SMS credit ledger: platform grants and school purchases.
+   * This is the "SMS transaction history" the module promises, and the queue
+   * a platform admin works through to confirm that a school has paid.
+   */
+  @Get('purchases')
+  @Roles(...PLATFORM_OPERATOR_ROLES)
+  getPurchases(
+    @Query('status') status?: string,
+    @Query('schoolId') schoolId?: string,
+    @Query('take') take?: string,
+  ) {
+    return this.smsService.getSmsPurchaseLedger({
+      status,
+      schoolId,
+      take: take ? Number(take) : undefined,
+    });
+  }
+
   @Get(':id')
   @Roles(...PLATFORM_OPERATOR_ROLES)
   getPackage(@Param('id') id: string) {
@@ -88,15 +110,32 @@ export class SmsController {
     return this.smsService.archiveSmsPackage(id, user.id);
   }
 
+  @Post('purchases/:purchaseId/confirm')
+  @Roles(...PLATFORM_SUPER_ROLES)
+  confirmPurchase(
+    @Param('purchaseId') purchaseId: string,
+    @Body() dto: ConfirmSmsPurchaseDto,
+    @CurrentUser() user: any,
+  ) {
+    // Platform-side only. A school must not be able to confirm its own payment;
+    // that was the previous behaviour and it handed out credits for free.
+    return this.smsService.confirmSmsCreditPurchase(
+      purchaseId,
+      user.id,
+      dto.reference,
+      dto.note,
+    );
+  }
+
   @Post('topup')
   @Roles(...PLATFORM_SUPER_ROLES)
   topUp(
-    @Body() dto: { schoolId: string; credits: number; reason: string },
+    @Body() dto: GrantSmsCreditsDto,
     @CurrentUser() user: any,
   ) {
-    return this.smsService.topUpSmsCredits(
+    return this.smsService.grantSmsCredits(
       dto.schoolId,
-      dto.credits,
+      dto.packageId,
       dto.reason,
       user.id,
     );

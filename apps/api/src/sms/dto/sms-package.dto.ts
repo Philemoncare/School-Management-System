@@ -116,6 +116,44 @@ export class PurchaseSmsCreditsDto {
   packageId: string;
 }
 
+/**
+ * A platform-side credit allocation.
+ *
+ * Declared as a class rather than an inline type because the global
+ * ValidationPipe runs with `whitelist`, which silently strips any field it has
+ * not seen a decorator for — an inline type would arrive with an empty body.
+ *
+ * Credits are never taken from the caller: they come from the package record,
+ * so a grant can only ever be a package that actually exists in the catalogue.
+ */
+export class GrantSmsCreditsDto {
+  @IsString()
+  schoolId: string;
+
+  @IsString()
+  packageId: string;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(3)
+  reason?: string;
+}
+
+/**
+ * Platform confirmation that payment for a school-initiated purchase has
+ * actually been received. `reference` is what makes the confirmation
+ * attributable, so it is required rather than optional.
+ */
+export class ConfirmSmsPurchaseDto {
+  @IsString()
+  @MinLength(3)
+  reference: string;
+
+  @IsOptional()
+  @IsString()
+  note?: string;
+}
+
 export class SmsCreditPurchaseResponseDto {
   id: string;
   packageId: string;

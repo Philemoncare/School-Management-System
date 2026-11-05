@@ -63,6 +63,8 @@ export default function SuperAdminSchools() {
   const [saving, setSaving] = useState(false);
   const [tempPassword, setTempPassword] = useState('');
   const [actionBusy, setActionBusy] = useState('');
+  const [reconcile, setReconcile] = useState<any>(null);
+  const [reconcileBusy, setReconcileBusy] = useState(false);
   const take = 10;
 
   useEffect(() => {
@@ -177,6 +179,35 @@ export default function SuperAdminSchools() {
     setPage(1);
   }
 
+  // Tenants approved before the approval->trial wiring existed sit in TRIAL
+  // with no subscription, which makes every billing report read as empty.
+  // Preview first (dry run), then commit explicitly.
+  async function previewReconciliation() {
+    setReconcileBusy(true);
+    setError('');
+    try {
+      setReconcile(await apiFetch('/super-admin/schools/backfill-subscriptions', { method: 'POST' }));
+    } catch (err: any) {
+      setError(err.message || 'Unable to inspect trial subscriptions');
+    } finally {
+      setReconcileBusy(false);
+    }
+  }
+
+  async function commitReconciliation() {
+    setReconcileBusy(true);
+    setError('');
+    try {
+      const result = await apiFetch('/super-admin/schools/backfill-subscriptions?dryRun=false', { method: 'POST' });
+      setReconcile({ ...result, committed: true });
+      await loadSchools();
+    } catch (err: any) {
+      setError(err.message || 'Unable to backfill trial subscriptions');
+    } finally {
+      setReconcileBusy(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -186,9 +217,14 @@ export default function SuperAdminSchools() {
           </h1>
           <p className="text-warm-500 font-medium mt-1">Global registry of educational institutions.</p>
         </div>
-        <Button onClick={() => { setProvisionOpen(true); setTempPassword(''); }} leftIcon={<Plus size={18} />}>
-          Provision School
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={previewReconciliation} disabled={reconcileBusy} leftIcon={<RotateCcw size={18} />}>
+            Reconcile Trials
+          </Button>
+          <Button onClick={() => { setProvisionOpen(true); setTempPassword(''); }} leftIcon={<Plus size={18} />}>
+            Provision School
+          </Button>
+        </div>
       </div>
 
       {error && <div className="rounded-xl border border-danger-200 bg-danger-50 px-4 py-3 text-sm font-semibold text-danger-700">{error}</div>}
@@ -393,6 +429,72 @@ export default function SuperAdminSchools() {
             </div>
           </div>
         )}
+      </Modal>
+
+      <Modal
+        isOpen={Boolean(reconcile)}
+        onClose={() => setReconcile(null)}
+        title={reconcile?.committed ? 'Trial reconciliation result' : 'Trial subscriptions to reconcile'}
+        size="md"
+        footerActions={
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => setReconcile(null)}>Close</Button>
+            {!reconcile?.committed && reconcile?.candidates > 0 && (
+              <Button onClick={commitReconciliation} disabled={reconcileBusy}>
+                Create {reconcile.candidates} subscription{reconcile.candidates === 1 ? '' : 's'}
+              </Button>
+            )}
+          </div>
+        }
+      >
+        <div className="space-y-4">
+          <p className="text-sm font-medium text-warm-600">
+            Schools marked TRIAL that own no subscription record. Each one is placed on the current
+            active trial plan, exactly as a newly approved school would be, and the action is audited.
+          </p>
+
+          {reconcile?.committed ? (
+            <div className="rounded-xl border border-forest-200 bg-forest-50 px-4 py-3 text-sm font-semibold text-forest-800">
+              {reconcile.granted} created, {reconcile.skipped} skipped.
+            </div>
+          ) : (
+            <div className="rounded-xl border border-warm-200 bg-ivory-50 px-4 py-3 text-sm font-semibold text-warm-700">
+              {reconcile?.candidates ?? 0} school(s) pending a subscription
+            </div>
+          )}
+
+          {Array.isArray(reconcile?.schools) && reconcile.schools.length > 0 && (
+            <div className="max-h-64 overflow-y-auto rounded-xl border border-warm-200 divide-y divide-warm-100">
+              {reconcile.schools.map((s: any) => (
+                <div key={s.id} className="px-3 py-2 flex items-center justify-between gap-3 text-sm">
+                  <span className="font-semibold text-warm-800 truncate">{s.name}</span>
+                  <span className="text-warm-500 shrink-0">{s.code}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {Array.isArray(reconcile?.skippedReasons) && reconcile.skippedReasons.length > 0 && (
+            <div className="rounded-xl border border-warning-200 bg-warning-50 px-4 py-3 text-sm text-warning-800 space-y-1">
+              <p className="font-semibold">Skipped:</p>
+              {reconcile.skippedReasons.map((s: any) => (
+                <p key={s.schoolId} className="font-medium">{s.reason} — {s.schoolId}</p>
+              ))}
+            </div>
+          )}
+
+          {reconcile?.activeWithoutSubscription > 0 && (
+            <p className="text-sm font-medium text-warm-600">
+              {reconcile.activeWithoutSubscription} ACTIVE school(s) also have no subscription. These are
+              deliberately not created automatically — a billing record would imply a payment that was never
+              verified. Assign a plan from the school detail page instead.
+            </p>
+          )}
+
+          {!reconcile?.committed && reconcile?.candidates === 0 && (
+            <p className="text-sm font-medium text-forest-700">Nothing to reconcile — every trial school has a subscription.</p>
+          )}
+        </div>
       </Modal>
     </div>
   );

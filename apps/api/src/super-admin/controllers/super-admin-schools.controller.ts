@@ -62,6 +62,23 @@ export class SuperAdminSchoolsController {
     return this.superAdminService.provisionSchool(dto, user.id);
   }
 
+  /**
+   * Repairs tenants that predate the approval->trial wiring. Defaults to a
+   * dry run so an operator always sees the affected schools before anything
+   * is written; ?dryRun=false is the explicit commit.
+   */
+  @Post('backfill-subscriptions')
+  @Roles(...PLATFORM_OPERATOR_ROLES)
+  backfillSubscriptions(
+    @Query('dryRun') dryRun: string | undefined,
+    @CurrentUser() user: any,
+  ) {
+    return this.superAdminService.backfillTrialSubscriptions(
+      user.id,
+      dryRun !== 'false',
+    );
+  }
+
   @Get(':id')
   getSchoolDetail(@Param('id') id: string) {
     return this.superAdminService.getSchoolDetail(id);

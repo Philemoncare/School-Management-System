@@ -48,6 +48,7 @@ for (const file of tsFiles(API_SRC)) {
   const classHead = src.slice(0, src.lastIndexOf('@Controller'));
   const controllerCtx = classHead.slice(Math.max(0, classHead.lastIndexOf('@Injectable')));
   const classRoles = [...controllerCtx.matchAll(/@Roles\(([^)]*)\)/g)].map((m) => m[1]);
+  const classGuardText = [...controllerCtx.matchAll(/@UseGuards\(([\s\S]*?)\)/g)].map((m) => m[1]).join(',');
   const classGuarded = /@UseGuards\(/.test(controllerCtx);
   const classPublic = /@Public\(\)/.test(controllerCtx);
 
@@ -60,10 +61,11 @@ for (const file of tsFiles(API_SRC)) {
     const verbMatch = block.match(/@(Get|Post|Patch|Put|Delete)\(\s*(?:\{\s*)?(?:path:\s*)?['"]([^'"]*)['"]?/);
     const bareVerb = !verbMatch && block.match(/@(Get|Post|Patch|Put|Delete)\(\s*\)/);
     if (!verbMatch && !bareVerb) continue;
-    const verb = VERBS[(verbMatch?.[1] ?? bareVerb?.[1]).toUpperCase()];
+    const verb = (verbMatch?.[1] ?? bareVerb?.[1]).toUpperCase();
     const path = verbMatch?.[2] ?? '';
     const full = [GLOBAL_PREFIX, prefix, path].filter(Boolean).join('/').replace(/\/+/g, '/');
     const roles = [...block.matchAll(/@Roles\(([^)]*)\)/g)].map((r) => r[1]);
+    const guardText = [...block.matchAll(/@UseGuards\(([\s\S]*?)\)/g)].map((x) => x[1]).join(',') || classGuardText;
     routes.push({
       key: `${verb} /${full}`,
       verb,
@@ -71,6 +73,10 @@ for (const file of tsFiles(API_SRC)) {
       file: relative('..', file).replace(/\\/g, '/'),
       handler: m[2],
       roles: roles.length ? roles.join(',') : classRoles.join(','),
+      // RolesGuard is NOT registered as an APP_GUARD in this app, so a route can
+      // carry @Roles(...) and still let any authenticated user through. That
+      // combination is the dangerous one and is reported as inert roles.
+      rolesEnforced: /RolesGuard/.test(guardText),
       guarded: /@UseGuards\(/.test(block) || classGuarded,
       public: /@Public\(\)/.test(block) || classPublic,
     });
@@ -86,7 +92,8 @@ const norm = (p) =>
     .replace(/\$\{[^}]*\}/g, ':p')
     .replace(/:[A-Za-z_][\w-]*/g, ':p')
     .replace(/^\//, '')
-    .replace(/\/+$/, '')
+    .replace(/\/+/g, '/')
+    .replace(/\/$/, '')
     .split('?')[0];
 
 const routeSet = new Map(routes.map((r) => [`${r.verb} ${norm(r.path)}`, r]));
@@ -118,7 +125,9 @@ for (const file of pages) {
     const verb = (verbMatch?.[1] ?? 'GET').toUpperCase();
     const path = rawPath.replace(/^\//, '');
     const line = src.slice(0, m.index).split('\n').length;
-    const hit = routeSet.get(`${verb} ${norm(path)}`);
+    // apiFetch prefixes the base URL, which already carries the global route
+    // prefix, so a page calling '/super-admin/plans' really hits /api/v1/...
+    const hit = routeSet.get(`${verb} ${norm(`${GLOBAL_PREFIX}/${path}`)}`);
     const rec = { rel, line, call: `${verb} /${path}`, file: rel };
     if (!hit) dead.push(rec);
     else {
@@ -136,6 +145,11 @@ for (const file of pages) {
 // ---------------------------------------------------------------------------
 
 console.log(`backend routes: ${routes.length}`);
+if (process.argv[2] === 'dump') {
+  for (const r of routes.filter((x) => x.file.includes('super-admin')).slice(0, 12)) {
+    console.log(`  key=${JSON.stringify(`${r.verb} ${norm(r.path)}`)} raw=${JSON.stringify(r.path)}`);
+  }
+}
 console.log(`frontend calls matched: ${live.length}, unmatched: ${dead.length}\n`);
 
 console.log('=== DEAD ACTIONS (frontend calls with no matching API route) ===');
@@ -156,13 +170,24 @@ for (const u of untrustedMethod) {
   console.log(`  ${u.route}  ->  ${u.file.split('/').pop()}:${u.line}  guarded=${u.guarded} roles=${u.roles || 'NONE'}`);
 }
 
+console.log('\n=== PLATFORM ROUTES WITH WEAK OR MISSING AUTHZ METADATA ===');
+const platform = routes.filter((r) => /^api\/v1\/(super-admin|dev-mode)\//.test(r.path));
+const inert = platform.filter((r) => r.roles && !r.rolesEnforced);
+const noRoles = platform.filter((r) => !r.roles);
+const flaggedPublic = platform.filter((r) => r.public);
+console.log(`  platform routes: ${platform.length}`);
+console.log(`  @Roles present but RolesGuard NOT applied (any signed-in user passes): ${inert.length}`);
+for (const r of inert) console.log(`    ${r.key}  roles=${r.roles}  (${r.file.split('/').pop()} :: ${r.handler})`);
+console.log(`  no @Roles at all (any authenticated user passes): ${noRoles.length}`);
+for (const r of noRoles) console.log(`    ${r.key}  (${r.file.split('/').pop()} :: ${r.handler})`);
+console.log(`  marked @Public: ${flaggedPublic.length}`);
+for (const r of flaggedPublic) console.log(`    ${r.key}  (${r.file.split('/').pop()} :: ${r.handler})`);
+
 console.log('\n=== SUPER-ADMIN ROUTES NEVER CALLED FROM (platform) PAGES ===');
-const usedKeys = new Set(live.map((l) => `${l.route.verb ?? ''}`));
-const calledNorm = new Set(live.map((l) => l.call));
+const calledNorm = new Set(live.map((l) => norm(`${GLOBAL_PREFIX}/${l.call.split(' ')[1]}`)));
 for (const r of routes) {
   const n = norm(r.path);
-  const seen = [...calledNorm].some((c) => c.endsWith(n.replace(/^api\/v1\//, '')));
-  if (!seen && /super-admin|launch-readiness|backups|support-access|maintenance/.test(r.path)) {
+  if (!calledNorm.has(n) && /super-admin|launch-readiness|backups|support-access|maintenance/.test(r.path)) {
     console.log(`  ${r.key}  (${r.file.split('/').pop()} :: ${r.handler})`);
   }
 }

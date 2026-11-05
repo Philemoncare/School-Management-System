@@ -478,18 +478,10 @@ export class AssignPlatformRoleDto {
   reason?: string;
 }
 
-export class TopUpSmsCreditDto {
-  @IsString()
-  schoolId: string;
-
-  @IsNumber()
-  @Min(0.01)
-  amount: number;
-
-  @IsString()
-  @MinLength(3)
-  reason: string;
-}
+// SMS credit grants are described once, by GrantSmsCreditsDto in
+// src/sms/dto/sms-package.dto. A second "amount" shaped DTO here used to let
+// callers mint an arbitrary number of credits, which is why the platform
+// duplicate was removed rather than extended.
 
 export class SmsCreditDto {
   @IsString()

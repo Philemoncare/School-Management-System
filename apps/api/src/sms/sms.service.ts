@@ -17,6 +17,16 @@ import {
   UpdateSmsPackageDto,
 } from './dto/sms-package.dto';
 
+/**
+ * Outcome of a guarded balance decrement. The failing branches carry the
+ * reason as the discriminant itself, so callers cannot read a balance field
+ * that does not exist on them.
+ */
+type CreditDeduction =
+  | { kind: 'deducted'; previousBalance: number; newBalance: number }
+  | { kind: 'school_not_found' }
+  | { kind: 'insufficient_balance' };
+
 @Injectable()
 export class SmsService {
   constructor(
@@ -285,62 +295,6 @@ export class SmsService {
     return purchase;
   }
 
-  async completeSmsCreditPurchase(
-    purchaseId: string,
-    actorId: string,
-  ) {
-    const purchase = await this.prisma.smsCreditPurchase.findUnique({
-      where: { id: purchaseId },
-      include: { school: true, package: true },
-    });
-    if (!purchase) throw new NotFoundException('SMS credit purchase not found');
-    if (purchase.status !== PurchaseStatus.PENDING) {
-      throw new BadRequestException(`Purchase is already ${purchase.status}`);
-    }
-
-    const updated = await this.prisma.$transaction(async (tx) => {
-      const result = await tx.smsCreditPurchase.update({
-        where: { id: purchaseId },
-        data: {
-          status: PurchaseStatus.COMPLETED,
-          completedAt: new Date(),
-        },
-        include: { package: true },
-      });
-
-      // Add credits to school balance
-      await tx.school.update({
-        where: { id: purchase.schoolId },
-        data: {
-          smsCreditBalance: {
-            increment: new Prisma.Decimal(purchase.credits),
-          },
-        },
-      });
-
-      await tx.auditLog.create({
-        data: {
-          userId: actorId,
-          schoolId: purchase.schoolId,
-          action: 'SMS_CREDIT_PURCHASE_COMPLETED',
-          module: 'SMS',
-          resourceId: purchaseId,
-          metadata: {
-            packageId: purchase.packageId,
-            packageName: purchase.package.name,
-            credits: purchase.credits,
-            amount: purchase.amount,
-            newBalance: Number(purchase.school.smsCreditBalance) + purchase.credits,
-          },
-        },
-      });
-
-      return result;
-    });
-
-    return updated;
-  }
-
   async cancelSmsCreditPurchase(
     purchaseId: string,
     actorId: string,
@@ -378,6 +332,76 @@ export class SmsService {
     });
 
     return updated;
+  }
+
+  /**
+   * Platform-wide SMS credit ledger: every grant and every school purchase.
+   *
+   * `status` is validated against the enum instead of being passed straight to
+   * Prisma, so a typo answers 400 rather than rendering an empty table that
+   * reads like "no transactions have happened".
+   */
+  async getSmsPurchaseLedger(params: {
+    status?: string;
+    schoolId?: string;
+    take?: number;
+  }) {
+    const take = Math.min(200, Math.max(1, params.take ?? 100));
+
+    let status: PurchaseStatus | undefined;
+    if (params.status) {
+      if (!(params.status in PurchaseStatus)) {
+        throw new BadRequestException(
+          `Unknown purchase status "${params.status}". Expected one of: ${Object.keys(PurchaseStatus).join(', ')}`,
+        );
+      }
+      status = params.status as PurchaseStatus;
+    }
+    if (params.schoolId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(params.schoolId)) {
+      throw new BadRequestException('schoolId is not a valid identifier');
+    }
+
+    const where: Prisma.SmsCreditPurchaseWhereInput = {
+      ...(status ? { status } : {}),
+      ...(params.schoolId ? { schoolId: params.schoolId } : {}),
+    };
+
+    const [rows, statusGroups] = await Promise.all([
+      this.prisma.smsCreditPurchase.findMany({
+        where,
+        orderBy: { purchasedAt: 'desc' },
+        take,
+        include: {
+          school: { select: { id: true, name: true, code: true } },
+          package: { select: { id: true, name: true, code: true } },
+        },
+      }),
+      this.prisma.smsCreditPurchase.groupBy({ by: ['status'], _count: { _all: true } }),
+    ]);
+
+    const statusCounts: Record<string, number> = {};
+    for (const group of statusGroups) statusCounts[group.status] = group._count._all;
+
+    return {
+      items: rows.map((purchase) => ({
+        id: purchase.id,
+        schoolId: purchase.school.id,
+        schoolName: purchase.school.name,
+        schoolCode: purchase.school.code,
+        packageCode: purchase.package.code,
+        packageName: purchase.package.name,
+        credits: purchase.credits,
+        amount: Number(purchase.amount),
+        currency: purchase.currency,
+        status: purchase.status,
+        provider: purchase.provider,
+        externalReference: purchase.externalReference,
+        purchasedAt: purchase.purchasedAt,
+        completedAt: purchase.completedAt,
+      })),
+      statusCounts,
+      awaitingConfirmation: statusCounts[PurchaseStatus.PENDING] || 0,
+    };
   }
 
   async getSchoolSmsPurchases(schoolId: string) {
@@ -433,60 +457,37 @@ export class SmsService {
     }));
   }
 
-  async deductSmsCredits(
+  /**
+   * Only entry point for taking credits out of a school's balance.
+   *
+   * The previous `deductSmsCredits` variant read the balance in one query and
+   * decremented it in another, so two concurrent broadcasts could both pass
+   * the "insufficient balance" check and drive the balance below zero. The
+   * guard now lives inside the UPDATE predicate, which means Postgres applies
+   * it while holding the row lock: if the balance moved under us the statement
+   * matches zero rows and we report insufficient funds instead of subtracting.
+   */
+  private async deductBalanceAtomically(
+    tx: Prisma.TransactionClient,
     schoolId: string,
     credits: number,
-    reason: string,
-    actorId?: string,
-  ) {
-    const school = await this.prisma.school.findUnique({
-      where: { id: schoolId },
-      select: { id: true, smsCreditBalance: true, name: true },
+  ): Promise<CreditDeduction> {
+    const guarded = await tx.school.updateMany({
+      where: { id: schoolId, smsCreditBalance: { gte: new Prisma.Decimal(credits) } },
+      data: { smsCreditBalance: { decrement: new Prisma.Decimal(credits) } },
     });
-    if (!school) throw new NotFoundException('School not found');
-
-    const currentBalance = Number(school.smsCreditBalance);
-    if (currentBalance < credits) {
-      throw new BadRequestException(
-        `Insufficient SMS credits. Current balance: ${currentBalance}, required: ${credits}`,
-      );
+    if (guarded.count === 0) {
+      const exists = await tx.school.count({ where: { id: schoolId } });
+      return { kind: exists ? 'insufficient_balance' : 'school_not_found' };
     }
-
-    const updated = await this.prisma.$transaction(async (tx) => {
-      const result = await tx.school.update({
-        where: { id: schoolId },
-        data: {
-          smsCreditBalance: {
-            decrement: new Prisma.Decimal(credits),
-          },
-        },
-      });
-
-      await tx.auditLog.create({
-        data: {
-          userId: actorId || 'system',
-          schoolId,
-          action: 'SMS_CREDIT_DEDUCTED',
-          module: 'SMS',
-          resourceId: schoolId,
-          metadata: {
-            previousBalance: currentBalance,
-            creditsDeducted: credits,
-            newBalance: Number(result.smsCreditBalance),
-            reason,
-          },
-        },
-      });
-
-      return result;
+    const row = await tx.school.findUniqueOrThrow({
+      where: { id: schoolId },
+      select: { smsCreditBalance: true },
     });
-
-    return {
-      schoolId: updated.id,
-      previousBalance: currentBalance,
-      creditsDeducted: credits,
-      newBalance: Number(updated.smsCreditBalance),
-    };
+    const newBalance = Number(row.smsCreditBalance);
+    // Derived rather than pre-read: the decrement already happened under the
+    // row lock, so this is the exact balance this operation started from.
+    return { kind: 'deducted', previousBalance: newBalance + credits, newBalance };
   }
 
   /**
@@ -513,25 +514,11 @@ export class SmsService {
     }
 
     return this.prisma.$transaction(async (tx) => {
-      // Row lock via SELECT ... FOR UPDATE so two concurrent deliveries for the
-      // same school cannot both pass the balance check.
-      const rows = await tx.$queryRaw<Array<{ sms_credit_balance: any }>>`
-        SELECT "sms_credit_balance" FROM "schools" WHERE "id" = ${schoolId}::uuid FOR UPDATE
-      `;
-      if (!rows.length) {
-        return { charged: false, reason: 'school_not_found', credits };
+      const deducted = await this.deductBalanceAtomically(tx, schoolId, credits);
+      if (deducted.kind !== 'deducted') {
+        return { charged: false, reason: deducted.kind, credits };
       }
-      const currentBalance = Number(rows[0].sms_credit_balance);
-      if (currentBalance < credits) {
-        return { charged: false, reason: 'insufficient_balance', credits };
-      }
-
-      const updated = await tx.school.update({
-        where: { id: schoolId },
-        data: { smsCreditBalance: { decrement: new Prisma.Decimal(credits) } },
-        select: { smsCreditBalance: true },
-      });
-      const newBalance = Number(updated.smsCreditBalance);
+      const { previousBalance: currentBalance, newBalance } = deducted;
 
       await tx.notificationDelivery.update({
         where: { id: deliveryId },
@@ -571,54 +558,179 @@ export class SmsService {
     });
   }
 
-  async topUpSmsCredits(
+  /**
+   * Platform-side credit allocation: Super Admin grants a school a package.
+   *
+   * Two defects in the previous `topUpSmsCredits` are closed here:
+   *  - the credit count came from whatever the caller typed, so a typo minted
+   *    credits out of thin air. The amount now comes from the package record
+   *    and a caller cannot inflate a grant.
+   *  - no `SmsCreditPurchase` row was written, so "SMS transaction history"
+   *    had nothing to list and a grant survived only as an audit entry. Every
+   *    grant is now a ledger row.
+   *
+   * `status: COMPLETED` means "the platform delivered these credits"; it is not
+   * a claim that money was received. `provider: 'platform'` distinguishes an
+   * internal allocation from a payment-provider purchase.
+   */
+  async grantSmsCredits(
     schoolId: string,
-    credits: number,
-    reason: string,
+    packageId: string,
+    reason: string | undefined,
     actorId: string,
   ) {
     const school = await this.prisma.school.findUnique({
       where: { id: schoolId },
+      select: { id: true, name: true, smsCreditBalance: true },
     });
     if (!school) throw new NotFoundException('School not found');
 
-    const previousBalance = Number(school.smsCreditBalance);
+    const pkg = await this.prisma.smsPackage.findUnique({ where: { id: packageId } });
+    if (!pkg) throw new NotFoundException('SMS package not found');
+    if (pkg.status !== SmsPackageStatus.ACTIVE) {
+      throw new BadRequestException(
+        `Cannot grant credits from the ${pkg.status.toLowerCase()} package "${pkg.name}"`,
+      );
+    }
 
-    const updated = await this.prisma.$transaction(async (tx) => {
-      const result = await tx.school.update({
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.school.update({
         where: { id: schoolId },
+        data: { smsCreditBalance: { increment: new Prisma.Decimal(pkg.credits) } },
+        select: { id: true, name: true, smsCreditBalance: true },
+      });
+      const newBalance = Number(updated.smsCreditBalance);
+      // Derived after the increment, so it is the true pre-grant balance even
+      // if another transaction moved the balance in the meantime.
+      const previousBalance = newBalance - pkg.credits;
+
+      const purchase = await tx.smsCreditPurchase.create({
         data: {
-          smsCreditBalance: {
-            increment: new Prisma.Decimal(credits),
-          },
+          schoolId,
+          packageId: pkg.id,
+          credits: pkg.credits,
+          amount: pkg.price,
+          currency: pkg.currency,
+          status: PurchaseStatus.COMPLETED,
+          provider: 'platform',
+          completedAt: new Date(),
         },
+        include: { package: { select: { id: true, name: true, code: true } } },
       });
 
       await tx.auditLog.create({
         data: {
           userId: actorId,
           schoolId,
-          action: 'SMS_CREDIT_TOPUP',
+          action: 'SMS_CREDIT_GRANTED',
           module: 'SMS',
-          resourceId: schoolId,
+          resourceId: purchase.id,
           metadata: {
+            packageId: pkg.id,
+            packageCode: pkg.code,
+            credits: pkg.credits,
             previousBalance,
-            creditsAdded: credits,
-            newBalance: Number(result.smsCreditBalance),
-            reason,
+            newBalance,
+            reason: reason || null,
           },
         },
       });
 
-      return result;
+      return {
+        schoolId: updated.id,
+        schoolName: updated.name,
+        purchaseId: purchase.id,
+        packageCode: purchase.package.code,
+        packageName: purchase.package.name,
+        creditsAdded: pkg.credits,
+        previousBalance,
+        newBalance,
+      };
     });
+  }
 
-    return {
-      schoolId: updated.id,
-      schoolName: updated.name,
-      previousBalance,
-      creditsAdded: credits,
-      newBalance: Number(updated.smsCreditBalance),
-    };
+  /**
+   * Confirms that payment for a school-initiated credit purchase has actually
+   * been received, then delivers the credits.
+   *
+   * This replaces `completeSmsCreditPurchase`, which was reachable as
+   * `POST /school/sms/purchases/:id/complete` under `@Roles('SCHOOL_ADMIN')`:
+   * any school administrator could create a pending purchase and complete it
+   * themselves, receiving paid credits for nothing. Confirmation is a platform
+   * action now and requires the payment reference that makes it auditable.
+   *
+   * The status transition is guarded inside the UPDATE, so two simultaneous
+   * confirmations cannot both deliver the same credits.
+   */
+  async confirmSmsCreditPurchase(
+    purchaseId: string,
+    actorId: string,
+    reference: string,
+    note?: string,
+  ) {
+    const purchase = await this.prisma.smsCreditPurchase.findUnique({
+      where: { id: purchaseId },
+      include: {
+        school: { select: { id: true, name: true } },
+        package: { select: { id: true, name: true, code: true } },
+      },
+    });
+    if (!purchase) throw new NotFoundException('SMS credit purchase not found');
+    if (purchase.status === PurchaseStatus.COMPLETED) {
+      throw new ConflictException('These credits have already been delivered');
+    }
+    if (purchase.status !== PurchaseStatus.PENDING) {
+      throw new BadRequestException(
+        `Only pending purchases can be confirmed; this one is ${purchase.status.toLowerCase()}`,
+      );
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const claimed = await tx.smsCreditPurchase.updateMany({
+        where: { id: purchaseId, status: PurchaseStatus.PENDING },
+        data: {
+          status: PurchaseStatus.COMPLETED,
+          completedAt: new Date(),
+          externalReference: reference,
+        },
+      });
+      if (claimed.count === 0) {
+        throw new ConflictException('These credits have already been delivered');
+      }
+
+      const schoolRow = await tx.school.update({
+        where: { id: purchase.schoolId },
+        data: { smsCreditBalance: { increment: new Prisma.Decimal(purchase.credits) } },
+        select: { smsCreditBalance: true },
+      });
+      const newBalance = Number(schoolRow.smsCreditBalance);
+
+      await tx.auditLog.create({
+        data: {
+          userId: actorId,
+          schoolId: purchase.schoolId,
+          action: 'SMS_CREDIT_PURCHASE_CONFIRMED',
+          module: 'SMS',
+          resourceId: purchaseId,
+          metadata: {
+            packageCode: purchase.package.code,
+            credits: purchase.credits,
+            amount: purchase.amount,
+            currency: purchase.currency,
+            paymentReference: reference,
+            note: note || null,
+            newBalance,
+          },
+        },
+      });
+
+      return tx.smsCreditPurchase.findUniqueOrThrow({
+        where: { id: purchaseId },
+        include: {
+          package: { select: { id: true, name: true, code: true } },
+          school: { select: { id: true, name: true } },
+        },
+      });
+    });
   }
 }

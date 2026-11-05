@@ -2,7 +2,8 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { EmailProvider } from '../communication/providers/email.provider';
-import { TopUpSmsCreditDto } from './dto/super-admin.dto';
+import { SmsService } from '../sms/sms.service';
+import { GrantSmsCreditsDto } from '../sms/dto/sms-package.dto';
 import {
   AnnouncementStatus,
   BillingInterval,
@@ -14,6 +15,7 @@ import {
   NotificationStatus,
   PlatformInvoiceStatus,
   PlatformPaymentStatus,
+  PlanStatus,
   Prisma,
   SchoolStatus,
   SecuritySeverity,
@@ -51,12 +53,24 @@ const SCHOOL_STATUS_FLOW: Record<SchoolStatus, SchoolStatus[]> = {
 
 type SettingsWithKeyValues = Array<{ key: string; value: Prisma.JsonValue }>;
 
+/**
+ * Outcome of a trial-grant attempt. Uses a string discriminant rather than a
+ * boolean flag on purpose: this project compiles the API with `strict: false`,
+ * so `strictNullChecks` is off and a `{ ok: true } | { ok: false }` union does
+ * not narrow at the call site - reading `.reason` on the failure branch is a
+ * compile error. String literals narrow correctly regardless.
+ */
+export type TrialGrantOutcome =
+  | { kind: 'granted'; subscription: any }
+  | { kind: 'not_granted'; reason: string };
+
 @Injectable()
 export class SuperAdminService {
   constructor(
     private prisma: PrismaService,
     private audit: AuditService,
     private emailProvider: EmailProvider,
+    private sms: SmsService,
   ) {}
 
   private number(value: Prisma.Decimal | number | string | null | undefined) {
@@ -647,6 +661,91 @@ export class SuperAdminService {
     return updated;
   }
 
+  /**
+   * Billing start state for a school that has just been approved.
+   *
+   * Approval used to flip `School.status` and nothing else, so
+   * `school_subscriptions` stayed empty forever and every revenue, MRR,
+   * subscription and expiry figure on the platform dashboards was permanently
+   * zero no matter how many schools came through registration.
+   *
+   * The trial plan is resolved from the live catalogue (ACTIVE plans that
+   * declare `trialDays > 0`, lowest `displayOrder` first) instead of a
+   * hardcoded plan id, so renaming or re-ordering plans in Super Admin keeps
+   * working. Idempotent: a school that already carries a subscription is left
+   * untouched, which makes a repeated approve/reactivate safe.
+   *
+   * Returns the outcome rather than throwing: a billing configuration gap must
+   * not block a school from being activated, but the caller gets the reason so
+   * it can be surfaced instead of silently swallowed.
+   */
+  private async grantTrialSubscription(
+    tx: Prisma.TransactionClient,
+    schoolId: string,
+    actorId: string,
+  ): Promise<TrialGrantOutcome> {
+    const existing = await tx.schoolSubscription.findUnique({
+      where: { schoolId },
+      include: { plan: { select: { id: true, name: true, code: true } } },
+    });
+    if (existing) {
+      return { kind: 'not_granted', reason: `already_on_${existing.plan.code.toLowerCase()}` };
+    }
+
+    const plan = await tx.subscriptionPlan.findFirst({
+      where: { status: PlanStatus.ACTIVE, trialDays: { gt: 0 } },
+      include: { pricing: { where: { isActive: true } } },
+      orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],
+    });
+    if (!plan) return { kind: 'not_granted', reason: 'no_active_trial_plan' };
+
+    const pricing = plan.pricing[0];
+    if (!pricing) return { kind: 'not_granted', reason: `plan_${plan.code}_has_no_active_pricing` };
+
+    const now = new Date();
+    const trialEnd = new Date(now);
+    trialEnd.setDate(trialEnd.getDate() + plan.trialDays);
+    const periodEnd = new Date(now);
+    periodEnd.setMonth(periodEnd.getMonth() + this.intervalMonths(pricing.interval));
+
+    const subscription = await tx.schoolSubscription.create({
+      data: {
+        schoolId,
+        planId: plan.id,
+        pricingId: pricing.id,
+        status: SubscriptionStatus.TRIALING,
+        startDate: now,
+        trialStart: now,
+        trialEnd,
+        currentPeriodStart: now,
+        currentPeriodEnd: periodEnd,
+      },
+      include: { plan: { select: { id: true, name: true, code: true } }, pricing: true },
+    });
+
+    await this.audit.log(
+      {
+        userId: actorId,
+        schoolId,
+        action: 'SUBSCRIPTION_TRIAL_GRANTED',
+        module: 'BILLING',
+        resourceId: subscription.id,
+        metadata: {
+          planId: plan.id,
+          planCode: plan.code,
+          pricingId: pricing.id,
+          interval: pricing.interval,
+          trialDays: plan.trialDays,
+          trialEnd,
+          triggeredBy: 'SCHOOL_APPROVAL',
+        },
+      },
+      tx,
+    );
+
+    return { kind: 'granted', subscription };
+  }
+
   async updateSchoolStatus(schoolId: string, status: SchoolStatus, actorId: string, reason?: string) {
     const school = await this.prisma.school.findUnique({ where: { id: schoolId } });
     if (!school) throw new NotFoundException('School not found');
@@ -672,6 +771,8 @@ export class SuperAdminService {
       PENDING: 'SCHOOL_RETURNED_TO_PENDING',
     };
 
+    const isApproval = actionMap[status] === 'SCHOOL_APPROVED';
+
     return this.prisma.$transaction(async (tx) => {
       const updated = await tx.school.update({ where: { id: schoolId }, data: { status } });
       await this.audit.log(
@@ -685,8 +786,94 @@ export class SuperAdminService {
         },
         tx,
       );
-      return updated;
+      if (!isApproval) return updated;
+
+      // Approval is also the point where a tenant enters billing. Without this
+      // the subscription table never fills and the whole billing pipeline reads
+      // as broken even though every endpoint answered correctly.
+      const trialGrant = await this.grantTrialSubscription(tx, schoolId, actorId);
+      return { ...updated, trialGrant };
     });
+  }
+
+  /**
+   * Repairs the historical gap left before approval started granting trials:
+   * tenants parked in TRIAL that own no SchoolSubscription row. Those schools
+   * made every billing surface read as empty even though the endpoints were
+   * answering correctly.
+   *
+   * Deliberately reuses grantTrialSubscription rather than writing rows here,
+   * so a backfilled school gets exactly what a newly approved school gets
+   * (same plan resolution, same dates, same audit action) and the operation
+   * stays idempotent - running it twice grants nothing the second time.
+   *
+   * Only TRIAL tenants are touched. An ACTIVE school with no subscription is
+   * reported, not silently given a paid plan - creating a billing record for a
+   * payment that never happened would be fabrication.
+   */
+  async backfillTrialSubscriptions(actorId: string, dryRun = false) {
+    const orphans = await this.prisma.school.findMany({
+      where: { status: SchoolStatus.TRIAL, subscription: { is: null } },
+      select: { id: true, name: true, code: true, createdAt: true },
+      orderBy: { createdAt: 'asc' },
+    });
+    const activeWithoutSubscription = await this.prisma.school.count({
+      where: { status: SchoolStatus.ACTIVE, subscription: { is: null } },
+    });
+
+    if (dryRun) {
+      return {
+        dryRun: true,
+        candidates: orphans.length,
+        schools: orphans,
+        activeWithoutSubscription,
+      };
+    }
+
+    const granted: Array<{ schoolId: string; planCode: string; trialEnd: Date | null }> = [];
+    const skipped: Array<{ schoolId: string; reason: string }> = [];
+
+    for (const school of orphans) {
+      // One transaction per school: a failure on tenant 7 must not roll back
+      // the six tenants that already succeeded.
+      const outcome = await this.prisma.$transaction((tx) =>
+        this.grantTrialSubscription(tx, school.id, actorId),
+      );
+      if (outcome.kind === 'granted') {
+        granted.push({
+          schoolId: school.id,
+          planCode: outcome.subscription.plan?.code,
+          trialEnd: outcome.subscription.trialEnd,
+        });
+      } else {
+        skipped.push({ schoolId: school.id, reason: outcome.reason });
+      }
+    }
+
+    if (granted.length) {
+      await this.audit.log({
+        userId: actorId,
+        action: 'SUBSCRIPTION_TRIAL_BACKFILLED',
+        module: 'BILLING',
+        metadata: {
+          candidates: orphans.length,
+          granted: granted.length,
+          skipped: skipped.length,
+          grantedSchoolIds: granted.map((g) => g.schoolId),
+          skipReasons: Array.from(new Set(skipped.map((s) => s.reason))),
+        },
+      });
+    }
+
+    return {
+      dryRun: false,
+      candidates: orphans.length,
+      granted: granted.length,
+      skipped: skipped.length,
+      activeWithoutSubscription,
+      results: granted,
+      skippedReasons: skipped,
+    };
   }
 
   async assignSubscription(
@@ -1893,101 +2080,18 @@ export class SuperAdminService {
     };
   }
 
-  async topUpSmsCredit(dto: TopUpSmsCreditDto, actorId: string) {
-    const school = await this.prisma.school.findUnique({
-      where: { id: dto.schoolId },
-    });
-    if (!school) throw new NotFoundException('School not found');
-
-    const previousBalance = Number(school.smsCreditBalance);
-
-    const updated = await this.prisma.$transaction(async (tx) => {
-      const updatedSchool = await tx.school.update({
-        where: { id: dto.schoolId },
-        data: {
-          smsCreditBalance: {
-            increment: new Prisma.Decimal(dto.amount),
-          },
-        },
-      });
-
-      await tx.auditLog.create({
-        data: {
-          userId: actorId,
-          schoolId: dto.schoolId,
-          action: 'SMS_CREDIT_TOPUP',
-          module: 'BILLING',
-          resourceId: dto.schoolId,
-          metadata: {
-            previousBalance,
-            amountAdded: dto.amount,
-            newBalance: Number(updatedSchool.smsCreditBalance),
-            reason: dto.reason,
-          },
-        },
-      });
-
-      return updatedSchool;
-    });
-
-    return {
-      schoolId: updated.id,
-      schoolName: updated.name,
-      previousBalance,
-      amountAdded: dto.amount,
-      newBalance: Number(updated.smsCreditBalance),
-    };
+  /**
+   * Platform credit grant. Delegated to SmsService, which owns the credit
+   * ledger, so there is exactly one implementation that writes balances and
+   * `SmsCreditPurchase` rows. Super Admin keeps control of who may call it via
+   * the PLATFORM_SUPER_ROLES guard on the route.
+   */
+  async topUpSmsCredit(dto: GrantSmsCreditsDto, actorId: string) {
+    return this.sms.grantSmsCredits(dto.schoolId, dto.packageId, dto.reason, actorId);
   }
 
-  async deductSmsCredit(schoolId: string, amount: number, reason: string) {
-    const school = await this.prisma.school.findUnique({
-      where: { id: schoolId },
-      select: { id: true, name: true, smsCreditBalance: true, currency: true },
-    });
-    if (!school) throw new NotFoundException('School not found');
-
-    const currentBalance = Number(school.smsCreditBalance);
-    if (currentBalance < amount) {
-      throw new BadRequestException(
-        `Insufficient SMS credits. Current balance: ${currentBalance}, required: ${amount}`
-      );
-    }
-
-    const updated = await this.prisma.$transaction(async (tx) => {
-      const updatedSchool = await tx.school.update({
-        where: { id: schoolId },
-        data: {
-          smsCreditBalance: {
-            decrement: new Prisma.Decimal(amount),
-          },
-        },
-      });
-
-      await tx.auditLog.create({
-        data: {
-          userId: 'system',
-          schoolId,
-          action: 'SMS_CREDIT_DEDUCTED',
-          module: 'BILLING',
-          resourceId: schoolId,
-          metadata: {
-            previousBalance: currentBalance,
-            amountDeducted: amount,
-            newBalance: Number(updatedSchool.smsCreditBalance),
-            reason,
-          },
-        },
-      });
-
-      return updatedSchool;
-    });
-
-    return {
-      schoolId: updated.id,
-      previousBalance: currentBalance,
-      amountDeducted: amount,
-      newBalance: Number(updated.smsCreditBalance),
-    };
+  async getSmsPurchaseLedger(params: { status?: string; schoolId?: string; take?: number }) {
+    return this.sms.getSmsPurchaseLedger(params);
   }
 
   async getOperationsData() {
